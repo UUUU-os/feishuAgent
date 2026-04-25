@@ -119,7 +119,7 @@
   - `_resolve_storage_paths()`：把存储路径统一转为基于项目根目录的绝对路径
   - `load_settings()`：主入口，负责按顺序加载并返回 `Settings`
 - 当前已补充的飞书用户身份配置：
-  - `feishu.default_identity`：默认身份模式，支持 `tenant` / `user`
+  - `feishu.default_identity`：默认身份模式，支持 `tenant` / `user`，当前项目主链路默认使用 `user`
   - `feishu.redirect_uri`：预留给后续浏览器授权流程的回调地址配置
   - `feishu.user_oauth_scope`：默认 OAuth scope，使用空格分隔
   - `feishu.user_access_token`：手动注入的用户访问令牌
@@ -440,6 +440,7 @@
   - `scripts/calendar_live_test.py` 会真实调用 Python 版 `FeishuClient`
   - 脚本默认查询“当前时间起未来 24 小时”的日历事件
   - 如果你传入 `--calendar-id`、`--start-time`、`--end-time`，则按指定区间查询
+  - 如果你没有显式传入 `--identity`，脚本会自动使用 `feishu.default_identity`
   - 如果你传入 `--identity user`，则会改用通过 Device Flow 获取并缓存的用户 token 调用同一套飞书日历接口
   - 脚本会先鉴权，再调用飞书日历 `instance_view` 接口，最后把结果格式化打印出来
   - 如果鉴权失败、接口失败或查询为空，脚本会给出明确提示，帮助定位问题

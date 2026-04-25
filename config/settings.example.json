@@ -11,7 +11,7 @@
     "base_url": "https://open.feishu.cn/open-apis",
     "request_timeout_seconds": 20,
     "max_retries": 2,
-    "default_identity": "tenant",
+    "default_identity": "user",
     "redirect_uri": "",
     "user_oauth_scope": "calendar:calendar:read calendar:calendar.event:read offline_access",
     "user_access_token": "",

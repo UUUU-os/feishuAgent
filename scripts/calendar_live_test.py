@@ -68,9 +68,9 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--identity",
-        default="tenant",
+        default="",
         choices=["tenant", "user"],
-        help="请求所使用的飞书身份，tenant=应用身份，user=用户身份。",
+        help="请求所使用的飞书身份；不传时默认读取 feishu.default_identity。",
     )
     parser.add_argument(
         "--debug-calendar",
@@ -141,6 +141,8 @@ def main() -> int:
     settings = load_settings()
     configure_logging(settings.logging)
     logger = get_logger("meetflow.calendar.live_test")
+    # 如果命令行没有显式指定身份，就回退到配置中的默认身份。
+    identity = args.identity or settings.feishu.default_identity
 
     start_time, end_time = args.start_time, args.end_time
     if not start_time or not end_time:
@@ -152,15 +154,15 @@ def main() -> int:
         start_time,
         end_time,
     )
-    logger.info("当前使用的飞书身份=%s", args.identity)
+    logger.info("当前使用的飞书身份=%s", identity)
     logger.info("当前使用的日历后端=http")
     client = FeishuClient(settings.feishu)
 
     try:
         if args.debug_calendar:
-            primary_calendars = client.get_primary_calendars(identity=args.identity)
-            resolved_calendar_id = client.resolve_calendar_id(args.calendar_id, identity=args.identity)
-            resolved_calendar = client.get_calendar(resolved_calendar_id, identity=args.identity)
+            primary_calendars = client.get_primary_calendars(identity=identity)
+            resolved_calendar_id = client.resolve_calendar_id(args.calendar_id, identity=identity)
+            resolved_calendar = client.get_calendar(resolved_calendar_id, identity=identity)
             print(f"\n主日历接口返回 {len(primary_calendars)} 条记录\n")
             for index, calendar in enumerate(primary_calendars, start=1):
                 _print_calendar_info(f"主日历候选 #{index}", calendar)
@@ -173,7 +175,7 @@ def main() -> int:
             start_time=start_time,
             end_time=end_time,
             user_id_type=args.user_id_type or None,
-            identity=args.identity,
+            identity=identity,
         )
     except FeishuAuthError as error:
         logger.error("飞书鉴权失败：%s", error)
