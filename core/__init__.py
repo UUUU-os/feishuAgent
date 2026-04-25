@@ -10,12 +10,26 @@ from .logging import (
     log_workflow_event,
     reset_trace_id,
 )
-from .models import ActionItem, Event, EvidenceRef, MeetingSummary, Resource, RiskAlert, WorkflowResult
+from .models import (
+    ActionItem,
+    CalendarAttendee,
+    CalendarEvent,
+    CalendarInfo,
+    Event,
+    EvidenceRef,
+    MeetingSummary,
+    Resource,
+    RiskAlert,
+    WorkflowResult,
+)
 from .storage import MeetFlowStorage
 
 __all__ = [
     "AuditLogger",
     "ActionItem",
+    "CalendarAttendee",
+    "CalendarEvent",
+    "CalendarInfo",
     "Event",
     "EvidenceRef",
     "MeetFlowStorage",

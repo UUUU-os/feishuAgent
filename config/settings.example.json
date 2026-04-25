@@ -6,9 +6,18 @@
     "timezone": "Asia/Shanghai"
   },
   "feishu": {
-    "app_id": "cli_xxx",
-    "app_secret": "replace-with-env-or-local-file",
+    "app_id": "replace-with-your-app-id",
+    "app_secret": "replace-with-your-app-secret",
     "base_url": "https://open.feishu.cn/open-apis",
+    "request_timeout_seconds": 20,
+    "max_retries": 2,
+    "default_identity": "tenant",
+    "redirect_uri": "",
+    "user_oauth_scope": "calendar:calendar:read calendar:calendar.event:read offline_access",
+    "user_access_token": "",
+    "user_access_token_expires_at": 0,
+    "user_refresh_token": "",
+    "user_refresh_token_expires_at": 0,
     "bot_name": "MeetFlow Bot",
     "default_chat_id": ""
   },

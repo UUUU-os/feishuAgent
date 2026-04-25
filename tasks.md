@@ -118,12 +118,24 @@
   - `_resolve_config_path()`：决定本次加载哪个配置文件
   - `_resolve_storage_paths()`：把存储路径统一转为基于项目根目录的绝对路径
   - `load_settings()`：主入口，负责按顺序加载并返回 `Settings`
+- 当前已补充的飞书用户身份配置：
+  - `feishu.default_identity`：默认身份模式，支持 `tenant` / `user`
+  - `feishu.redirect_uri`：预留给后续浏览器授权流程的回调地址配置
+  - `feishu.user_oauth_scope`：默认 OAuth scope，使用空格分隔
+  - `feishu.user_access_token`：手动注入的用户访问令牌
+  - `feishu.user_access_token_expires_at`：用户访问令牌过期时间
+  - `feishu.user_refresh_token`：后续刷新用户令牌时使用
+  - `feishu.user_refresh_token_expires_at`：用户刷新令牌过期时间
 - 运行逻辑说明：
   - 第一步，先读取 `config/settings.example.json`，作为系统默认配置模板
   - 第二步，如果存在 `config/settings.local.json` 或调用时显式传入配置路径，就用它覆盖默认值
   - 第三步，再检查环境变量，如 `MEETFLOW_FEISHU_APP_ID`、`MEETFLOW_LOG_LEVEL`，并用环境变量做最高优先级覆盖
   - 第四步，把存储相关路径解析为绝对路径，避免从不同工作目录启动脚本时写错位置
   - 第五步，把最终结果转换为 `Settings` 及其子配置对象，后续代码统一通过对象属性取值，而不是手写字典 key
+- 这一步对后续飞书身份的意义：
+  - 当前配置系统已经不再只面向应用身份
+  - 后续既可以继续使用 `tenant_access_token`
+  - 也可以通过 `user_access_token` 支持用户身份 API 调用
 - 当前验证方式：
   - 已通过 `python3 -c "from config import load_settings; ..."` 验证默认配置可正常读取
   - 已通过设置 `MEETFLOW_LOG_LEVEL=DEBUG`、`MEETFLOW_FEISHU_APP_ID=cli_test` 验证环境变量覆盖生效
@@ -291,6 +303,89 @@
 - 验收标准：
   - 能成功调用至少一个飞书读取接口和一个写入接口
 
+#### T2.1 当前实现细节
+
+- 已创建文件：
+  - `adapters/feishu_client.py`
+  - `adapters/__init__.py`
+  - `scripts/feishu_client_demo.py`
+  - `scripts/oauth_device_login.py`
+  - `config/settings.example.json` 中已补充飞书客户端超时与重试配置
+  - `config/loader.py` 中已补充飞书客户端配置字段与环境变量映射
+  - `config/README.md` 中已补充相关环境变量说明
+- 已实现的核心类：
+  - `FeishuAPIError`：飞书接口通用异常，用于封装 HTTP 或业务错误
+  - `FeishuAuthError`：飞书鉴权异常
+  - `TokenCache`：访问令牌缓存对象，统一处理 tenant/user token 的有效期判断
+  - `FeishuClient`：飞书开放平台客户端，负责鉴权、请求发送、重试、OAuth Device Flow 与错误处理
+  - `OAuthTokenBundle`：统一承接用户身份 token 与 refresh token 的刷新结果
+  - `DeviceAuthorizationBundle`：统一承接 Device Flow 的 device_code、user_code 与验证链接
+- 已实现的核心函数：
+  - `get_access_token()`：按身份模式统一获取访问令牌
+  - `_build_url()`：把接口路径拼成完整飞书 API URL
+  - `_build_headers()`：构建请求头，并按 `tenant` / `user` 自动注入正确的 `Authorization`
+  - `get_tenant_access_token()`：调用飞书鉴权接口获取并缓存 `tenant_access_token`
+  - `get_user_access_token()`：优先读取本地用户 token，并在需要时自动触发 refresh token 刷新
+  - `refresh_user_access_token()`：用 `refresh_token` 刷新用户令牌
+  - `request_device_authorization()`：发起 Device Flow，获取 device_code 与验证链接
+  - `poll_device_token()`：轮询 token 接口，等待用户扫码或确认完成
+  - `get_current_user_info()`：使用用户 token 获取当前登录用户的 open_id 与 name
+  - `_parse_oauth_token_bundle()`：把 OAuth token 响应转换为统一结构
+  - `_parse_response_payload()`：统一解析 Device Flow 与 user_info 这类原始 HTTP 响应
+  - `_apply_user_oauth_bundle()`：把最新 token 结果应用到客户端缓存
+  - `get()`：统一封装 GET 请求
+  - `post()`：统一封装 POST 请求
+  - `_request()`：底层请求入口，统一处理重试、超时、状态码检查和业务 code 检查
+- 当前新增配置项：
+  - `feishu.request_timeout_seconds`：单次请求超时时间
+  - `feishu.max_retries`：网络异常、限流和部分 5xx 状态码下的最大重试次数
+  - `feishu.default_identity`：默认请求身份模式
+  - `feishu.user_oauth_scope`：默认 OAuth 授权 scope
+  - `feishu.user_access_token`：用户身份访问令牌
+  - `feishu.user_access_token_expires_at`：用户身份访问令牌过期时间
+  - `feishu.user_refresh_token`：用户身份刷新令牌
+  - `feishu.user_refresh_token_expires_at`：用户刷新令牌过期时间
+  - `feishu.redirect_uri`：预留给未来浏览器授权流程的回调地址
+- 运行逻辑说明：
+  - 第一步，业务代码通过 `load_settings()` 读取飞书配置，再创建 `FeishuClient(settings.feishu)`
+  - 第二步，当需要访问普通飞书接口时，调用 `get()` 或 `post()`，并可显式传入 `identity`
+  - 第三步，客户端会先通过 `_build_url()` 拼出完整接口地址
+  - 第四步，如果当前请求需要鉴权，客户端会根据 `identity` 决定取哪一种 token：
+    - `tenant`：调用 `get_tenant_access_token()`
+    - `user`：调用 `get_user_access_token()`
+  - 第五步，`user` 身份下如果本地 access token 已过期，但 refresh token 仍有效，则自动调用 `refresh_user_access_token()` 刷新
+  - 第六步，请求发送后，客户端会统一检查 HTTP 状态码；如果命中 `429` 或部分 `5xx`，会按重试次数自动重试
+  - 第七步，如果接口返回 JSON 中的 `code` 不为 `0`，会抛出 `FeishuAPIError`
+  - 第八步，成功时返回解析后的 JSON 字典，供后续文档读取、任务读取、消息发送等能力复用
+  - 第九步，如果用户还没有登录过，可以执行 `scripts/oauth_device_login.py`：
+    - 客户端先调用 `request_device_authorization()` 申请 `device_code`
+    - 脚本打印 `verification_uri_complete`
+    - 用户扫码或确认授权后，客户端通过 `poll_device_token()` 自动轮询拿到 token
+    - 最后调用 `get_current_user_info()` 校验用户身份，并把 token 写入本地配置
+- 当前演示脚本逻辑：
+  - `scripts/feishu_client_demo.py` 会先加载配置并初始化日志
+  - 然后创建 `FeishuClient`
+  - 脚本不会发真实请求，而是展示客户端初始化结果、鉴权接口 URL 和示例业务接口 URL
+  - `scripts/oauth_device_login.py` 会发起 Device Flow，打印验证链接，等待用户扫码或授权完成后自动写回用户令牌
+- 当前验证结果：
+  - 已验证 `FeishuClient` 可以正常初始化
+  - 已验证 `_build_url()` 能正确拼接飞书接口地址
+  - 已验证 `MEETFLOW_FEISHU_REQUEST_TIMEOUT_SECONDS` 和 `MEETFLOW_FEISHU_MAX_RETRIES` 的环境变量覆盖生效
+  - 已验证 `python3 scripts/feishu_client_demo.py` 可直接运行
+  - 已验证 `python3 scripts/oauth_device_login.py` 可直接完成用户扫码登录并写回本地 token
+- 当前双身份模式说明：
+  - 当前已经支持 `tenant` / `user` 两种身份模式
+  - 其中 `tenant` 模式可直接走应用身份鉴权
+  - `user` 模式的正式登录方案已经确定为纯 Python Device Flow：
+    - 申请 `device_code`
+    - 打印验证链接
+    - 自动轮询 token 接口
+    - 获取当前用户信息并写回本地配置
+  - Device Flow 轮询逻辑已针对飞书协议做兼容：
+    - 当 token 接口返回 `HTTP 400 + authorization_pending` 时，不会当作真正错误退出
+    - 当返回 `slow_down` 时，会自动放慢轮询间隔
+    - 只有 `access_denied`、`expired_token` 等真正失败状态才会抛出异常
+
 ### T2.2 实现会议/日历读取能力
 
 - 优先级：`P0`
@@ -302,6 +397,79 @@
   - 会议描述
 - 验收标准：
   - 能拿到一条真实或模拟会议数据
+
+#### T2.2 当前实现细节
+
+- 已创建文件：
+  - `scripts/calendar_demo.py`
+  - `scripts/calendar_live_test.py`
+- 已更新文件：
+  - `adapters/feishu_client.py`
+  - `core/models.py`
+  - `core/__init__.py`
+- 已新增的核心类：
+  - `CalendarAttendee`：统一描述会议参与人
+  - `CalendarEvent`：统一描述会议/日历事件
+- 已实现的核心函数：
+  - `FeishuClient.get_primary_calendars()`：调用获取主日历接口，拿到真实日历信息列表
+  - `FeishuClient.resolve_calendar_id()`：当传入 `primary` 时，先解析出真实 `calendar_id`
+  - `FeishuClient.list_calendar_event_instances()`：调用飞书日历 `instance_view` 接口读取指定时间窗口内的日程
+  - `FeishuClient.to_calendar_event()`：把飞书原始日程对象转换为统一 `CalendarEvent`
+  - `FeishuClient.to_calendar_info()`：把“获取主日历”接口返回的原始对象转换为统一 `CalendarInfo`
+  - `FeishuClient._extract_event_time()`：统一提取飞书时间对象中的 `timestamp` 或 `date`
+  - `build_lark_cli_calendar_command()`：构造 `lark-cli calendar events instance_view` 调试命令
+  - `build_demo_calendar_event()`：使用模拟数据演示日历事件标准化过程
+- 运行逻辑说明：
+  - 第一步，业务代码创建 `FeishuClient(settings.feishu)`
+  - 第二步，当需要拉取会议数据时，调用 `list_calendar_event_instances(calendar_id, start_time, end_time)`
+  - 第三步，如果业务层传入的是 `primary`，客户端不会直接拿它查事件，而是先调用 `get_primary_calendars()`
+  - 第四步，客户端会从主日历返回结果里解析出真实的 `calendar_id`
+  - 第五步，再使用这个真实 `calendar_id` 请求飞书日历接口 `calendar/v4/calendars/{calendar_id}/events/instance_view`
+  - 第六步，接口返回的每个原始事件对象，会通过 `to_calendar_event()` 转换为统一的 `CalendarEvent`
+  - 第七步，在转换过程中，参与人列表会被进一步转换为 `CalendarAttendee`
+  - 第八步，最终业务层拿到的是统一结构的 `CalendarEvent[]`，而不是飞书原始 JSON，便于后续会前卡片直接使用
+- 当前 CLI 接入方式：
+  - 已确认可用命令为 `lark-cli calendar events instance_view`
+  - `scripts/calendar_demo.py` 中已经实现 `build_lark_cli_calendar_command()`，用于生成真实 CLI 调试命令
+  - 当前脚本默认使用 `--dry-run`，避免误调用真实飞书接口，同时方便理解请求结构
+- 当前演示脚本逻辑：
+  - 脚本先用模拟日程数据演示 `CalendarEvent` 的标准化过程
+  - 然后构造 `lark-cli calendar events instance_view` 的 dry-run 命令
+  - 最后输出 dry-run 结果，验证我们对飞书 CLI 参数的理解是正确的
+- 当前真实测试脚本逻辑：
+  - `scripts/calendar_live_test.py` 会真实调用 Python 版 `FeishuClient`
+  - 脚本默认查询“当前时间起未来 24 小时”的日历事件
+  - 如果你传入 `--calendar-id`、`--start-time`、`--end-time`，则按指定区间查询
+  - 如果你传入 `--identity user`，则会改用通过 Device Flow 获取并缓存的用户 token 调用同一套飞书日历接口
+  - 脚本会先鉴权，再调用飞书日历 `instance_view` 接口，最后把结果格式化打印出来
+  - 如果鉴权失败、接口失败或查询为空，脚本会给出明确提示，帮助定位问题
+- 当前验证结果：
+  - 已验证 `CalendarEvent` 和 `CalendarAttendee` 可正常实例化
+  - 已验证 `FeishuClient.to_calendar_event()` 能把原始日历数据转换为统一模型
+  - 已验证 `python3 scripts/calendar_demo.py` 可直接运行
+  - 已验证 `lark-cli calendar events instance_view --dry-run` 输出的请求路径为：
+    - `GET /open-apis/calendar/v4/calendars/primary/events/instance_view?...`
+  - 已验证 `python3 scripts/calendar_live_test.py --identity user --calendar-id primary --debug-calendar` 能真实返回用户主日历与会议事件
+  - 说明当前 Python 客户端已经可以独立完成用户身份日历读取，不再依赖临时桥接方案
+
+#### T2.1 / T2.2 排障总结
+
+- 之前失败时主要做了这些排查与修正：
+  - 发现最初使用的是 `tenant_access_token`，导致看到的是应用视角日历，而不是用户自己的主日历
+  - 发现 `calendar_id` 一度被重复放进 URL path 和 query 参数里，导致 `400 Bad Request`
+  - 发现不能直接把 `primary` 当作最终日历 ID，必须先调用主日历接口，再解析出真实 `calendar_id`
+  - 发现最初尝试的浏览器回调授权链路在本地开发环境中体验较差，拿 `code` 容易卡在回调地址处理上
+  - 发现 Device Flow 轮询时，`authorization_pending` 虽然返回 `HTTP 400`，但其实是协议中的正常状态，需要特殊兼容
+- 现在成功后最终保留的方案是：
+  - `T2.1`：`FeishuClient` 同时支持 `tenant` / `user` 两种身份
+  - `user` 登录统一使用 `scripts/oauth_device_login.py` 走 Device Flow
+  - 用户 token、refresh token 和过期时间写回本地配置，后续脚本自动复用
+  - `T2.2`：`calendar_live_test.py` 统一走 Python HTTP 客户端，不再依赖临时 CLI 桥接
+  - 日历查询链路固定为：
+    - 获取主日历
+    - 解析真实 `calendar_id`
+    - 调用 `events/instance_view`
+    - 转换为统一的 `CalendarEvent`
 
 ### T2.3 实现飞书文档读取能力
 
