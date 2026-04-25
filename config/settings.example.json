@@ -1,0 +1,43 @@
+{
+  "app": {
+    "name": "MeetFlow",
+    "env": "dev",
+    "debug": true,
+    "timezone": "Asia/Shanghai"
+  },
+  "feishu": {
+    "app_id": "cli_xxx",
+    "app_secret": "replace-with-env-or-local-file",
+    "base_url": "https://open.feishu.cn/open-apis",
+    "bot_name": "MeetFlow Bot",
+    "default_chat_id": ""
+  },
+  "llm": {
+    "provider": "openai-compatible",
+    "model": "gpt-4.1-mini",
+    "api_base": "",
+    "api_key": "replace-with-env-or-local-file",
+    "temperature": 0.2,
+    "max_tokens": 4000
+  },
+  "scheduler": {
+    "pre_meeting_minutes_before": 30,
+    "risk_scan_cron": "0 9 * * *",
+    "minute_retry_interval_minutes": 5,
+    "minute_retry_max_attempts": 6
+  },
+  "risk_rules": {
+    "stale_update_days": 3,
+    "due_soon_hours": 24,
+    "max_reminders_per_day": 1
+  },
+  "logging": {
+    "level": "INFO",
+    "json_format": false
+  },
+  "storage": {
+    "db_path": "storage/meetflow.sqlite",
+    "project_memory_dir": "storage/projects",
+    "audit_log_path": "storage/workflow_runs.jsonl"
+  }
+}

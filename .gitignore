@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+
+config/settings.local.json
+storage/*.sqlite
+storage/*.db
+storage/*.jsonl
+storage/projects/*.json
+storage/tmp/
