@@ -27,7 +27,8 @@
     "api_base": "",
     "api_key": "replace-with-env-or-local-file",
     "temperature": 0.2,
-    "max_tokens": 4000
+    "max_tokens": 4000,
+    "reasoning_effort": ""
   },
   "scheduler": {
     "pre_meeting_minutes_before": 30,
