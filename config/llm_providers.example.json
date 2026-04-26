@@ -1,0 +1,106 @@
+{
+  "active_provider": "deepseek",
+  "notes": {
+    "purpose": "这个文件是多厂商 LLM 配置模板。请复制为 config/llm_providers.local.json 后填写真实 key。",
+    "security": "不要把真实 api_key 提交到 Git。优先使用环境变量，或只写入本地 local 文件。",
+    "tool_name_rule": "暴露给 LLM 的工具名只能包含字母、数字、下划线和连字符，例如 calendar_list_events。"
+  },
+  "providers": {
+    "deepseek": {
+      "provider": "openai-compatible",
+      "display_name": "DeepSeek",
+      "api_base": "https://api.deepseek.com",
+      "api_key": "replace-with-your-deepseek-api-key",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "model": "deepseek-chat",
+      "temperature": 0.2,
+      "max_tokens": 4000,
+      "reasoning_effort": "",
+      "enabled": true
+    },
+    "openai": {
+      "provider": "openai-compatible",
+      "display_name": "OpenAI",
+      "api_base": "https://api.openai.com/v1",
+      "api_key": "replace-with-your-openai-api-key",
+      "api_key_env": "OPENAI_API_KEY",
+      "model": "gpt-4.1-mini",
+      "temperature": 0.2,
+      "max_tokens": 4000,
+      "reasoning_effort": "",
+      "enabled": false
+    },
+    "siliconflow": {
+      "provider": "openai-compatible",
+      "display_name": "SiliconFlow",
+      "api_base": "replace-with-siliconflow-openai-compatible-base-url",
+      "api_key": "replace-with-your-siliconflow-api-key",
+      "api_key_env": "SILICONFLOW_API_KEY",
+      "model": "replace-with-model-name",
+      "temperature": 0.2,
+      "max_tokens": 4000,
+      "reasoning_effort": "",
+      "enabled": false
+    },
+    "moonshot": {
+      "provider": "openai-compatible",
+      "display_name": "Moonshot",
+      "api_base": "replace-with-moonshot-openai-compatible-base-url",
+      "api_key": "replace-with-your-moonshot-api-key",
+      "api_key_env": "MOONSHOT_API_KEY",
+      "model": "replace-with-model-name",
+      "temperature": 0.2,
+      "max_tokens": 4000,
+      "reasoning_effort": "",
+      "enabled": false
+    },
+    "qwen_dashscope": {
+      "provider": "openai-compatible",
+      "display_name": "Qwen DashScope",
+      "api_base": "replace-with-qwen-openai-compatible-base-url",
+      "api_key": "replace-with-your-dashscope-api-key",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "model": "replace-with-model-name",
+      "temperature": 0.2,
+      "max_tokens": 4000,
+      "reasoning_effort": "",
+      "enabled": false
+    },
+    "zhipu": {
+      "provider": "openai-compatible",
+      "display_name": "Zhipu",
+      "api_base": "replace-with-zhipu-openai-compatible-base-url",
+      "api_key": "replace-with-your-zhipu-api-key",
+      "api_key_env": "ZHIPUAI_API_KEY",
+      "model": "replace-with-model-name",
+      "temperature": 0.2,
+      "max_tokens": 4000,
+      "reasoning_effort": "",
+      "enabled": false
+    },
+    "local_openai_compatible": {
+      "provider": "openai-compatible",
+      "display_name": "Local OpenAI Compatible Gateway",
+      "api_base": "http://localhost:8000/v1",
+      "api_key": "local-dev-key",
+      "api_key_env": "LOCAL_LLM_API_KEY",
+      "model": "replace-with-local-model-name",
+      "temperature": 0.2,
+      "max_tokens": 4000,
+      "reasoning_effort": "",
+      "enabled": false
+    },
+    "dry_run": {
+      "provider": "dry-run",
+      "display_name": "Dry Run",
+      "api_base": "",
+      "api_key": "",
+      "api_key_env": "",
+      "model": "dry-run-model",
+      "temperature": 0.2,
+      "max_tokens": 4000,
+      "reasoning_effort": "",
+      "enabled": true
+    }
+  }
+}

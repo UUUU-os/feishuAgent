@@ -6,6 +6,7 @@ import re
 import time
 from dataclasses import dataclass
 from typing import Any
+from typing import Callable
 from typing import Literal
 
 import requests
@@ -94,10 +95,16 @@ class FeishuClient:
     - 简单重试机制
     """
 
-    def __init__(self, settings: FeishuSettings) -> None:
+    def __init__(
+        self,
+        settings: FeishuSettings,
+        user_token_callback: Callable[[OAuthTokenBundle], None] | None = None,
+    ) -> None:
         self.settings = settings
         self.logger = get_logger("meetflow.feishu")
         self.session = requests.Session()
+        # 自动刷新 user_access_token 后，调用方可以通过回调把新 token 持久化。
+        self.user_token_callback = user_token_callback
         # 分别缓存应用身份 token 和用户身份 token，避免两种身份串用。
         self.tenant_token_cache = TokenCache()
         self.user_token_cache = TokenCache(
@@ -332,6 +339,7 @@ class FeishuClient:
         )
         bundle = self._parse_oauth_token_bundle(response_json)
         self._apply_user_oauth_bundle(bundle)
+        self._notify_user_oauth_bundle(bundle)
         return bundle
 
     def poll_device_token(
@@ -375,6 +383,7 @@ class FeishuClient:
             if not error_name and payload.get("access_token"):
                 bundle = self._parse_oauth_token_bundle(payload)
                 self._apply_user_oauth_bundle(bundle)
+                self._notify_user_oauth_bundle(bundle)
                 return bundle
 
             if error_name == "authorization_pending":
@@ -422,6 +431,37 @@ class FeishuClient:
                 f"msg={payload.get('msg', '')}"
             )
         data = payload.get("data", {})
+        return data if isinstance(data, dict) else {}
+
+    def search_users(
+        self,
+        query: str,
+        page_size: int = 20,
+        page_token: str = "",
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """通过关键词搜索飞书用户。
+
+        对应 lark-cli `contact +search-user` 的底层接口：
+        GET /open-apis/search/v1/user
+        """
+
+        if not query.strip():
+            raise FeishuAPIError("搜索用户时 query 不能为空")
+
+        params: dict[str, Any] = {
+            "query": query.strip(),
+            "page_size": page_size,
+        }
+        if page_token:
+            params["page_token"] = page_token
+
+        response_json = self.get(
+            path="search/v1/user",
+            params=params,
+            identity=identity or "user",
+        )
+        data = response_json.get("data", {})
         return data if isinstance(data, dict) else {}
 
     def get_primary_calendars(self, identity: IdentityMode | None = None) -> list[CalendarInfo]:
@@ -1548,6 +1588,13 @@ class FeishuClient:
         )
         self.user_refresh_token = bundle.refresh_token
         self.user_refresh_token_expires_at = bundle.refresh_token_expires_at
+
+    def _notify_user_oauth_bundle(self, bundle: OAuthTokenBundle) -> None:
+        """通知调用方 OAuth token 已更新。"""
+
+        if not self.user_token_callback:
+            return
+        self.user_token_callback(bundle)
 
     def _parse_response_payload(
         self,

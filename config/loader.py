@@ -56,6 +56,7 @@ class LLMSettings:
     api_key: str
     temperature: float
     max_tokens: int
+    reasoning_effort: str
 
 
 @dataclass(slots=True)
@@ -143,6 +144,7 @@ ENV_MAPPING: dict[str, tuple[str, str, Any]] = {
     "MEETFLOW_LLM_API_KEY": ("llm", "api_key", str),
     "MEETFLOW_LLM_TEMPERATURE": ("llm", "temperature", float),
     "MEETFLOW_LLM_MAX_TOKENS": ("llm", "max_tokens", int),
+    "MEETFLOW_LLM_REASONING_EFFORT": ("llm", "reasoning_effort", str),
     "MEETFLOW_SCHEDULER_PRE_MEETING_MINUTES": ("scheduler", "pre_meeting_minutes_before", int),
     "MEETFLOW_SCHEDULER_RISK_SCAN_CRON": ("scheduler", "risk_scan_cron", str),
     "MEETFLOW_SCHEDULER_MINUTE_RETRY_INTERVAL": ("scheduler", "minute_retry_interval_minutes", int),
