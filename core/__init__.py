@@ -12,6 +12,13 @@ from .logging import (
 )
 from .models import (
     ActionItem,
+    AgentDecision,
+    AgentInput,
+    AgentLoopState,
+    AgentMessage,
+    AgentRunResult,
+    AgentToolCall,
+    AgentToolResult,
     CalendarAttendee,
     CalendarEvent,
     CalendarInfo,
@@ -20,6 +27,7 @@ from .models import (
     MeetingSummary,
     Resource,
     RiskAlert,
+    WorkflowContext,
     WorkflowResult,
 )
 from .storage import MeetFlowStorage
@@ -27,6 +35,13 @@ from .storage import MeetFlowStorage
 __all__ = [
     "AuditLogger",
     "ActionItem",
+    "AgentDecision",
+    "AgentInput",
+    "AgentLoopState",
+    "AgentMessage",
+    "AgentRunResult",
+    "AgentToolCall",
+    "AgentToolResult",
     "CalendarAttendee",
     "CalendarEvent",
     "CalendarInfo",
@@ -36,6 +51,7 @@ __all__ = [
     "MeetingSummary",
     "Resource",
     "RiskAlert",
+    "WorkflowContext",
     "WorkflowRunRecorder",
     "WorkflowResult",
     "bind_trace_id",
