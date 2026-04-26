@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import time
 from collections.abc import Callable
@@ -230,10 +231,28 @@ def serialize_tool_item(value: Any) -> Any:
 
 
 def build_tool_result_content(tool_name: str, data: dict[str, Any]) -> str:
-    """构造喂回 LLM 的简短工具结果摘要。"""
+    """构造喂回 LLM 的工具结果内容。
 
+    注意：这里不能只返回“共 N 条记录”。
+    LLM 第二轮推理只能看到 tool message 的 content，
+    如果不把结构化数据放进去，模型就无法总结会议标题、时间、参与人等细节。
+    """
+
+    detail_json = json.dumps(data, ensure_ascii=False, indent=2)
     if "count" in data:
-        return f"工具 {tool_name} 执行成功，返回 {data['count']} 条记录。"
+        return (
+            f"工具 {tool_name} 执行成功，返回 {data['count']} 条记录。\n"
+            "结构化数据 JSON：\n"
+            f"{detail_json}"
+        )
     if "title" in data:
-        return f"工具 {tool_name} 执行成功，返回资源：{data['title']}。"
-    return f"工具 {tool_name} 执行成功。"
+        return (
+            f"工具 {tool_name} 执行成功，返回资源：{data['title']}。\n"
+            "结构化数据 JSON：\n"
+            f"{detail_json}"
+        )
+    return (
+        f"工具 {tool_name} 执行成功。\n"
+        "结构化数据 JSON：\n"
+        f"{detail_json}"
+    )

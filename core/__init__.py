@@ -1,6 +1,14 @@
 """运行时基础能力导出。"""
 
 from .audit import AuditLogger, WorkflowRunRecorder
+from .agent_loop import (
+    AgentLoopError,
+    MeetFlowAgentLoop,
+    build_result_summary,
+    build_runtime_context_message,
+    build_system_prompt,
+    collect_side_effects,
+)
 from .context import (
     WorkflowContextBuilder,
     WorkflowContextError,
@@ -55,6 +63,7 @@ from .models import (
     WorkflowContext,
     WorkflowResult,
 )
+from .policy import AgentPolicy, AgentPolicyConfig, AgentPolicyError, PolicyDecision
 from .router import (
     RouteRule,
     WorkflowRouter,
@@ -79,6 +88,10 @@ from .tools import (
 __all__ = [
     "AuditLogger",
     "ActionItem",
+    "AgentLoopError",
+    "AgentPolicy",
+    "AgentPolicyConfig",
+    "AgentPolicyError",
     "AgentTool",
     "AgentDecision",
     "AgentInput",
@@ -99,8 +112,10 @@ __all__ = [
     "LLMProvider",
     "LLMResponse",
     "MeetFlowStorage",
+    "MeetFlowAgentLoop",
     "MeetingSummary",
     "OpenAICompatibleProvider",
+    "PolicyDecision",
     "Resource",
     "RiskAlert",
     "RouteRule",
@@ -119,10 +134,14 @@ __all__ = [
     "bind_trace_id",
     "build_tool_result_content",
     "build_agent_input",
+    "build_result_summary",
+    "build_runtime_context_message",
+    "build_system_prompt",
     "build_event_from_agent_input",
     "build_default_route_rules",
     "build_idempotency_key",
     "configure_logging",
+    "collect_side_effects",
     "create_llm_provider",
     "extract_calendar_event_id",
     "extract_meeting_id",

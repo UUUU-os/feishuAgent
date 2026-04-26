@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from adapters.feishu_client import FeishuClient, IdentityMode
-from core import ActionItem
+from core.models import ActionItem
 from core.tools import AgentTool, ToolRegistry
 
 
@@ -23,6 +23,8 @@ def create_feishu_tool_registry(
     registry.register(_build_minutes_fetch_resource_tool(client))
     registry.register(_build_tasks_list_my_tasks_tool(client))
     registry.register(_build_tasks_create_task_tool(client))
+    registry.register(_build_contact_get_current_user_tool(client))
+    registry.register(_build_contact_search_user_tool(client))
     registry.register(_build_im_send_text_tool(client, default_chat_id=default_chat_id))
     registry.register(_build_im_send_card_tool(client, default_chat_id=default_chat_id))
     return registry
@@ -169,6 +171,51 @@ def _build_tasks_create_task_tool(client: FeishuClient) -> AgentTool:
     )
 
 
+def _build_contact_get_current_user_tool(client: FeishuClient) -> AgentTool:
+    """注册当前用户信息读取工具。
+
+    这个工具让 LLM 能把“我”解析为当前登录用户的 open_id。
+    """
+
+    return AgentTool(
+        internal_name="contact.get_current_user",
+        description="读取当前登录飞书用户信息。当用户说“我/本人/自己”时，先调用它获取 open_id。",
+        parameters={
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+        handler=lambda **_: client.get_current_user_info(),
+        read_only=True,
+    )
+
+
+def _build_contact_search_user_tool(client: FeishuClient) -> AgentTool:
+    """注册飞书用户搜索工具。"""
+
+    return AgentTool(
+        internal_name="contact.search_user",
+        description="按姓名、邮箱或手机号搜索飞书用户，返回候选用户信息和 open_id。用于把人员姓名解析为任务负责人 ID。",
+        parameters={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "搜索关键词，例如姓名、邮箱或手机号。"},
+                "page_size": {"type": "integer", "description": "返回数量，默认 20。"},
+                "page_token": {"type": "string", "description": "分页 token。"},
+                "identity": {"type": "string", "description": "飞书身份，通常使用 user。"},
+            },
+            "required": ["query"],
+        },
+        handler=lambda query, page_size=20, page_token="", identity="user", **_: client.search_users(
+            query=query,
+            page_size=page_size,
+            page_token=page_token,
+            identity=_normalize_identity(identity),
+        ),
+        read_only=True,
+    )
+
+
 def _build_im_send_text_tool(client: FeishuClient, default_chat_id: str) -> AgentTool:
     """注册飞书文本消息发送工具。"""
 
@@ -181,14 +228,16 @@ def _build_im_send_text_tool(client: FeishuClient, default_chat_id: str) -> Agen
                 "text": {"type": "string", "description": "消息文本。"},
                 "receive_id": {"type": "string", "description": "接收者 ID，默认使用配置中的测试群。"},
                 "receive_id_type": {"type": "string", "description": "接收者 ID 类型，默认 chat_id。"},
+                "idempotency_key": {"type": "string", "description": "消息幂等键，避免重复发送。"},
                 "identity": {"type": "string", "description": "飞书身份，可选 user 或 tenant。"},
             },
             "required": ["text"],
         },
-        handler=lambda text, receive_id="", receive_id_type="chat_id", identity="tenant", **_: client.send_text_message(
+        handler=lambda text, receive_id="", receive_id_type="chat_id", idempotency_key="", identity="tenant", **_: client.send_text_message(
             receive_id=receive_id or default_chat_id,
             text=text,
             receive_id_type=receive_id_type,
+            idempotency_key=idempotency_key,
             identity=_normalize_identity(identity),
         ),
         read_only=False,
@@ -210,14 +259,16 @@ def _build_im_send_card_tool(client: FeishuClient, default_chat_id: str) -> Agen
                 "facts": {"type": "array", "items": {"type": "string"}, "description": "卡片事实列表。"},
                 "receive_id": {"type": "string", "description": "接收者 ID，默认使用配置中的测试群。"},
                 "receive_id_type": {"type": "string", "description": "接收者 ID 类型，默认 chat_id。"},
+                "idempotency_key": {"type": "string", "description": "消息幂等键，避免重复发送。"},
                 "identity": {"type": "string", "description": "飞书身份，可选 user 或 tenant。"},
             },
             "required": ["title", "summary"],
         },
-        handler=lambda title, summary, facts=None, receive_id="", receive_id_type="chat_id", identity="tenant", **_: client.send_card_message(
+        handler=lambda title, summary, facts=None, receive_id="", receive_id_type="chat_id", idempotency_key="", identity="tenant", **_: client.send_card_message(
             receive_id=receive_id or default_chat_id,
             card=client.build_meetflow_card(title=title, summary=summary, facts=facts or []),
             receive_id_type=receive_id_type,
+            idempotency_key=idempotency_key,
             identity=_normalize_identity(identity),
         ),
         read_only=False,

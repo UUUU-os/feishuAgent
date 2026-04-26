@@ -240,6 +240,15 @@ class DryRunLLMProvider(LLMProvider):
     ) -> LLMResponse:
         """返回一个可预测的本地响应。"""
 
+        last_tool_message = _find_last_message_content(messages, role="tool")
+        if last_tool_message:
+            return LLMResponse(
+                content=f"dry-run 最终回复：我已经读取工具结果：{last_tool_message}",
+                finish_reason="stop",
+                model=self.model,
+                raw_payload={"provider": "dry-run", "mode": "final_after_tool"},
+            )
+
         if tools:
             tool = tools[0]
             return LLMResponse(
