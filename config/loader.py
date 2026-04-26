@@ -33,6 +33,15 @@ class FeishuSettings:
     app_id: str
     app_secret: str
     base_url: str
+    request_timeout_seconds: int
+    max_retries: int
+    default_identity: str
+    redirect_uri: str
+    user_oauth_scope: str
+    user_access_token: str
+    user_access_token_expires_at: int
+    user_refresh_token: str
+    user_refresh_token_expires_at: int
     bot_name: str
     default_chat_id: str
 
@@ -117,6 +126,15 @@ ENV_MAPPING: dict[str, tuple[str, str, Any]] = {
     "MEETFLOW_FEISHU_APP_ID": ("feishu", "app_id", str),
     "MEETFLOW_FEISHU_APP_SECRET": ("feishu", "app_secret", str),
     "MEETFLOW_FEISHU_BASE_URL": ("feishu", "base_url", str),
+    "MEETFLOW_FEISHU_REQUEST_TIMEOUT_SECONDS": ("feishu", "request_timeout_seconds", int),
+    "MEETFLOW_FEISHU_MAX_RETRIES": ("feishu", "max_retries", int),
+    "MEETFLOW_FEISHU_DEFAULT_IDENTITY": ("feishu", "default_identity", str),
+    "MEETFLOW_FEISHU_REDIRECT_URI": ("feishu", "redirect_uri", str),
+    "MEETFLOW_FEISHU_USER_OAUTH_SCOPE": ("feishu", "user_oauth_scope", str),
+    "MEETFLOW_FEISHU_USER_ACCESS_TOKEN": ("feishu", "user_access_token", str),
+    "MEETFLOW_FEISHU_USER_ACCESS_TOKEN_EXPIRES_AT": ("feishu", "user_access_token_expires_at", int),
+    "MEETFLOW_FEISHU_USER_REFRESH_TOKEN": ("feishu", "user_refresh_token", str),
+    "MEETFLOW_FEISHU_USER_REFRESH_TOKEN_EXPIRES_AT": ("feishu", "user_refresh_token_expires_at", int),
     "MEETFLOW_FEISHU_BOT_NAME": ("feishu", "bot_name", str),
     "MEETFLOW_FEISHU_DEFAULT_CHAT_ID": ("feishu", "default_chat_id", str),
     "MEETFLOW_LLM_PROVIDER": ("llm", "provider", str),
