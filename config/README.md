@@ -80,6 +80,10 @@ settings = load_settings(Path("config/settings.local.json"))
 - 读取飞书文档需要包含 `docx:document:readonly`
 - 读取飞书妙记基础信息需要包含 `minutes:minutes:readonly`
 - 读取飞书妙记 AI 产物需要包含 `minutes:minutes.artifacts:read`
+- 读取飞书任务列表需要包含 `task:task:read`
+- 创建飞书任务需要包含 `task:task:write`
+- 使用用户身份发送飞书消息需要包含 `im:message.send_as_user` 和 `im:message`
+- 使用机器人身份发送飞书消息需要在后台开通 `im:message:send_as_bot`，并确保机器人已加入目标群
 - 如果要拿到 `refresh_token`，scope 中必须包含 `offline_access`
 - `*_expires_at` 建议保存为 Unix 秒级时间戳，便于脚本和客户端自动判断是否过期
 - 当前项目在 `T2.1 / T2.2` 的正式实现中，主要使用 **OAuth Device Flow** 获取用户令牌，因此日常登录不依赖 `redirect_uri`

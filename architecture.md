@@ -39,7 +39,7 @@
 
 ### 3.1 架构概览
 
-MeetFlow 建议采用“五层架构 + 一个主编排 Agent”的形式：
+MeetFlow 建议采用“五层架构 + 一个业务侧垂直 Agent”的形式：
 
 1. 接入层
 2. 触发与调度层
@@ -75,8 +75,9 @@ MeetFlow 建议采用“五层架构 + 一个主编排 Agent”的形式：
            |
            v
 +----------------------+
-| Agent 编排层         |
-| MeetFlow Orchestrator|
+| 业务侧垂直 Agent     |
+| MeetFlowAgent        |
+| Intent / State       |
 | Workflow Router      |
 | Tool Dispatcher      |
 +----------+-----------+
@@ -253,20 +254,62 @@ Event
 
 ### 职责
 
-作为系统核心，负责理解当前触发场景、决定执行哪个流程、调用哪些工具、输出什么产物。
+作为系统核心，负责理解当前业务场景、维护执行状态、决定执行哪个流程、调用哪些工具、输出什么产物。
+
+这里的 Agent 不是简单的“脚本入口”或“LLM 问答壳”，而是一个面向会议协作场景的垂直业务 Agent。它需要知道 MeetFlow 的业务目标：会前对齐背景、会后沉淀任务、持续巡检风险，并把飞书工具组织成一个可控闭环。
 
 ### 首版建议架构
 
 首版不建议做复杂多 Agent，而建议采用：
 
-**一个主编排 Agent + 工作流路由器 + 一组可组合工具**
+**一个业务侧垂直 Agent + 工作流路由器 + 一组可组合工具**
+
+### 垂直 Agent 与普通工作流的区别
+
+工作流描述的是“某条链路怎么跑”，而垂直 Agent 负责“在什么上下文里选择哪条链路、如何保持状态、如何处理失败、如何避免重复动作”。因此 MeetFlowAgent 至少需要承担以下职责：
+
+- 业务意图识别：判断当前事件是会前准备、会后跟进、风险巡检，还是人工命令
+- 上下文构建：把会议、参与人、项目、历史文档、妙记和任务组织成一次执行上下文
+- 工具编排：通过 ToolRegistry 调用日历、文档、妙记、任务、消息等工具
+- 状态管理：记录工作流阶段、幂等键、已发送卡片、已创建任务和失败原因
+- 人机协同：对低置信度行动项、危险写操作、重复提醒等情况触发确认或降级
+- 可观测性：为每次 Agent 执行绑定 trace_id，落审计日志和结果快照
 
 ### 核心组件
 
-- `MeetFlowOrchestrator`
+- `MeetFlowAgent`
 - `WorkflowRouter`
 - `ToolRegistry`
 - `WorkflowContextBuilder`
+- `AgentStateStore`
+- `AgentPolicy`
+
+### 核心组件职责
+
+```text
+MeetFlowAgent
+- Agent 主入口，接收 Event 或手动 Command
+- 加载上下文，调用 WorkflowRouter
+- 管理执行状态、失败降级和最终输出
+
+WorkflowRouter
+- 根据 event_type / command / schedule_tick 选择工作流
+- 输出 workflow_type 和必要参数
+
+ToolRegistry
+- 统一注册 FeishuClient 能力和后续 LLM / Recall 工具
+- 给工作流提供稳定的工具调用入口
+
+WorkflowContextBuilder
+- 从事件中解析 meeting_id / minute_token / task_id / project_id
+- 聚合会议、文档、妙记、任务、项目记忆等上下文
+
+AgentStateStore
+- 记录 workflow_run、幂等键、已发卡片、任务映射、失败重试状态
+
+AgentPolicy
+- 控制自动化边界，例如低置信度任务不直接创建、风险提醒降噪、写操作是否需要确认
+```
 
 ### 为什么首版不做多 Agent
 
@@ -313,6 +356,44 @@ WorkflowContext
 - memory_snapshot
 - trace_id
 ```
+
+### Agent 输入输出建议
+
+```text
+AgentInput
+- trigger_type: event | schedule | command
+- event_type
+- payload
+- actor
+- trace_id
+
+AgentDecision
+- workflow_type
+- confidence
+- reason
+- required_tools
+- idempotency_key
+
+AgentRunResult
+- trace_id
+- workflow_type
+- status
+- summary
+- produced_resources
+- side_effects
+- next_actions
+```
+
+### 首版 Agent 决策规则
+
+首版可以先采用规则驱动，而不是一开始就让 LLM 决策所有路由：
+
+- `meeting.soon` -> `pre_meeting_brief`
+- `minute.ready` -> `post_meeting_followup`
+- `risk.scan.tick` -> `risk_scan`
+- `message.command` -> `manual_qa` 或指定工作流
+
+LLM 更适合放在工作流内部做摘要、抽取和判断，而不是一开始就接管所有系统级路由。这样实现更稳定，也更容易在答辩时解释。
 
 ---
 

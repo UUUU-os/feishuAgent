@@ -12,7 +12,7 @@ import requests
 
 from config import FeishuSettings
 from core.logging import get_logger
-from core.models import CalendarAttendee, CalendarEvent, CalendarInfo, Resource
+from core.models import ActionItem, CalendarAttendee, CalendarEvent, CalendarInfo, Resource
 
 
 class FeishuAPIError(RuntimeError):
@@ -1089,6 +1089,432 @@ class FeishuClient:
             if value:
                 return str(value)
         return json.dumps(item, ensure_ascii=False)
+
+    def list_my_tasks(
+        self,
+        completed: bool | None = False,
+        page_size: int = 50,
+        page_limit: int = 20,
+        page_token: str = "",
+        user_id_type: str = "open_id",
+        identity: IdentityMode | None = None,
+    ) -> list[ActionItem]:
+        """读取当前用户负责的任务，并转换为内部 `ActionItem`。
+
+        对应飞书接口：
+        GET /open-apis/task/v2/tasks
+
+        注意：任务列表接口只能使用 user 身份，`type=my_tasks`
+        表示“我负责的任务”。
+        """
+
+        task_items = self.list_my_task_items(
+            completed=completed,
+            page_size=page_size,
+            page_limit=page_limit,
+            page_token=page_token,
+            user_id_type=user_id_type,
+            identity=identity,
+        )
+        return [self.to_action_item(task_item) for task_item in task_items]
+
+    def list_my_task_items(
+        self,
+        completed: bool | None = False,
+        page_size: int = 50,
+        page_limit: int = 20,
+        page_token: str = "",
+        user_id_type: str = "open_id",
+        identity: IdentityMode | None = None,
+    ) -> list[dict[str, Any]]:
+        """读取当前用户负责的任务原始列表。
+
+        这个方法保留飞书原始任务 JSON，适合调试；业务层通常使用
+        `list_my_tasks()` 直接拿内部 `ActionItem`。
+        """
+
+        if page_size < 1 or page_size > 100:
+            raise FeishuAPIError("page_size 必须在 1 到 100 之间")
+        if page_limit < 1:
+            raise FeishuAPIError("page_limit 必须大于等于 1")
+
+        params: dict[str, Any] = {
+            "type": "my_tasks",
+            "page_size": page_size,
+            "user_id_type": user_id_type,
+        }
+        if completed is not None:
+            params["completed"] = completed
+        if page_token:
+            params["page_token"] = page_token
+
+        all_items: list[dict[str, Any]] = []
+        current_page = 0
+        while current_page < page_limit:
+            current_page += 1
+            response_json = self.get(
+                path="task/v2/tasks",
+                params=params,
+                identity=identity or "user",
+            )
+            data = response_json.get("data", {})
+            items = data.get("items", [])
+            if isinstance(items, list):
+                all_items.extend(item for item in items if isinstance(item, dict))
+
+            if not data.get("has_more"):
+                break
+
+            next_page_token = str(data.get("page_token", "") or "")
+            if not next_page_token:
+                break
+            params["page_token"] = next_page_token
+
+        return all_items
+
+    def to_action_item(self, item: dict[str, Any]) -> ActionItem:
+        """将飞书任务对象转换为内部 `ActionItem` 模型。"""
+
+        due = item.get("due", {})
+        due_timestamp = ""
+        if isinstance(due, dict):
+            due_timestamp = str(due.get("timestamp", "") or "")
+
+        task_guid = str(item.get("guid", "") or item.get("task_id", "") or "")
+        status = str(item.get("status", "") or "todo")
+        owner = self._extract_task_owner(item)
+
+        return ActionItem(
+            item_id=task_guid,
+            title=str(item.get("summary", "") or "未命名任务"),
+            owner=owner,
+            due_date=due_timestamp,
+            status=status,
+            confidence=1.0,
+            needs_confirm=False,
+            extra={
+                "task_id": item.get("task_id", ""),
+                "guid": item.get("guid", ""),
+                "url": item.get("url", ""),
+                "description": item.get("description", ""),
+                "created_at": item.get("created_at", ""),
+                "updated_at": item.get("updated_at", ""),
+                "completed_at": item.get("completed_at", ""),
+                "start": item.get("start", {}),
+                "due": item.get("due", {}),
+                "creator": item.get("creator", {}),
+                "members": item.get("members", []),
+                "tasklists": item.get("tasklists", []),
+                "raw_payload": item,
+            },
+        )
+
+    def create_task(
+        self,
+        summary: str,
+        description: str = "",
+        assignee_ids: list[str] | None = None,
+        due_timestamp_ms: str = "",
+        due_is_all_day: bool = False,
+        tasklist_guid: str = "",
+        idempotency_key: str = "",
+        user_id_type: str = "open_id",
+        identity: IdentityMode | None = None,
+    ) -> ActionItem:
+        """创建飞书任务，并转换为内部 `ActionItem`。
+
+        对应接口：
+        POST /open-apis/task/v2/tasks
+        """
+
+        payload = self.build_create_task_payload(
+            summary=summary,
+            description=description,
+            assignee_ids=assignee_ids or [],
+            due_timestamp_ms=due_timestamp_ms,
+            due_is_all_day=due_is_all_day,
+            tasklist_guid=tasklist_guid,
+            idempotency_key=idempotency_key,
+        )
+        response_json = self._request(
+            method="POST",
+            path="task/v2/tasks",
+            params={"user_id_type": user_id_type},
+            payload=payload,
+            identity=identity,
+        )
+        task_data = response_json.get("data", {}).get("task", {})
+        if not isinstance(task_data, dict):
+            raise FeishuAPIError("飞书任务创建成功，但返回体中缺少 task 对象")
+        return self.to_action_item(task_data)
+
+    def create_task_from_action_item(
+        self,
+        action_item: ActionItem,
+        assignee_ids: list[str] | None = None,
+        due_is_all_day: bool = False,
+        tasklist_guid: str = "",
+        idempotency_key: str = "",
+        user_id_type: str = "open_id",
+        identity: IdentityMode | None = None,
+    ) -> ActionItem:
+        """根据内部 `ActionItem` 创建飞书任务。
+
+        这个方法服务于后续“会议 Action Item 自动落任务”的主链路。
+        """
+
+        description = str(action_item.extra.get("description", "") or "")
+        return self.create_task(
+            summary=action_item.title,
+            description=description,
+            assignee_ids=assignee_ids or [],
+            due_timestamp_ms=action_item.due_date,
+            due_is_all_day=due_is_all_day,
+            tasklist_guid=tasklist_guid,
+            idempotency_key=idempotency_key,
+            user_id_type=user_id_type,
+            identity=identity,
+        )
+
+    def build_create_task_payload(
+        self,
+        summary: str,
+        description: str = "",
+        assignee_ids: list[str] | None = None,
+        due_timestamp_ms: str = "",
+        due_is_all_day: bool = False,
+        tasklist_guid: str = "",
+        idempotency_key: str = "",
+    ) -> dict[str, Any]:
+        """构造创建任务接口的请求体，供 dry-run 和真实创建复用。"""
+
+        normalized_summary = summary.strip()
+        if not normalized_summary:
+            raise FeishuAPIError("任务标题 summary 不能为空")
+
+        payload: dict[str, Any] = {
+            "summary": normalized_summary,
+        }
+        if description:
+            payload["description"] = description
+        if idempotency_key:
+            payload["client_token"] = idempotency_key
+        if due_timestamp_ms:
+            payload["due"] = {
+                "timestamp": due_timestamp_ms,
+                "is_all_day": due_is_all_day,
+            }
+        if tasklist_guid:
+            payload["tasklists"] = [
+                {
+                    "tasklist_guid": tasklist_guid,
+                }
+            ]
+
+        members = [
+            {
+                "id": assignee_id,
+                "role": "assignee",
+                "type": "user",
+            }
+            for assignee_id in (assignee_ids or [])
+            if assignee_id
+        ]
+        if members:
+            payload["members"] = members
+
+        return payload
+
+    def _extract_task_owner(self, item: dict[str, Any]) -> str:
+        """从飞书任务成员里提取负责人名称。"""
+
+        members = item.get("members", [])
+        owners: list[str] = []
+        if isinstance(members, list):
+            for member in members:
+                if not isinstance(member, dict):
+                    continue
+                role = str(member.get("role", "") or "")
+                # assignee 是负责人；某些任务只返回 editor，也作为备选负责人展示。
+                if role not in {"assignee", "editor"}:
+                    continue
+                display_name = str(member.get("name", "") or member.get("id", "") or "")
+                if display_name:
+                    owners.append(display_name)
+
+        if owners:
+            return ", ".join(dict.fromkeys(owners))
+
+        assignee_related = item.get("assignee_related", [])
+        if isinstance(assignee_related, list):
+            fallback_owners = [
+                str(assignee.get("id", ""))
+                for assignee in assignee_related
+                if isinstance(assignee, dict) and assignee.get("id")
+            ]
+            if fallback_owners:
+                return ", ".join(dict.fromkeys(fallback_owners))
+
+        return ""
+
+    def send_text_message(
+        self,
+        receive_id: str,
+        text: str,
+        receive_id_type: str = "chat_id",
+        idempotency_key: str = "",
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """发送飞书纯文本消息。
+
+        对应接口：
+        POST /open-apis/im/v1/messages?receive_id_type=...
+        """
+
+        content = {"text": text}
+        return self.send_message(
+            receive_id=receive_id,
+            msg_type="text",
+            content=content,
+            receive_id_type=receive_id_type,
+            idempotency_key=idempotency_key,
+            identity=identity,
+        )
+
+    def send_card_message(
+        self,
+        receive_id: str,
+        card: dict[str, Any],
+        receive_id_type: str = "chat_id",
+        idempotency_key: str = "",
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """发送飞书交互卡片消息。"""
+
+        return self.send_message(
+            receive_id=receive_id,
+            msg_type="interactive",
+            content=card,
+            receive_id_type=receive_id_type,
+            idempotency_key=idempotency_key,
+            identity=identity,
+        )
+
+    def send_message(
+        self,
+        receive_id: str,
+        msg_type: str,
+        content: dict[str, Any],
+        receive_id_type: str = "chat_id",
+        idempotency_key: str = "",
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """发送飞书消息的底层封装。
+
+        飞书消息接口要求 `content` 是 JSON 字符串，
+        因此这里先由 Python 字典序列化，再交给 `_request()` 发送。
+        """
+
+        if receive_id_type not in {"chat_id", "open_id", "user_id", "union_id", "email"}:
+            raise FeishuAPIError("receive_id_type 不合法，请使用 chat_id/open_id/user_id/union_id/email")
+        if not receive_id:
+            raise FeishuAPIError("receive_id 不能为空")
+        if msg_type not in {
+            "text",
+            "post",
+            "image",
+            "file",
+            "audio",
+            "media",
+            "interactive",
+            "share_chat",
+            "share_user",
+        }:
+            raise FeishuAPIError("msg_type 不合法")
+
+        payload: dict[str, Any] = {
+            "receive_id": receive_id,
+            "msg_type": msg_type,
+            "content": json.dumps(content, ensure_ascii=False),
+        }
+        if idempotency_key:
+            payload["uuid"] = idempotency_key
+
+        # 注意：receive_id_type 是飞书消息接口的 query 参数，
+        # 不是 body 字段；如果漏传，接口会返回 field validation failed。
+        response_json = self._request(
+            method="POST",
+            path="im/v1/messages",
+            params={"receive_id_type": receive_id_type},
+            payload=payload,
+            identity=identity,
+        )
+        return response_json.get("data", {})
+
+    def build_meetflow_card(
+        self,
+        title: str,
+        summary: str,
+        facts: list[str] | None = None,
+        action_text: str = "",
+        action_url: str = "",
+    ) -> dict[str, Any]:
+        """构造一个 MeetFlow 通知卡片。
+
+        当前模板用于 T2.6 测试和后续会前/风险卡片的雏形。
+        后续如果需要更复杂的样式，可以迁移到 `cards/` 模板文件。
+        """
+
+        elements: list[dict[str, Any]] = [
+            {
+                "tag": "markdown",
+                "content": summary,
+            }
+        ]
+        if facts:
+            fact_lines = "\n".join(f"- {fact}" for fact in facts if fact)
+            if fact_lines:
+                elements.append(
+                    {
+                        "tag": "div",
+                        "text": {
+                            "tag": "lark_md",
+                            "content": fact_lines,
+                        },
+                    }
+                )
+
+        if action_text and action_url:
+            elements.append(
+                {
+                    "tag": "action",
+                    "actions": [
+                        {
+                            "tag": "button",
+                            "text": {
+                                "tag": "plain_text",
+                                "content": action_text,
+                            },
+                            "type": "primary",
+                            "url": action_url,
+                        }
+                    ],
+                }
+            )
+
+        return {
+            "config": {
+                "wide_screen_mode": True,
+            },
+            "header": {
+                "template": "blue",
+                "title": {
+                    "tag": "plain_text",
+                    "content": title,
+                },
+            },
+            "elements": elements,
+        }
 
     def _parse_oauth_token_bundle(self, response_json: dict[str, Any]) -> OAuthTokenBundle:
         """把 OAuth token 接口响应转换为统一结构。"""

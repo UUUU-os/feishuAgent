@@ -32,6 +32,10 @@
 
 目标：能够稳定读取会议、文档、妙记、任务等飞书资源。
 
+## M2.8：业务侧垂直 Agent Runtime
+
+目标：在进入具体会前、会后、巡检工作流前，先构建一个真正的业务侧垂直 Agent，统一负责事件理解、工作流路由、工具编排、状态管理、幂等控制和失败降级。
+
 ## M3：会前知识卡片工作流
 
 目标：在会前自动生成背景知识卡片并推送。
@@ -570,6 +574,48 @@
 - 验收标准：
   - 能读取未完成任务
   - 能映射到内部任务模型
+- 状态：已完成
+- 本次创建 / 修改的文件：
+  - `adapters/feishu_client.py`
+  - `scripts/tasks_live_test.py`
+  - `config/settings.example.json`
+  - `config/settings.local.json`
+  - `config/README.md`
+  - `tasks.md`
+- 代码结构说明：
+  - `FeishuClient.list_my_task_items()`：调用 `GET /open-apis/task/v2/tasks`，使用 `type=my_tasks` 读取当前用户负责的任务原始 JSON
+  - `FeishuClient.list_my_tasks()`：在原始任务列表基础上做模型转换，返回 `list[ActionItem]`
+  - `FeishuClient.to_action_item()`：把飞书任务中的 `guid`、`summary`、`members`、`due.timestamp`、`status` 等字段映射到内部 `ActionItem`
+  - `FeishuClient._extract_task_owner()`：从任务成员里提取负责人，优先取 `role=assignee`，兼容部分任务返回 `editor` 的情况
+  - `scripts/tasks_live_test.py`：提供真实联调入口，可读取未完成 / 已完成 / 全部任务，并支持本地标题关键词过滤
+- 运行业务逻辑：
+  - 第一步，脚本读取配置，默认使用 `feishu.default_identity`
+  - 第二步，任务接口强依赖用户资源，所以请求身份应为 `user`
+  - 第三步，客户端自动获取或刷新 `user_access_token`
+  - 第四步，调用 `GET /open-apis/task/v2/tasks`，参数包含 `type=my_tasks`、`completed`、`page_size`、`page_token`
+  - 第五步，若返回 `has_more=true`，客户端继续用 `page_token` 翻页，直到达到 `page_limit` 或没有更多数据
+  - 第六步，每条飞书任务转换为 `ActionItem`
+  - 第七步，脚本打印任务 ID、标题、负责人、截止时间、状态、链接和可选原始 JSON
+- 字段映射说明：
+  - `ActionItem.item_id`：优先使用飞书任务 `guid`，没有时退回 `task_id`
+  - `ActionItem.title`：来自飞书任务 `summary`
+  - `ActionItem.owner`：来自 `members` 中的负责人名称或 ID
+  - `ActionItem.due_date`：来自 `due.timestamp`，单位为毫秒
+  - `ActionItem.status`：来自飞书任务 `status`，通常为 `todo` 或 `done`
+  - `ActionItem.extra`：保留任务链接、描述、创建时间、更新时间、成员、清单和原始 payload，方便后续追踪表、风险扫描和回链
+- 权限与配置说明：
+  - 读取飞书任务需要用户授权 scope：`task:task:read`
+  - 已在 `settings.example.json` 和 `settings.local.json` 的 `user_oauth_scope` 中补充该权限
+  - 修改 scope 后需要重新执行 `python3 scripts/oauth_device_login.py`，让本地用户 token 带上新增权限
+- 验证方式：
+  - 已通过 `python3 -m py_compile adapters/feishu_client.py scripts/tasks_live_test.py scripts/minutes_live_test.py scripts/docs_live_test.py`
+  - 已通过 `python3 scripts/tasks_live_test.py --help`
+  - 已通过本地样例映射测试，能把飞书任务 JSON 转换为 `ActionItem`
+  - 真实读取命令示例：
+    - `python3 scripts/oauth_device_login.py`
+    - `python3 scripts/tasks_live_test.py`
+    - `python3 scripts/tasks_live_test.py --completed all`
+    - `python3 scripts/tasks_live_test.py --query "任务关键词"`
 
 ### T2.6 实现群消息/卡片发送能力
 
@@ -578,6 +624,55 @@
 - 验收标准：
   - 能发出一张测试卡片
   - 卡片内容支持动态填充
+- 状态：已完成
+- 本次创建 / 修改的文件：
+  - `adapters/feishu_client.py`
+  - `scripts/message_live_test.py`
+  - `config/settings.example.json`
+  - `config/settings.local.json`
+  - `config/README.md`
+  - `tasks.md`
+- 代码结构说明：
+  - `FeishuClient.send_message()`：封装 `POST /open-apis/im/v1/messages`，统一处理 `receive_id_type`、`msg_type`、`content` 和幂等键
+  - `FeishuClient.send_text_message()`：发送纯文本消息，内部自动构造 `{"text": "..."}`
+  - `FeishuClient.send_card_message()`：发送交互卡片消息，`msg_type=interactive`
+  - `FeishuClient.build_meetflow_card()`：构造 MeetFlow 通知卡片模板，支持标题、摘要、要点和按钮跳转
+  - `scripts/message_live_test.py`：提供真实联调入口，支持群聊 / 私聊、文本 / 卡片、dry-run 预览和显式发送
+- 运行业务逻辑：
+  - 第一步，用户通过 `--chat-id` 指定群聊，或通过 `--user-id` 指定私聊对象
+  - 第二步，如果没有传 `--chat-id`，脚本会尝试读取配置中的 `feishu.default_chat_id`
+  - 第三步，脚本根据 `--message-type` 构造文本 payload 或卡片 payload
+  - 第四步，默认只打印 dry-run payload，不会真实发送
+  - 第五步，只有显式传入 `--send` 时，才调用飞书消息接口发出消息
+  - 第六步，发送成功后打印飞书返回的 `message_id`、`chat_id`、`create_time` 等结果
+- 安全设计说明：
+  - 因为消息发送会影响真实群聊和用户，脚本默认是 dry-run
+  - 真实发送必须显式加 `--send`
+  - 支持 `--idempotency-key`，避免调试时重复发送同一条消息
+- 字段与接口说明：
+  - 群聊发送使用 `receive_id_type=chat_id`
+  - 私聊发送使用 `receive_id_type=open_id`
+  - `receive_id_type` 必须作为 URL query 参数传递，不能只放在 body 或 dry-run 预览里
+  - 文本消息使用 `msg_type=text`
+  - 卡片消息使用 `msg_type=interactive`
+  - 飞书要求 `content` 是 JSON 字符串，因此客户端会对 Python 字典做 `json.dumps`
+- 本次排障记录：
+  - 真实发送卡片时曾返回 `99992402 field validation failed`
+  - 原因是 dry-run payload 中展示了 `receive_id_type`，但真实 `send_message()` 请求没有把它传给飞书接口
+  - 已修复为 `POST /open-apis/im/v1/messages?receive_id_type=chat_id`
+- 权限与配置说明：
+  - 用户身份发送消息需要用户授权 scope：`im:message.send_as_user` 和 `im:message`
+  - 机器人身份发送消息需要后台开通 `im:message:send_as_bot`，并确保机器人已经加入目标群
+  - 已在 `settings.example.json` 和 `settings.local.json` 的 `user_oauth_scope` 中补充用户身份发送权限
+  - 修改 scope 后需要重新执行 `python3 scripts/oauth_device_login.py`，让本地用户 token 带上新增权限
+- 验证方式：
+  - 已通过 `python3 -m py_compile adapters/feishu_client.py scripts/message_live_test.py scripts/tasks_live_test.py`
+  - 已通过 `python3 scripts/message_live_test.py --help`
+  - 已通过卡片 dry-run 测试，能够生成 `interactive` 消息 payload
+  - 真实发送命令示例：
+    - `python3 scripts/oauth_device_login.py`
+    - `python3 scripts/message_live_test.py --chat-id "oc_xxx" --message-type text --text "MeetFlow 测试消息"`
+    - `python3 scripts/message_live_test.py --chat-id "oc_xxx" --message-type card --text "会前背景卡已生成" --fact "会议：项目周会" --send`
 
 ### T2.7 实现任务创建能力
 
@@ -586,6 +681,176 @@
 - 验收标准：
   - 输入一条 `ActionItem` 能成功生成任务
   - 返回的任务 ID 可被记录
+- 状态：已完成
+- 本次创建 / 修改的文件：
+  - `adapters/feishu_client.py`
+  - `scripts/task_create_live_test.py`
+  - `config/settings.example.json`
+  - `config/settings.local.json`
+  - `config/README.md`
+  - `tasks.md`
+- 代码结构说明：
+  - `FeishuClient.build_create_task_payload()`：构造 `POST /open-apis/task/v2/tasks` 的请求体，支持标题、描述、负责人、截止时间、任务清单和幂等键
+  - `FeishuClient.create_task()`：调用飞书任务创建接口，并把返回的 `task` 转换为内部 `ActionItem`
+  - `FeishuClient.create_task_from_action_item()`：以内部 `ActionItem` 为输入创建飞书任务，服务于后续“会议 Action Item 自动落任务”
+  - `scripts/task_create_live_test.py`：提供真实联调入口，支持 dry-run、显式创建、负责人、截止时间和幂等键
+- 运行业务逻辑：
+  - 第一步，脚本把命令行输入转换为内部 `ActionItem`
+  - 第二步，`ActionItem.title` 映射为飞书任务 `summary`
+  - 第三步，`ActionItem.extra.description` 映射为飞书任务 `description`
+  - 第四步，`ActionItem.due_date` 映射为飞书任务 `due.timestamp`
+  - 第五步，`--assignee-open-id` 映射为 `members[].id`，角色固定为 `assignee`
+  - 第六步，默认只打印 dry-run payload，不创建真实任务
+  - 第七步，只有显式传入 `--create` 时，才调用飞书创建任务接口
+  - 第八步，创建成功后把飞书返回的任务转换为 `ActionItem`，并打印任务 ID、标题、负责人、截止时间、状态和链接
+- 安全设计说明：
+  - 创建任务属于写操作，脚本默认 dry-run
+  - 真实创建必须显式加 `--create`
+  - 支持 `--idempotency-key`，避免调试时重复创建同一条任务
+- 字段与接口说明：
+  - 创建接口：`POST /open-apis/task/v2/tasks`
+  - 查询参数：`user_id_type=open_id`
+  - `summary` 为必填
+  - `description` 最大 3000 字符，当前作为任务描述
+  - `due.timestamp` 使用毫秒时间戳
+  - `--due` 支持毫秒时间戳、`YYYY-MM-DD`、ISO 时间和 `+Nd` 相对天数
+  - `client_token` 用于飞书侧幂等创建
+- 权限与配置说明：
+  - 创建飞书任务需要用户授权 scope：`task:task:write`
+  - 已在 `settings.example.json` 和 `settings.local.json` 的 `user_oauth_scope` 中补充该权限
+  - 修改 scope 后需要重新执行 `python3 scripts/oauth_device_login.py`，让本地用户 token 带上新增权限
+- 验证方式：
+  - 已通过 `python3 -m py_compile adapters/feishu_client.py scripts/task_create_live_test.py scripts/tasks_live_test.py`
+  - 已通过 `python3 scripts/task_create_live_test.py --help`
+  - 已通过 dry-run 创建任务 payload 测试
+  - 已通过本地 payload 映射测试，能把 `ActionItem` 字段转换为飞书创建任务 JSON
+  - 真实创建命令示例：
+    - `python3 scripts/oauth_device_login.py`
+    - `python3 scripts/task_create_live_test.py --summary "整理会议纪要" --description "根据今天的项目周会补齐行动项"`
+    - `python3 scripts/task_create_live_test.py --summary "整理会议纪要" --due +2d --idempotency-key meetflow-task-001 --create`
+
+---
+
+## 5.2.8 M2.8：业务侧垂直 Agent Runtime
+
+### M2.8 设计目标
+
+M2 已经打通了飞书工具能力，但这些能力目前仍然主要以客户端方法和测试脚本存在。为了让项目成为一个业务侧垂直 Agent，而不是一组工作流脚本，需要在 M3 之前补上 Agent Runtime。
+
+这个 Runtime 的职责是：
+
+- 统一接收事件、定时触发和人工命令
+- 识别当前业务意图和触发场景
+- 构建会议 / 项目 / 妙记 / 任务上下文
+- 路由到正确的业务工作流
+- 通过 Tool Registry 调用飞书工具
+- 管理幂等键、执行状态、失败降级和审计日志
+- 控制自动化边界，例如低置信度任务不直接创建
+
+### T2.8 定义 Agent Runtime 数据模型
+
+- 优先级：`P0`
+- 目标：定义 Agent 输入、决策、上下文、运行结果等核心数据结构
+- 建议新增模型：
+  - `AgentInput`：承接 event / schedule / command 三类触发
+  - `AgentDecision`：描述路由到哪个工作流、为什么、需要哪些工具
+  - `WorkflowContext`：承接会议、项目、参与人、资源、记忆和 trace_id
+  - `AgentRunResult`：记录 Agent 执行状态、产物、副作用和下一步动作
+- 验收标准：
+  - M3-M5 工作流可以统一接收 `WorkflowContext`
+  - 每次 Agent 执行都有统一 `trace_id`
+  - 结果可以保存到现有 `WorkflowResult`
+
+### T2.9 实现 Tool Registry
+
+- 优先级：`P0`
+- 目标：把 M2 已完成的飞书能力注册成 Agent 可调用工具，而不是让工作流直接散落调用 `FeishuClient`
+- 首批工具建议：
+  - `calendar.list_events`
+  - `docs.fetch_resource`
+  - `minutes.fetch_resource`
+  - `tasks.list_my_tasks`
+  - `tasks.create_task`
+  - `im.send_text`
+  - `im.send_card`
+- 验收标准：
+  - 可以通过工具名调用具体方法
+  - 工具有统一入参、出参和错误包装
+  - 工具调用可记录日志和 trace_id
+
+### T2.10 实现 Workflow Router
+
+- 优先级：`P0`
+- 目标：根据事件类型或人工命令选择业务工作流
+- 路由规则：
+  - `meeting.soon` -> `pre_meeting_brief`
+  - `minute.ready` -> `post_meeting_followup`
+  - `risk.scan.tick` -> `risk_scan`
+  - `message.command` -> `manual_command`
+- 验收标准：
+  - 输入 `AgentInput` 能稳定输出 `AgentDecision`
+  - 未知事件能返回明确的 `unsupported` 决策
+  - 决策结果包含原因和幂等键
+
+### T2.11 实现 Workflow Context Builder
+
+- 优先级：`P0`
+- 目标：根据事件构建工作流上下文，避免每个工作流重复解析 payload
+- 核心能力：
+  - 从会议事件中解析 `meeting_id`、`calendar_event_id`、参与人和时间窗口
+  - 从妙记事件中解析 `minute_token`
+  - 从任务事件中解析 `task_id`
+  - 从配置或项目记忆中解析 `project_id`
+  - 聚合可用的飞书资源和本地记忆快照
+- 验收标准：
+  - M3-M5 只依赖 `WorkflowContext`，不直接依赖原始事件 payload
+  - 上下文中保留原始事件，便于调试和回放
+
+### T2.12 实现 MeetFlowAgent 主入口
+
+- 优先级：`P0`
+- 目标：实现业务侧垂直 Agent 的统一入口
+- 主流程：
+  - 接收 `AgentInput`
+  - 生成并绑定 `trace_id`
+  - 调用 `WorkflowRouter` 生成决策
+  - 通过 `WorkflowContextBuilder` 构建上下文
+  - 调用对应工作流处理器
+  - 保存 `AgentRunResult` 和 `WorkflowResult`
+  - 对失败场景记录错误并返回可解释结果
+- 验收标准：
+  - 可以用脚本模拟一次 `meeting.soon` 事件并完成路由
+  - 可以用脚本模拟一次 `minute.ready` 事件并完成路由
+  - 失败时不会静默吞错，有明确状态和错误原因
+
+### T2.13 实现 Agent Policy 与自动化边界
+
+- 优先级：`P1`
+- 目标：让 Agent 不只是执行流程，还能控制“哪些动作允许自动做，哪些需要确认”
+- 首批策略：
+  - 低置信度 Action Item 不直接创建任务
+  - 缺少负责人或截止时间的任务进入待确认卡片
+  - 同一会议同一时间窗口不重复发送会前卡片
+  - 同一任务同一风险当天不重复提醒
+  - 写操作必须支持 dry-run 或幂等键
+- 验收标准：
+  - M4 自动创建任务前会检查置信度和字段完整性
+  - M5 风险提醒前会检查降噪窗口
+
+### T2.14 实现 Agent 手动调试入口
+
+- 优先级：`P0`
+- 目标：提供一个命令行入口，方便本地模拟不同事件，验证 Agent 决策和上下文构建
+- 建议脚本：
+  - `scripts/agent_demo.py`
+- 示例：
+  - `python3 scripts/agent_demo.py --event-type meeting.soon --calendar-id primary`
+  - `python3 scripts/agent_demo.py --event-type minute.ready --minute-token xxx`
+  - `python3 scripts/agent_demo.py --event-type risk.scan.tick`
+- 验收标准：
+  - 能打印 `AgentDecision`
+  - 能打印 `WorkflowContext`
+  - 能选择 dry-run，不产生真实副作用
 
 ---
 
@@ -854,8 +1119,12 @@
 
 ## 6.3 Agent 与工作流任务
 
+- `P0` MeetFlowAgent 主入口
+- `P0` Agent Runtime 数据模型
 - `P0` 工作流路由器
 - `P0` 工具注册器
+- `P0` 工作流上下文构建器
+- `P1` Agent Policy 与自动化边界
 - `P0` 会前工作流
 - `P0` 会后工作流
 - `P0` 风险巡检工作流
@@ -877,9 +1146,10 @@
 
 1. `T1.1 - T1.5` 完成后，才能稳定进入业务开发
 2. `T2.1 - T2.7` 完成后，才能跑会前和会后工作流
-3. `T3.x` 完成后，才有第一段可演示主动链路
-4. `T4.x` 完成后，主闭环才成立
-5. `T5.x` 完成后，项目才真正体现“主动跟踪价值”
+3. `T2.8 - T2.14` 完成后，系统才具备真正的业务侧垂直 Agent Runtime
+4. `T3.x` 完成后，才有第一段可演示主动链路
+5. `T4.x` 完成后，主闭环才成立
+6. `T5.x` 完成后，项目才真正体现“主动跟踪价值”
 
 ### 可并行任务
 
@@ -895,16 +1165,18 @@
 
 1. 完成项目骨架、配置、日志、存储
 2. 打通飞书读取与卡片发送
-3. 实现会前卡片工作流
-4. 实现会后总结与任务创建
-5. 实现风险巡检与提醒
-6. 最后补指标、评估与答辩材料
+3. 补齐 MeetFlowAgent Runtime、工具注册器、路由器和上下文构建器
+4. 实现会前卡片工作流
+5. 实现会后总结与任务创建
+6. 实现风险巡检与提醒
+7. 最后补指标、评估与答辩材料
 
 原因很简单：
 
 - 会前卡片最容易先演示价值
 - 会后任务创建最能体现闭环
 - 风险巡检是加分项，但依赖前面结果
+- Agent Runtime 是垂直 Agent 的“大脑”和“状态中枢”，应在具体工作流前补齐
 
 ---
 

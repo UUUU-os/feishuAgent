@@ -13,7 +13,7 @@
     "max_retries": 2,
     "default_identity": "user",
     "redirect_uri": "",
-    "user_oauth_scope": "calendar:calendar:read calendar:calendar.event:read docx:document:readonly minutes:minutes:readonly minutes:minutes.artifacts:read offline_access",
+    "user_oauth_scope": "calendar:calendar:read calendar:calendar.event:read docx:document:readonly minutes:minutes:readonly minutes:minutes.artifacts:read task:task:read task:task:write im:message.send_as_user im:message offline_access",
     "user_access_token": "",
     "user_access_token_expires_at": 0,
     "user_refresh_token": "",
