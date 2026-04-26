@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import json
+import re
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -10,7 +12,7 @@ import requests
 
 from config import FeishuSettings
 from core.logging import get_logger
-from core.models import CalendarAttendee, CalendarEvent, CalendarInfo
+from core.models import CalendarAttendee, CalendarEvent, CalendarInfo, Resource
 
 
 class FeishuAPIError(RuntimeError):
@@ -570,6 +572,523 @@ class FeishuClient:
         """
 
         return str(time_info.get("timestamp") or time_info.get("date") or "")
+
+    @staticmethod
+    def extract_document_token(document: str) -> str:
+        """从飞书文档 URL 或裸 token 中提取 document_id。
+
+        这里参考 `lark-cli docs +fetch --api-version v2` 的解析方式，
+        支持以下输入：
+        - https://xxx.feishu.cn/docx/<token>
+        - https://xxx.feishu.cn/doc/<token>
+        - https://xxx.feishu.cn/wiki/<token>
+        - <token>
+        """
+
+        raw_document = document.strip()
+        if not raw_document:
+            raise FeishuAPIError("文档标识不能为空，请传入飞书文档 URL 或 document token")
+
+        for marker in ("/wiki/", "/docx/", "/doc/"):
+            marker_index = raw_document.find(marker)
+            if marker_index < 0:
+                continue
+
+            token = raw_document[marker_index + len(marker) :]
+            token = re.split(r"[/\\?#]", token, maxsplit=1)[0].strip()
+            if token:
+                return token
+
+        # 如果输入已经是 URL，但没有命中支持的路径，说明它可能不是可读取的新版文档。
+        if "://" in raw_document:
+            raise FeishuAPIError(
+                "暂不支持该文档 URL，请确认它是 /docx/、/doc/ 或 /wiki/ 类型的飞书文档链接"
+            )
+
+        if re.search(r"[/\\?#]", raw_document):
+            raise FeishuAPIError("文档 token 中不应包含路径、查询参数或片段标识")
+
+        return raw_document
+
+    def fetch_document_resource(
+        self,
+        document: str,
+        doc_format: str = "xml",
+        detail: str = "simple",
+        scope: str = "full",
+        start_block_id: str = "",
+        end_block_id: str = "",
+        keyword: str = "",
+        context_before: int = 0,
+        context_after: int = 0,
+        max_depth: int = -1,
+        identity: IdentityMode | None = None,
+    ) -> Resource:
+        """读取飞书文档，并转换成内部统一 `Resource` 模型。
+
+        这里使用飞书 `docs_ai` 文档读取接口：
+        POST /open-apis/docs_ai/v1/documents/{document_id}/fetch
+
+        返回 `Resource` 后，后续召回、摘要、证据引用都可以基于统一资源结构处理。
+        """
+
+        document_id = self.extract_document_token(document)
+        response_json = self.fetch_document(
+            document_id=document_id,
+            doc_format=doc_format,
+            detail=detail,
+            scope=scope,
+            start_block_id=start_block_id,
+            end_block_id=end_block_id,
+            keyword=keyword,
+            context_before=context_before,
+            context_after=context_after,
+            max_depth=max_depth,
+            identity=identity,
+        )
+        document_data = response_json.get("data", {}).get("document", {})
+        if not isinstance(document_data, dict):
+            raise FeishuAPIError("飞书文档读取成功，但返回体中缺少 document 对象")
+
+        return self.to_document_resource(
+            document_id=document_id,
+            document_data=document_data,
+            source_url=document if "://" in document else "",
+            doc_format=doc_format,
+            detail=detail,
+            scope=scope,
+        )
+
+    def fetch_document(
+        self,
+        document_id: str,
+        doc_format: str = "xml",
+        detail: str = "simple",
+        scope: str = "full",
+        start_block_id: str = "",
+        end_block_id: str = "",
+        keyword: str = "",
+        context_before: int = 0,
+        context_after: int = 0,
+        max_depth: int = -1,
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """调用飞书 docs_ai 接口读取文档原始内容。
+
+        这个方法保留原始响应，适合调试；业务层通常应使用
+        `fetch_document_resource()`，直接拿统一的 `Resource` 对象。
+        """
+
+        payload = self._build_document_fetch_payload(
+            doc_format=doc_format,
+            detail=detail,
+            scope=scope,
+            start_block_id=start_block_id,
+            end_block_id=end_block_id,
+            keyword=keyword,
+            context_before=context_before,
+            context_after=context_after,
+            max_depth=max_depth,
+        )
+        return self.post(
+            path=f"docs_ai/v1/documents/{document_id}/fetch",
+            payload=payload,
+            identity=identity,
+        )
+
+    def to_document_resource(
+        self,
+        document_id: str,
+        document_data: dict[str, Any],
+        source_url: str,
+        doc_format: str,
+        detail: str,
+        scope: str,
+    ) -> Resource:
+        """将飞书文档读取结果转换为统一 `Resource` 模型。"""
+
+        content = str(document_data.get("content", "") or "")
+        title = str(document_data.get("title", "") or "").strip()
+        if not title:
+            title = self._extract_document_title(content) or document_id
+
+        revision_id = document_data.get("revision_id", "")
+        # source_meta 保留检索和调试需要的轻量元信息，避免重复塞入完整正文。
+        source_meta = {
+            "document_id": document_data.get("document_id", document_id),
+            "revision_id": revision_id,
+            "doc_format": doc_format,
+            "detail": detail,
+            "scope": scope,
+            "content_length": len(content),
+            "content_excerpt": self._build_text_excerpt(content),
+        }
+
+        return Resource(
+            resource_id=document_id,
+            resource_type="feishu_document",
+            title=title,
+            content=content,
+            source_url=source_url,
+            source_meta=source_meta,
+            updated_at=str(revision_id or ""),
+        )
+
+    def _build_document_fetch_payload(
+        self,
+        doc_format: str,
+        detail: str,
+        scope: str,
+        start_block_id: str,
+        end_block_id: str,
+        keyword: str,
+        context_before: int,
+        context_after: int,
+        max_depth: int,
+    ) -> dict[str, Any]:
+        """构造 docs_ai 文档读取接口请求体。"""
+
+        if doc_format not in {"xml", "markdown", "text"}:
+            raise FeishuAPIError("doc_format 仅支持 xml、markdown 或 text")
+        if detail not in {"simple", "with-ids", "full"}:
+            raise FeishuAPIError("detail 仅支持 simple、with-ids 或 full")
+        if doc_format != "xml" and detail in {"with-ids", "full"}:
+            raise FeishuAPIError("with-ids/full 只适用于 xml 格式文档读取")
+
+        payload: dict[str, Any] = {
+            "format": doc_format,
+            "export_option": self._build_document_export_option(detail),
+        }
+
+        read_option = self._build_document_read_option(
+            scope=scope,
+            start_block_id=start_block_id,
+            end_block_id=end_block_id,
+            keyword=keyword,
+            context_before=context_before,
+            context_after=context_after,
+            max_depth=max_depth,
+        )
+        if read_option:
+            payload["read_option"] = read_option
+        return payload
+
+    def _build_document_export_option(self, detail: str) -> dict[str, bool]:
+        """根据 detail 级别构造导出选项。"""
+
+        if detail == "simple":
+            return {
+                "export_block_id": False,
+                "export_style_attrs": False,
+                "export_cite_extra_data": False,
+            }
+        if detail == "with-ids":
+            return {
+                "export_block_id": True,
+                "export_style_attrs": False,
+                "export_cite_extra_data": False,
+            }
+        return {
+            "export_block_id": True,
+            "export_style_attrs": True,
+            "export_cite_extra_data": True,
+        }
+
+    def _build_document_read_option(
+        self,
+        scope: str,
+        start_block_id: str,
+        end_block_id: str,
+        keyword: str,
+        context_before: int,
+        context_after: int,
+        max_depth: int,
+    ) -> dict[str, str] | None:
+        """根据 scope 构造局部读取参数。
+
+        `full` 表示读取整篇文档，不需要给服务端传 read_option。
+        其余模式与 `lark-cli docs +fetch --api-version v2` 保持一致。
+        """
+
+        normalized_scope = (scope or "full").strip()
+        if normalized_scope == "full":
+            return None
+        if normalized_scope not in {"outline", "range", "keyword", "section"}:
+            raise FeishuAPIError("scope 仅支持 full、outline、range、keyword 或 section")
+
+        if context_before < 0 or context_after < 0:
+            raise FeishuAPIError("context_before/context_after 不能为负数")
+        if max_depth < -1:
+            raise FeishuAPIError("max_depth 不能小于 -1")
+        if normalized_scope == "range" and not start_block_id and not end_block_id:
+            raise FeishuAPIError("range 模式需要 start_block_id 或 end_block_id")
+        if normalized_scope == "keyword" and not keyword:
+            raise FeishuAPIError("keyword 模式需要 keyword")
+        if normalized_scope == "section" and not start_block_id:
+            raise FeishuAPIError("section 模式需要 start_block_id")
+
+        read_option: dict[str, str] = {"read_mode": normalized_scope}
+        if start_block_id:
+            read_option["start_block_id"] = start_block_id
+        if end_block_id:
+            read_option["end_block_id"] = end_block_id
+        if keyword:
+            read_option["keyword"] = keyword
+        if context_before > 0:
+            read_option["context_before"] = str(context_before)
+        if context_after > 0:
+            read_option["context_after"] = str(context_after)
+        if max_depth >= 0:
+            read_option["max_depth"] = str(max_depth)
+        return read_option
+
+    def _extract_document_title(self, content: str) -> str:
+        """从 XML/Markdown 文本中尽量提取标题。"""
+
+        title_match = re.search(r"<title[^>]*>(.*?)</title>", content, flags=re.DOTALL)
+        if title_match:
+            return self._strip_markup(title_match.group(1)).strip()
+
+        for line in content.splitlines():
+            stripped_line = self._strip_markup(line).strip().lstrip("#").strip()
+            if stripped_line:
+                return stripped_line
+        return ""
+
+    def _build_text_excerpt(self, content: str, limit: int = 500) -> str:
+        """把文档内容压缩成便于日志和卡片展示的短摘要。"""
+
+        plain_text = self._strip_markup(content)
+        plain_text = re.sub(r"\s+", " ", plain_text).strip()
+        if len(plain_text) <= limit:
+            return plain_text
+        return plain_text[:limit].rstrip() + "..."
+
+    def _strip_markup(self, content: str) -> str:
+        """移除 XML/HTML 标签，生成更接近自然语言的纯文本。"""
+
+        without_tags = re.sub(r"<[^>]+>", " ", content)
+        return (
+            without_tags.replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&")
+            .replace("&quot;", '"')
+            .replace("&apos;", "'")
+        )
+
+    @staticmethod
+    def extract_minute_token(minute: str) -> str:
+        """从飞书妙记 URL 或裸 token 中提取 minute_token。
+
+        飞书妙记链接通常形如：
+        https://xxx.feishu.cn/minutes/<minute_token>
+        """
+
+        raw_minute = minute.strip()
+        if not raw_minute:
+            raise FeishuAPIError("妙记标识不能为空，请传入妙记 URL 或 minute token")
+
+        marker = "/minutes/"
+        marker_index = raw_minute.find(marker)
+        if marker_index >= 0:
+            token = raw_minute[marker_index + len(marker) :]
+            token = re.split(r"[/\\?#]", token, maxsplit=1)[0].strip()
+            if token:
+                return token
+
+        if "://" in raw_minute:
+            raise FeishuAPIError("暂不支持该妙记 URL，请确认链接路径中包含 /minutes/<token>")
+
+        if re.search(r"[/\\?#]", raw_minute):
+            raise FeishuAPIError("妙记 token 中不应包含路径、查询参数或片段标识")
+
+        return raw_minute
+
+    def fetch_minute_resource(
+        self,
+        minute: str,
+        include_artifacts: bool = True,
+        user_id_type: str | None = None,
+        identity: IdentityMode | None = None,
+    ) -> Resource:
+        """读取飞书妙记，并转换为内部统一 `Resource` 模型。
+
+        当前主链路：
+        - 读取妙记基础信息
+        - 尝试读取 AI 产物：summary / todos / chapters
+        - 无 AI 产物时退化为仅包含元数据的 Resource
+        """
+
+        minute_token = self.extract_minute_token(minute)
+        minute_response = self.get_minute(
+            minute_token=minute_token,
+            user_id_type=user_id_type,
+            identity=identity,
+        )
+        minute_data = minute_response.get("data", {}).get("minute", {})
+        if not isinstance(minute_data, dict):
+            raise FeishuAPIError("飞书妙记读取成功，但返回体中缺少 minute 对象")
+
+        artifacts_data: dict[str, Any] = {}
+        artifacts_error = ""
+        if include_artifacts:
+            try:
+                artifacts_response = self.get_minute_artifacts(
+                    minute_token=minute_token,
+                    identity=identity,
+                )
+                artifacts_data = artifacts_response.get("data", {})
+            except FeishuAPIError as error:
+                # AI 产物不是 T2.4 的硬依赖；失败时保留错误，资源仍可用作元数据。
+                artifacts_error = str(error)
+
+        return self.to_minute_resource(
+            minute_token=minute_token,
+            minute_data=minute_data,
+            artifacts_data=artifacts_data,
+            artifacts_error=artifacts_error,
+            fallback_source_url=minute if "://" in minute else "",
+        )
+
+    def get_minute(
+        self,
+        minute_token: str,
+        user_id_type: str | None = None,
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """读取妙记基础信息。
+
+        对应接口：
+        GET /open-apis/minutes/v1/minutes/{minute_token}
+        """
+
+        params: dict[str, Any] = {}
+        if user_id_type:
+            params["user_id_type"] = user_id_type
+
+        return self.get(
+            path=f"minutes/v1/minutes/{minute_token}",
+            params=params or None,
+            identity=identity,
+        )
+
+    def get_minute_artifacts(
+        self,
+        minute_token: str,
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """读取妙记 AI 产物。
+
+        对应接口：
+        GET /open-apis/minutes/v1/minutes/{minute_token}/artifacts
+
+        常见返回字段包括：
+        - summary：妙记总结
+        - minute_todos：待办
+        - minute_chapters：章节
+        """
+
+        return self.get(
+            path=f"minutes/v1/minutes/{minute_token}/artifacts",
+            identity=identity,
+        )
+
+    def to_minute_resource(
+        self,
+        minute_token: str,
+        minute_data: dict[str, Any],
+        artifacts_data: dict[str, Any],
+        artifacts_error: str,
+        fallback_source_url: str,
+    ) -> Resource:
+        """将妙记元数据和 AI 产物转换为统一 `Resource` 模型。"""
+
+        title = str(minute_data.get("title", "") or minute_token)
+        source_url = str(minute_data.get("url", "") or fallback_source_url)
+        content = self._build_minute_content(minute_data, artifacts_data, artifacts_error)
+        source_meta = {
+            "minute_token": minute_data.get("token", minute_token),
+            "owner_id": minute_data.get("owner_id", ""),
+            "cover": minute_data.get("cover", ""),
+            "duration": minute_data.get("duration", ""),
+            "create_time": minute_data.get("create_time", ""),
+            "has_artifacts": bool(artifacts_data),
+            "artifacts_error": artifacts_error,
+            "content_length": len(content),
+            "content_excerpt": self._build_text_excerpt(content),
+        }
+
+        return Resource(
+            resource_id=minute_token,
+            resource_type="feishu_minute",
+            title=title,
+            content=content,
+            source_url=source_url,
+            source_meta=source_meta,
+            updated_at=str(minute_data.get("create_time", "") or ""),
+        )
+
+    def _build_minute_content(
+        self,
+        minute_data: dict[str, Any],
+        artifacts_data: dict[str, Any],
+        artifacts_error: str,
+    ) -> str:
+        """把妙记元数据和 AI 产物拼成可被召回/摘要使用的正文。"""
+
+        lines = [
+            f"# {minute_data.get('title', '未命名妙记')}",
+            "",
+            "## 基础信息",
+            f"- 妙记链接：{minute_data.get('url', '')}",
+            f"- 创建时间：{minute_data.get('create_time', '')}",
+            f"- 时长毫秒：{minute_data.get('duration', '')}",
+            f"- 所有者：{minute_data.get('owner_id', '')}",
+        ]
+
+        summary = str(artifacts_data.get("summary", "") or "").strip()
+        if summary:
+            lines.extend(["", "## AI 总结", summary])
+
+        todos = artifacts_data.get("minute_todos", [])
+        if isinstance(todos, list) and todos:
+            lines.extend(["", "## 待办"])
+            for index, todo in enumerate(todos, start=1):
+                lines.append(f"{index}. {self._format_minute_artifact_item(todo)}")
+
+        chapters = artifacts_data.get("minute_chapters", [])
+        if isinstance(chapters, list) and chapters:
+            lines.extend(["", "## 章节"])
+            for index, chapter in enumerate(chapters, start=1):
+                lines.append(f"{index}. {self._format_minute_artifact_item(chapter)}")
+
+        if artifacts_error:
+            lines.extend(
+                [
+                    "",
+                    "## AI 产物状态",
+                    "当前仅成功读取妙记元数据，AI 总结/待办/章节暂不可用。",
+                    f"错误信息：{artifacts_error}",
+                ]
+            )
+        elif not artifacts_data:
+            lines.extend(["", "## AI 产物状态", "当前没有返回 AI 总结、待办或章节。"])
+
+        return "\n".join(lines).strip()
+
+    def _format_minute_artifact_item(self, item: Any) -> str:
+        """把妙记待办/章节条目格式化为易读文本。"""
+
+        if isinstance(item, str):
+            return item
+        if not isinstance(item, dict):
+            return str(item)
+
+        for key in ("content", "text", "title", "summary", "description"):
+            value = item.get(key)
+            if value:
+                return str(value)
+        return json.dumps(item, ensure_ascii=False)
 
     def _parse_oauth_token_bundle(self, response_json: dict[str, Any]) -> OAuthTokenBundle:
         """把 OAuth token 接口响应转换为统一结构。"""

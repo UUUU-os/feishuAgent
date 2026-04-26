@@ -479,6 +479,42 @@
 - 验收标准：
   - 能读取指定文档内容
   - 能转换为内部 `Resource` 结构
+- 状态：已完成
+- 本次创建 / 修改的文件：
+  - `adapters/feishu_client.py`
+  - `scripts/docs_live_test.py`
+  - `config/settings.example.json`
+  - `config/settings.local.json`
+  - `config/README.md`
+  - `tasks.md`
+- 代码结构说明：
+  - `FeishuClient.extract_document_token()`：从飞书文档 URL 或裸 token 中解析 `document_id`，支持 `/docx/`、`/doc/`、`/wiki/` 三类链接
+  - `FeishuClient.fetch_document()`：调用飞书 `docs_ai` 文档读取接口，保留原始响应，便于排查接口返回
+  - `FeishuClient.fetch_document_resource()`：面向业务层的主入口，读取文档后直接转换成内部 `Resource`
+  - `FeishuClient.to_document_resource()`：把飞书返回的 `document.content`、`revision_id` 等字段映射为统一资源模型
+  - `FeishuClient._build_document_fetch_payload()`：统一构造 `docs_ai/v1/documents/{document_id}/fetch` 请求体
+  - `FeishuClient._build_document_read_option()`：支持 `full`、`outline`、`range`、`keyword`、`section` 等读取范围
+  - `FeishuClient._build_text_excerpt()`：把 XML/Markdown 正文压缩成适合日志和卡片展示的短摘要
+  - `scripts/docs_live_test.py`：提供真实联调入口，可测试文档读取、局部读取、正文预览和完整 `Resource` JSON 输出
+- 运行业务逻辑：
+  - 第一步，用户传入文档 URL 或 token，例如 `--doc https://xxx.feishu.cn/docx/xxxxx`
+  - 第二步，脚本读取 `config/settings.local.json`，默认使用 `feishu.default_identity`；当前默认是 `user`
+  - 第三步，`FeishuClient` 自动获取或刷新 `user_access_token`
+  - 第四步，客户端把 URL 解析为 `document_id`
+  - 第五步，调用 `POST /open-apis/docs_ai/v1/documents/{document_id}/fetch`
+  - 第六步，飞书返回 `document.content` 后，客户端转换为 `Resource(resource_type="feishu_document")`
+  - 第七步，脚本打印标题、正文摘要、正文预览和可选的完整资源 JSON
+- 权限与配置说明：
+  - 文档读取需要用户授权 scope：`docx:document:readonly`
+  - 已在 `settings.example.json` 和 `settings.local.json` 的 `user_oauth_scope` 中补充该权限
+  - 因为 OAuth token 的权限来自授权时的 scope，所以修改配置后需要重新执行 `python3 scripts/oauth_device_login.py`
+- 验证方式：
+  - 已通过 `python3 -m py_compile adapters/feishu_client.py scripts/docs_live_test.py`
+  - 已通过 `python3 scripts/docs_live_test.py --help`
+  - 真实读取命令示例：
+    - `python3 scripts/oauth_device_login.py`
+    - `python3 scripts/docs_live_test.py --doc "你的飞书文档链接" --scope full`
+    - `python3 scripts/docs_live_test.py --doc "你的飞书文档链接" --scope outline --max-depth 3`
 
 ### T2.4 实现妙记元数据与内容读取能力
 
@@ -487,6 +523,45 @@
 - 验收标准：
   - 能获取妙记标题、创建时间、链接
   - 若正文接口可用，能获取内容；否则能为 Demo 留出 mock 能力
+- 状态：已完成
+- 本次创建 / 修改的文件：
+  - `adapters/feishu_client.py`
+  - `scripts/minutes_live_test.py`
+  - `config/settings.example.json`
+  - `config/settings.local.json`
+  - `config/README.md`
+  - `tasks.md`
+- 代码结构说明：
+  - `FeishuClient.extract_minute_token()`：从妙记 URL 或裸 token 中解析 `minute_token`
+  - `FeishuClient.get_minute()`：调用 `GET /open-apis/minutes/v1/minutes/{minute_token}` 读取妙记基础信息
+  - `FeishuClient.get_minute_artifacts()`：调用 `GET /open-apis/minutes/v1/minutes/{minute_token}/artifacts` 尝试读取 AI 总结、待办和章节
+  - `FeishuClient.fetch_minute_resource()`：业务层主入口，先读取元数据，再尽力读取 AI 产物，最后转换为统一 `Resource`
+  - `FeishuClient.to_minute_resource()`：把妙记标题、链接、创建时间、时长、所有者和 AI 产物映射到内部资源模型
+  - `FeishuClient._build_minute_content()`：将元数据、summary、todos、chapters 拼成可被召回和摘要模块消费的 Markdown 文本
+  - `FeishuClient._format_minute_artifact_item()`：兼容不同形态的待办 / 章节条目，优先提取 `content`、`text`、`title` 等字段
+  - `scripts/minutes_live_test.py`：提供真实联调入口，可测试妙记读取、元数据退化模式和完整 `Resource` JSON 输出
+- 运行业务逻辑：
+  - 第一步，用户传入妙记 URL 或 token，例如 `--minute https://xxx.feishu.cn/minutes/obcn...`
+  - 第二步，脚本读取配置，默认使用 `feishu.default_identity`，当前默认是 `user`
+  - 第三步，`FeishuClient` 自动获取或刷新 `user_access_token`
+  - 第四步，客户端解析出 `minute_token`
+  - 第五步，调用 `minutes.get` 获取标题、创建时间、时长、所有者、链接等基础信息
+  - 第六步，默认继续调用 `artifacts` 接口读取 AI 总结、待办和章节
+  - 第七步，如果 AI 产物读取失败，不中断主流程，而是在 `source_meta.artifacts_error` 中记录原因，并返回仅包含元数据的 `Resource`
+  - 第八步，脚本打印资源摘要、正文预览和可选完整 JSON
+- 权限与配置说明：
+  - 妙记基础信息需要用户授权 scope：`minutes:minutes:readonly`
+  - 妙记 AI 产物需要用户授权 scope：`minutes:minutes.artifacts:read`
+  - 已在 `settings.example.json` 和 `settings.local.json` 的 `user_oauth_scope` 中补充以上权限
+  - 修改 scope 后需要重新执行 `python3 scripts/oauth_device_login.py`，让本地用户 token 带上新增权限
+- 验证方式：
+  - 已通过 `python3 -m py_compile adapters/feishu_client.py scripts/minutes_live_test.py scripts/docs_live_test.py`
+  - 已通过 `python3 scripts/minutes_live_test.py --help`
+  - 已通过本地 token 解析测试，能从 `/minutes/<token>` 链接中提取 `minute_token`
+  - 真实读取命令示例：
+    - `python3 scripts/oauth_device_login.py`
+    - `python3 scripts/minutes_live_test.py --minute "你的飞书妙记链接"`
+    - `python3 scripts/minutes_live_test.py --minute "你的飞书妙记链接" --metadata-only`
 
 ### T2.5 实现任务读取能力
 
