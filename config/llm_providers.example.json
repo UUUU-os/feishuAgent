@@ -10,7 +10,7 @@
       "provider": "openai-compatible",
       "display_name": "DeepSeek",
       "api_base": "https://api.deepseek.com",
-      "api_key": "sk-7dec7f1a607243148219b2b064d19d95",
+      "api_key": "replace-with-your-deepseek-api-key",
       "api_key_env": "DEEPSEEK_API_KEY",
       "model": "deepseek-chat",
       "temperature": 0.2,

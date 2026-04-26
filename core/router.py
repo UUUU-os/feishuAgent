@@ -208,21 +208,13 @@ MANUAL_WORKFLOW_TOOLS: dict[str, list[str]] = {
 def build_idempotency_key(workflow_type: str, agent_input: AgentInput) -> str:
     """构造稳定幂等键。
 
-    优先使用业务 payload 中的明确 ID；
+    优先使用当前工作流最稳定的业务 ID；
     如果没有，则退回到 event_id；
     仍然没有时，对 payload 做短 hash，保证同类输入尽量稳定去重。
     """
 
     payload = agent_input.payload
-    stable_id = (
-        payload.get("idempotency_key")
-        or payload.get("meeting_id")
-        or payload.get("calendar_event_id")
-        or payload.get("event_id")
-        or payload.get("minute_token")
-        or payload.get("task_id")
-        or agent_input.event_id
-    )
+    stable_id = payload.get("idempotency_key") or _select_stable_id(workflow_type, agent_input)
 
     if stable_id:
         return f"{workflow_type}:{stable_id}"
@@ -230,6 +222,26 @@ def build_idempotency_key(workflow_type: str, agent_input: AgentInput) -> str:
     payload_digest = hashlib.sha1(str(sorted(payload.items())).encode("utf-8")).hexdigest()[:12]
     time_bucket = agent_input.created_at or int(time.time())
     return f"{workflow_type}:{agent_input.event_type}:{time_bucket}:{payload_digest}"
+
+
+def _select_stable_id(workflow_type: str, agent_input: AgentInput) -> str:
+    """按工作流类型选择最适合作为幂等键的业务 ID。"""
+
+    payload = agent_input.payload
+    if workflow_type == "pre_meeting_brief":
+        keys = ("meeting_id", "calendar_event_id", "event_id")
+    elif workflow_type == "post_meeting_followup":
+        keys = ("minute_token", "meeting_id", "calendar_event_id", "event_id")
+    elif workflow_type == "risk_scan":
+        keys = ("task_id", "project_id", "event_id")
+    else:
+        keys = ("event_id", "meeting_id", "minute_token", "task_id")
+
+    for key in keys:
+        value = payload.get(key)
+        if value:
+            return str(value)
+    return agent_input.event_id
 
 
 def build_agent_input(
