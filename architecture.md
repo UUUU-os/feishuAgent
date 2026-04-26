@@ -278,6 +278,8 @@ Event
 ### 核心组件
 
 - `MeetFlowAgent`
+- `MeetFlowAgentLoop`
+- `LLMProvider`
 - `WorkflowRouter`
 - `ToolRegistry`
 - `WorkflowContextBuilder`
@@ -289,16 +291,29 @@ Event
 ```text
 MeetFlowAgent
 - Agent 主入口，接收 Event 或手动 Command
-- 加载上下文，调用 WorkflowRouter
+- 加载上下文，调用 WorkflowRouter 和 MeetFlowAgentLoop
 - 管理执行状态、失败降级和最终输出
+
+MeetFlowAgentLoop
+- 参考 nanobot 的 AgentRunner 设计，负责真正的 LLM 工具调用循环
+- 每轮把上下文、历史消息、工具 schema 交给 LLM
+- 执行 LLM 选择的工具，并把工具结果继续喂回 LLM
+- 直到模型输出最终结构化结果、达到最大轮数或触发策略拦截
+
+LLMProvider
+- 封装 OpenAI-compatible / 其他模型服务调用
+- 对上提供统一 chat 接口，对下适配不同模型的 tool calling 协议
+- 不直接接触飞书 API，只负责生成思考结果、工具调用请求和最终文本
 
 WorkflowRouter
 - 根据 event_type / command / schedule_tick 选择工作流
 - 输出 workflow_type 和必要参数
+- 只做粗粒度业务路由，不承担复杂推理
 
 ToolRegistry
 - 统一注册 FeishuClient 能力和后续 LLM / Recall 工具
 - 给工作流提供稳定的工具调用入口
+- 向 LLM 暴露可调用工具 schema，执行时统一做参数校验、异常包装和审计日志
 
 WorkflowContextBuilder
 - 从事件中解析 meeting_id / minute_token / task_id / project_id
@@ -310,6 +325,69 @@ AgentStateStore
 AgentPolicy
 - 控制自动化边界，例如低置信度任务不直接创建、风险提醒降噪、写操作是否需要确认
 ```
+
+### LLM 在 Agent 中的位置
+
+LLM 不应该被封装在某一个具体工具里，也不应该直接替代全部系统路由。更合适的位置是放在 `MeetFlowAgentLoop` 中，作为“受控工具集上的推理与规划器”。
+
+推荐边界如下：
+
+- `WorkflowRouter`：规则优先，负责把触发事件路由到 `pre_meeting_brief`、`post_meeting_followup`、`risk_scan` 等业务场景
+- `WorkflowContextBuilder`：负责把飞书原始 payload 整理成模型能理解的业务上下文
+- `MeetFlowAgentLoop`：负责调用 LLM，让 LLM 基于上下文选择工具、阅读工具结果、决定下一步
+- `ToolRegistry`：负责真正执行工具调用，例如读取日历、拉取文档、读取妙记、创建任务、发送卡片
+- `AgentPolicy`：负责在写操作前做安全检查，例如是否允许自动发群消息、是否允许自动创建任务
+
+这样设计后，LLM 会负责“思考该用哪些工具”，但它不会绕过系统边界直接拼飞书 API，也不会直接执行不可控写操作。
+
+### 参考 nanobot 的 Agent Loop
+
+nanobot 的核心模式可以抽象为：
+
+```text
+用户/事件输入
+  -> ContextBuilder 构建系统提示词、历史消息、运行上下文
+  -> LLMProvider 携带工具 schema 调用模型
+  -> AgentRunner 判断是否有 tool_calls
+  -> ToolRegistry 校验并执行工具
+  -> tool result 追加回消息列表
+  -> 继续下一轮 LLM 调用
+  -> 输出最终答案或结构化结果
+```
+
+MeetFlow 可以复用这个思想，但需要做业务收敛：
+
+- 工具范围只开放飞书和知识处理工具，不开放通用 Shell / 文件系统工具
+- 每个工作流只暴露必要工具，避免模型在无关工具之间游走
+- 工具结果必须保留来源链接和证据片段，方便答辩证明准确性
+- 写操作工具默认经过 `AgentPolicy`，必要时先生成确认卡片而不是直接执行
+- 每次 loop 有最大轮数和最大工具结果长度，避免一次会议触发无限推理
+
+### MeetFlow Agent Loop 建议流程
+
+```text
+1. MeetFlowAgent 接收 AgentInput
+2. WorkflowRouter 选择业务场景和允许工具集
+3. WorkflowContextBuilder 构建 WorkflowContext
+4. MeetFlowAgentLoop 生成 system prompt、runtime context 和 tool schema
+5. LLMProvider 调用模型
+6. 如果模型请求工具，ToolRegistry 执行工具并返回 ToolResult
+7. AgentPolicy 检查工具结果和待执行副作用
+8. 工具结果进入下一轮 LLM
+9. LLM 输出最终结构化结果
+10. MeetFlowAgent 保存 AgentRunResult，并按策略发送卡片或创建任务
+```
+
+### 工作流内的 LLM 职责
+
+不同工作流中，LLM 的职责不同：
+
+- `pre_meeting_brief`：判断需要读取哪些背景资料，比较文档和历史妙记，生成会前知识卡片
+- `post_meeting_followup`：从妙记中抽取 Action Items、负责人、截止时间和证据，判断哪些任务可以自动创建
+- `risk_scan`：结合任务状态、历史提醒和会议上下文，总结风险原因并生成低噪声提醒
+- `manual_qa`：在受控工具集内做问答和检索，但输出必须带来源
+
+这意味着 M3-M5 不是“没有 Agent”，而是作为垂直 Agent 的业务技能被 `MeetFlowAgentLoop` 调用和约束。
 
 ### 为什么首版不做多 Agent
 
@@ -386,14 +464,14 @@ AgentRunResult
 
 ### 首版 Agent 决策规则
 
-首版可以先采用规则驱动，而不是一开始就让 LLM 决策所有路由：
+首版的系统级路由仍然建议规则驱动，而不是一开始就让 LLM 决策所有路由：
 
 - `meeting.soon` -> `pre_meeting_brief`
 - `minute.ready` -> `post_meeting_followup`
 - `risk.scan.tick` -> `risk_scan`
 - `message.command` -> `manual_qa` 或指定工作流
 
-LLM 更适合放在工作流内部做摘要、抽取和判断，而不是一开始就接管所有系统级路由。这样实现更稳定，也更容易在答辩时解释。
+LLM 应该放在 `MeetFlowAgentLoop` 中，负责在已选业务场景内进行工具选择、信息整合、摘要、抽取和判断，而不是一开始就接管所有系统级路由。这样实现更稳定，也更容易在答辩时解释。
 
 ---
 
