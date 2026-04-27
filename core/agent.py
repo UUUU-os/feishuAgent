@@ -17,6 +17,7 @@ from core.policy import AgentPolicy
 from core.router import WorkflowRouter
 from core.storage import MeetFlowStorage
 from core.tools import ToolRegistry
+from core.workflows import WorkflowRunner, WorkflowSpec, build_default_workflow_runners
 
 
 class MeetFlowAgentError(RuntimeError):
@@ -39,6 +40,7 @@ class MeetFlowAgent:
     loop: MeetFlowAgentLoop
     storage: MeetFlowStorage | None = None
     policy: AgentPolicy | None = None
+    workflow_runners: dict[str, WorkflowRunner] = field(default_factory=build_default_workflow_runners)
     enable_idempotency: bool = True
     logger: logging.Logger = field(init=False)
 
@@ -91,8 +93,11 @@ class MeetFlowAgent:
                 allow_write=allow_write,
             )
             self.loop.allow_write = allow_write
-            result = self.loop.run(
+            runner = self._resolve_workflow_runner(decision)
+            result = runner.run(
                 context=context,
+                decision=decision,
+                loop=self.loop,
                 required_tools=required_tools,
                 workflow_goal=workflow_goal or decision.reason,
                 generation_settings=generation_settings,
@@ -133,6 +138,19 @@ class MeetFlowAgent:
             else:
                 self.logger.info("写工具未开放，已从本次工具集中移除 tool=%s", tool_name)
         return read_only_tools
+
+    def _resolve_workflow_runner(self, decision: AgentDecision) -> WorkflowRunner:
+        """读取当前工作流对应的确定性骨架。"""
+
+        runner = self.workflow_runners.get(decision.workflow_type)
+        if runner is not None:
+            return runner
+        return WorkflowRunner(
+            spec=WorkflowSpec(
+                workflow_type=decision.workflow_type,
+                workflow_goal=decision.reason,
+            )
+        )
 
     def _is_duplicate(self, decision: AgentDecision) -> bool:
         """判断当前幂等键是否已经执行过。"""
