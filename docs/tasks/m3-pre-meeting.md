@@ -739,10 +739,13 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - 每次运行会在 `storage/reports/m3/` 生成 Markdown 与 JSON 报告，展示会议输入、检索 query、资源 chunk、工具命中结果和卡片 payload 草案
   - 报告会把“可检索子 chunk”和“父级上下文 chunk”分开展示，避免把 parent_section 误读为重复检索片段
   - `scripted_debug` 会优先解析 Agent Loop 消息中的“运行时上下文 JSON”，并用真实会议标题、会议描述和相关资料标题构造 `knowledge.search` query，避免真实联调时继续使用固定的 MeetFlow 调试查询词
+  - 默认复用 `updated_at + checksum + embedding_fingerprint` 均未变化的既有索引；只有传 `--force-index` 时才强制重建，减少真实联调时反复下载 embedding 模型和重写向量库的外部不稳定性
+  - 人工联调同一会议需要重复发送时，可传 `--idempotency-suffix` 为本次运行生成新的业务幂等键；该方式不清理本地幂等记录，也不绕过 `AgentPolicy`
 - 推荐命令：
   - `python3 scripts/pre_meeting_live_test.py --identity user --lookahead-hours 24 --doc '<你的飞书文档 URL>'`
   - `python3 scripts/pre_meeting_live_test.py --identity user --event-id '<真实 event_id>' --doc '<文档 URL>' --minute '<妙记 URL>'`
   - `python3 scripts/pre_meeting_live_test.py --identity user --event-id '<真实 event_id>' --doc '<文档 URL>' --allow-write --enable-idempotency`
+  - `python3 scripts/pre_meeting_live_test.py --identity user --event-id '<真实 event_id>' --doc '<文档 URL>' --allow-write --idempotency-suffix '<本次联调标识>'`
 - 当前验证方式：
   - 已通过 `python3 -m py_compile scripts/pre_meeting_live_test.py` 验证语法正确
   - 已通过 `python3 scripts/pre_meeting_live_test.py --help` 验证 CLI 参数可正常解析
@@ -752,3 +755,10 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - 早期联调 `pre_meeting_live_ff39cd17f654` 确认链路状态为 `success`，但暴露出飞书 XML 文档被切成 1 个子 chunk + 1 个重复 parent chunk 的问题
   - 已完成飞书 DocxXML/HTML-like 结构化切分优化，并用真实会议 `飞书 AI 校园竞赛-主题分享直播-产品专场` 和真实文档 `飞书 AI 校园挑战赛-线上开赛仪式` 重新只读联调，报告输出到 `storage/reports/m3/pre_meeting_live_da829619a3ba.md` 与 `storage/reports/m3/pre_meeting_live_da829619a3ba.json`
   - 新联调确认链路状态为 `success`，文档被重建为 13 个可检索子 chunk、0 个重复 parent chunk，`knowledge.search` 首条命中为 `「飞书 AI 校园挑战赛」-赛事介绍` 章节，最终生成会前卡片 payload 草案但未发送
+  - 已用真实会议同时传入相关文档 `飞书 AI 校园挑战赛-线上开赛仪式` 和弱相关文档 `Trae IDE 模型配置指南` 做 scripted_debug 对照联调，报告输出到 `storage/reports/m3/pre_meeting_live_96fb651ecf42.md` 与 `.json`；结果显示两篇文档都能索引，相关文档 13 个 chunk，弱相关文档 7 个 chunk，脚本查询下 evidence pack 前两条仍来自相关文档
+  - 已用 `--llm-provider deepseek` 完成真实模型只读联调，报告输出到 `storage/reports/m3/pre_meeting_live_1f947b7ecf64.md` 与 `.json`；真实模型自主调用多次 `knowledge.search` 和 `knowledge.fetch_chunk`，验证 Agent Loop 不是 scripted_debug 固定流程
+  - 已用 `--allow-write` 验证真实模型会看到并尝试调用 `im.send_card`，报告输出到 `storage/reports/m3/pre_meeting_live_400d561a46bd.md`、`191a3355c132.md`、`f5cf80431014.md`；其中 `400d561a46bd` 暴露出模型会传不完整/不稳定卡片参数，`191a3355c132` 暴露出旧幂等键会被 `AgentPolicy` 正确拦截，`f5cf80431014` 暴露出飞书 IM `uuid` 字段不能直接使用内部可读幂等键
+  - 已更新 `adapters/feishu_tools.py`：`im.send_card` 支持 title/summary/facts 优先的稳定卡片发送；当模型传入完整 card 但飞书拒绝时，工具会在有 title/summary 的情况下回退到内置最小卡片模板
+  - 已更新 `adapters/feishu_client.py`：新增 `normalize_feishu_message_uuid()`，把内部幂等键稳定映射为 `mf_<sha1>` 短 uuid 后再传给飞书 IM 接口，避免把包含冒号和长业务 ID 的内部键原样传给外部接口
+  - 当前真实写入发送尚未完成最终成功确认：修复 uuid 后，因环境外部执行审批额度限制，无法继续发起飞书真实网络探针；下一次可直接使用带新 `--idempotency-suffix` 的命令复测
+  - 当前联调暴露的检索质量问题：真实模型自由调用 `knowledge.search` 时会搜索全局知识库，可能把历史个人阶段小结等旧文档排到本次补充文档之前；后续需要为会前链路增加“候选文档范围过滤/项目知识域过滤/本次会议资源 boost”，否则弱相关或历史文档可能污染卡片证据

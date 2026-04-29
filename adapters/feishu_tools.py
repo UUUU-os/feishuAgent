@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from adapters.feishu_client import FeishuClient, IdentityMode
+from adapters.feishu_client import FeishuAPIError, FeishuClient, IdentityMode
 from core.models import ActionItem
 from core.tools import AgentTool, ToolRegistry
 
@@ -250,7 +250,10 @@ def _build_im_send_card_tool(client: FeishuClient, default_chat_id: str) -> Agen
 
     return AgentTool(
         internal_name="im.send_card",
-        description="发送 MeetFlow 飞书卡片消息。写操作，通常用于会前背景卡、任务确认卡和风险提醒。",
+        description=(
+            "发送 MeetFlow 飞书卡片消息。写操作，通常用于会前背景卡、任务确认卡和风险提醒。"
+            "优先传 title、summary、facts，由工具构造稳定卡片；只有已经有完整合法的飞书 interactive card JSON 时才传 card。"
+        ),
         parameters={
             "type": "object",
             "properties": {
@@ -263,17 +266,73 @@ def _build_im_send_card_tool(client: FeishuClient, default_chat_id: str) -> Agen
                 "idempotency_key": {"type": "string", "description": "消息幂等键，避免重复发送。"},
                 "identity": {"type": "string", "description": "飞书身份，可选 user 或 tenant。"},
             },
-            "required": ["title", "summary"],
+            "required": [],
         },
-        handler=lambda title, summary, facts=None, card=None, receive_id="", receive_id_type="chat_id", idempotency_key="", identity="tenant", **_: client.send_card_message(
+        handler=lambda title="", summary="", facts=None, card=None, receive_id="", receive_id_type="chat_id", idempotency_key="", identity="tenant", **_: send_card_with_fallback(
+            client=client,
             receive_id=receive_id or default_chat_id,
-            card=card or client.build_meetflow_card(title=title, summary=summary, facts=normalize_card_facts(facts or [])),
+            title=title,
+            summary=summary,
+            facts=facts,
+            card=card,
             receive_id_type=receive_id_type,
             idempotency_key=idempotency_key,
             identity=_normalize_identity(identity),
         ),
         read_only=False,
         side_effect="send_message",
+    )
+
+
+def send_card_with_fallback(
+    client: FeishuClient,
+    receive_id: str,
+    title: Any = "",
+    summary: Any = "",
+    facts: list[Any] | None = None,
+    card: Any = None,
+    receive_id_type: str = "chat_id",
+    idempotency_key: str = "",
+    identity: IdentityMode | None = None,
+) -> dict[str, Any]:
+    """发送卡片，并在模型传入不稳定 card 时回退到工具内置模板。
+
+    真实模型有时会把运行时上下文里的卡片 JSON 改写成飞书接口不接受的形态。
+    这里保留完整 card 的能力，但一旦飞书拒绝，就用 `title/summary/facts`
+    构造最小稳定卡片，避免会前通知因为格式细节卡住。
+    """
+
+    normalized_title = str(title or "").strip()
+    normalized_summary = str(summary or "").strip()
+    normalized_facts = normalize_card_facts(facts or [])
+
+    if isinstance(card, dict) and card:
+        try:
+            return client.send_card_message(
+                receive_id=receive_id,
+                card=card,
+                receive_id_type=receive_id_type,
+                idempotency_key=idempotency_key,
+                identity=identity,
+            )
+        except FeishuAPIError:
+            if not normalized_title or not normalized_summary:
+                raise
+
+    if not normalized_title or not normalized_summary:
+        raise ValueError("发送卡片需要 title/summary；若传 card，必须是飞书可接受的完整 interactive card JSON")
+
+    fallback_card = client.build_meetflow_card(
+        title=normalized_title,
+        summary=normalized_summary,
+        facts=normalized_facts,
+    )
+    return client.send_card_message(
+        receive_id=receive_id,
+        card=fallback_card,
+        receive_id_type=receive_id_type,
+        idempotency_key=idempotency_key,
+        identity=identity,
     )
 
 

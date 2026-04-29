@@ -64,6 +64,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-iterations", type=int, default=4, help="Agent Loop 最大轮数。")
     parser.add_argument("--allow-write", action="store_true", help="允许真正发送会前卡片。默认只读联调。")
     parser.add_argument("--enable-idempotency", action="store_true", help="启用幂等去重。真实重复触发建议开启。")
+    parser.add_argument("--idempotency-suffix", default="", help="人工联调同一会议重复发送时，为幂等键追加后缀。")
+    parser.add_argument("--force-index", action="store_true", help="强制重建补充资源索引；默认复用未变化的已有索引。")
     parser.add_argument("--show-full", action="store_true", help="打印完整 AgentRunResult。")
     parser.add_argument(
         "--report-dir",
@@ -108,7 +110,7 @@ def main() -> int:
             minutes=args.minute,
             identity=identity,
         )
-        index_summaries = index_supporting_resources(knowledge_store, resources)
+        index_summaries = index_supporting_resources(knowledge_store, resources, force=args.force_index)
     except FeishuAuthError as error:
         logger.error("飞书鉴权失败：%s", error)
         print(
@@ -129,6 +131,11 @@ def main() -> int:
         project_id=args.project_id,
         source="pre_meeting_live_test",
     )
+    if args.idempotency_suffix:
+        # 人工联调可能需要对同一会议重复发送测试卡片；用显式后缀生成新键，
+        # 不清理生产式幂等记录，也不绕过 AgentPolicy。
+        trigger_plan.idempotency_key = f"{trigger_plan.idempotency_key}:{args.idempotency_suffix}"
+        trigger_plan.agent_input.payload["idempotency_key"] = trigger_plan.idempotency_key
 
     try:
         llm_provider, llm_settings = build_live_llm(args, settings.llm)
@@ -256,12 +263,17 @@ def fetch_supporting_resources(
 def index_supporting_resources(
     knowledge_store: KnowledgeIndexStore,
     resources: list[Resource],
+    force: bool = False,
 ) -> list[dict[str, Any]]:
-    """按当前 embedding 指纹重建本次测试资源索引。"""
+    """按当前 embedding 指纹索引本次测试资源。
+
+    默认复用 updated_at、checksum 和 embedding 指纹均未变化的已有索引，避免真实联调时
+    反复下载 embedding 模型或重写向量库；需要验证清洗/切分变更时可传 `--force-index`。
+    """
 
     summaries: list[dict[str, Any]] = []
     for resource in resources:
-        result = knowledge_store.index_resource(resource, force=True)
+        result = knowledge_store.index_resource(resource, force=force)
         summaries.append(
             {
                 "resource_id": resource.resource_id,
@@ -345,7 +357,7 @@ def build_live_goal(event: CalendarEvent, resources: list[Resource], allow_write
         [resource.title for resource in resources[:3] if resource.title]
     ) or "当前没有额外索引资源，只能依赖会议上下文和已有知识库"
     write_hint = (
-        "允许调用写工具发送最终会前卡片。"
+        "允许调用写工具发送最终会前卡片；完成证据检索后必须调用 im_send_card，优先传 title、summary、facts 和 idempotency_key，不要自造复杂 card。"
         if allow_write
         else "当前只读联调，不要发送真实卡片，只输出会前卡片草案和引用。"
     )
