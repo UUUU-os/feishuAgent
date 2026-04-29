@@ -256,7 +256,8 @@ def _build_im_send_card_tool(client: FeishuClient, default_chat_id: str) -> Agen
             "properties": {
                 "title": {"type": "string", "description": "卡片标题。"},
                 "summary": {"type": "string", "description": "卡片正文摘要。"},
-                "facts": {"type": "array", "items": {"type": "string"}, "description": "卡片事实列表。"},
+                "facts": {"type": "array", "items": {}, "description": "卡片事实列表，可传字符串或包含 label/value 的对象。"},
+                "card": {"type": "object", "description": "可选完整飞书 interactive card JSON；传入后优先直接发送。"},
                 "receive_id": {"type": "string", "description": "接收者 ID，默认使用配置中的测试群。"},
                 "receive_id_type": {"type": "string", "description": "接收者 ID 类型，默认 chat_id。"},
                 "idempotency_key": {"type": "string", "description": "消息幂等键，避免重复发送。"},
@@ -264,9 +265,9 @@ def _build_im_send_card_tool(client: FeishuClient, default_chat_id: str) -> Agen
             },
             "required": ["title", "summary"],
         },
-        handler=lambda title, summary, facts=None, receive_id="", receive_id_type="chat_id", idempotency_key="", identity="tenant", **_: client.send_card_message(
+        handler=lambda title, summary, facts=None, card=None, receive_id="", receive_id_type="chat_id", idempotency_key="", identity="tenant", **_: client.send_card_message(
             receive_id=receive_id or default_chat_id,
-            card=client.build_meetflow_card(title=title, summary=summary, facts=facts or []),
+            card=card or client.build_meetflow_card(title=title, summary=summary, facts=normalize_card_facts(facts or [])),
             receive_id_type=receive_id_type,
             idempotency_key=idempotency_key,
             identity=_normalize_identity(identity),
@@ -274,6 +275,24 @@ def _build_im_send_card_tool(client: FeishuClient, default_chat_id: str) -> Agen
         read_only=False,
         side_effect="send_message",
     )
+
+
+def normalize_card_facts(facts: list[Any]) -> list[str]:
+    """兼容旧字符串 facts 和 T3.7 的 label/value facts。"""
+
+    normalized: list[str] = []
+    for fact in facts:
+        if isinstance(fact, dict):
+            label = str(fact.get("label") or "").strip()
+            value = str(fact.get("value") or "").strip()
+            if label and value:
+                normalized.append(f"{label}：{value}")
+            elif value:
+                normalized.append(value)
+            continue
+        if fact:
+            normalized.append(str(fact))
+    return normalized
 
 
 def _normalize_identity(identity: Any) -> IdentityMode | None:

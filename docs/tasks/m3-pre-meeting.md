@@ -349,6 +349,35 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - 卡片字段完整
   - 支持替换不同会议数据
 
+#### T3.7 当前实现细节
+
+- 已创建文件：
+  - `cards/__init__.py`
+  - `cards/pre_meeting.py`
+  - `scripts/pre_meeting_card_demo.py`
+- 已更新文件：
+  - `core/pre_meeting.py`
+  - `core/__init__.py`
+  - `adapters/feishu_tools.py`
+  - `docs/tasks/m3-pre-meeting.md`
+- 已实现的核心能力：
+  - 新增 `build_pre_meeting_card()`：把 `MeetingBrief` 渲染为完整飞书 interactive card JSON
+  - 新增 `build_pre_meeting_card_sections()`：固定会前卡片分区，包含“上次结论”“当前问题”“风险点”“待读资料”“可能相关资料”
+  - 卡片顶部展示主题、状态、置信度和背景摘要，便于用户第一眼判断是否可参考
+  - 每个分区最多展示 3 条核心内容，并保留首个证据 `ref_id`，确保会前结论可追溯
+  - 卡片末尾展示最多 5 条证据引用，包含 `source_id`、来源类型和 snippet
+  - 根据上下文状态选择 header 颜色：需确认为 orange，有风险为 red，高置信为 green，默认 blue
+  - `PreMeetingCardPayload` 新增 `sections` 和 `card` 字段，同时保留原 `title`、`summary`、`facts`、`idempotency_key`
+  - `render_pre_meeting_card_payload()` 现在同时产出旧版最小发送 payload 和完整卡片 JSON
+  - `im.send_card` 工具新增可选 `card` 参数；传入完整 card 时直接发送，未传时仍使用旧的通用卡片构造逻辑
+  - `im.send_card` 的 `facts` 兼容字符串列表和 `{label, value}` 对象列表，避免旧工具把字典直接渲染成 Python 字面量
+- 当前实现边界：
+  - 当前模板以飞书通用 interactive card JSON 为目标，不引入卡片 DSL 或外部模板引擎
+  - 发送完整 T3.7 模板需要调用 `im.send_card` 时传入 `card=pre_meeting_card_payload.card`；旧调用只传 `title/summary/facts` 仍然可用
+- 当前验证方式：
+  - 已通过 `python3 -m py_compile cards/*.py core/pre_meeting.py core/__init__.py adapters/feishu_tools.py scripts/pre_meeting_card_demo.py` 验证语法正确
+  - 已通过 `python3 scripts/pre_meeting_card_demo.py` 验证不同卡片字段、分区、证据引用、完整 `card` JSON 和幂等键可正常生成
+
 ### T3.8 接入会前定时触发
 
 - 优先级：`P0`

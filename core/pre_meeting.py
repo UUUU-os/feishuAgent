@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from cards.pre_meeting import build_pre_meeting_card, build_pre_meeting_card_sections
 from core.models import BaseModel, EvidenceRef, Resource, WorkflowContext
 
 
@@ -173,6 +174,8 @@ class PreMeetingCardPayload(BaseModel):
     title: str
     summary: str
     facts: list[dict[str, str]] = field(default_factory=list)
+    sections: list[dict[str, Any]] = field(default_factory=list)
+    card: dict[str, Any] = field(default_factory=dict)
     source_meeting_id: str = ""
     idempotency_key: str = ""
 
@@ -972,7 +975,12 @@ def build_topic_reason(
 
 
 def render_pre_meeting_card_payload(brief: MeetingBrief) -> PreMeetingCardPayload:
-    """把 `MeetingBrief` 转成当前卡片工具可直接消费的 payload。"""
+    """把 `MeetingBrief` 转成会前卡片 payload。
+
+    `title`、`summary`、`facts` 保持兼容现有 `im.send_card` 最小接口；
+    `sections` 和 `card` 则承载 T3.7 的完整会前卡片模板，供后续直接发送
+    interactive card 或做演示截图时使用。
+    """
 
     facts = [
         {"label": "会议主题", "value": brief.topic},
@@ -1016,10 +1024,14 @@ def render_pre_meeting_card_payload(brief: MeetingBrief) -> PreMeetingCardPayloa
                 "value": "；".join(item.title for item in brief.possible_related_resources[:3]),
             }
         )
+    sections = build_pre_meeting_card_sections(brief)
+    card = build_pre_meeting_card(brief)
     return PreMeetingCardPayload(
         title=f"MeetFlow 会前背景卡：{brief.topic}",
         summary=brief.summary,
         facts=facts,
+        sections=sections,
+        card=card,
         source_meeting_id=brief.meeting_id,
         idempotency_key=f"pre_meeting_brief:{brief.meeting_id or brief.calendar_event_id}",
     )

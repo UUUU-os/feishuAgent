@@ -99,6 +99,7 @@ from .pre_meeting import (
     recall_related_resources,
     render_pre_meeting_card_payload,
 )
+from cards import build_pre_meeting_card, build_pre_meeting_card_sections
 from .router import (
     RouteRule,
     WorkflowRouter,
@@ -219,6 +220,8 @@ __all__ = [
     "build_initial_meeting_brief",
     "build_post_meeting_plan_draft",
     "build_pre_meeting_brief_artifacts",
+    "build_pre_meeting_card",
+    "build_pre_meeting_card_sections",
     "build_pre_meeting_brief_input",
     "build_risk_scan_plan_draft",
     "build_retrieval_query",
