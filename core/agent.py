@@ -223,7 +223,11 @@ def create_meetflow_agent(
         default_chat_id=settings.feishu.default_chat_id,
     )
     if tool_registry is None:
-        knowledge_store = KnowledgeIndexStore(settings.storage, embedding_settings=settings.embedding)
+        knowledge_store = KnowledgeIndexStore(
+            settings.storage,
+            embedding_settings=settings.embedding,
+            reranker_settings=settings.reranker,
+        )
         knowledge_store.initialize()
         register_knowledge_tools(final_tool_registry, knowledge_store)
     final_llm_provider = llm_provider or create_llm_provider(settings.llm)

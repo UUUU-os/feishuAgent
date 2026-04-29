@@ -422,6 +422,30 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - 切换模型后不会误读旧 Chroma collection
   - 文档或日志能解释当前检索使用的 embedding 模型和索引空间
 
+#### T3.11 当前实现细节
+
+- 已更新文件：
+  - `core/knowledge.py`
+  - `docs/tasks/m3-pre-meeting.md`
+  - `config/README.md`
+- 已实现的核心能力：
+  - 新增 `embedding_fingerprint`：由 `embedding_provider`、`embedding_model`、`embedding_dimensions` 组成，用来标识一个不可混用的向量空间
+  - 新增 `knowledge_namespace`：由 embedding 指纹生成的人类可读命名空间，便于日志、审计和排查
+  - `KnowledgeIndexStore` 的 ChromaDB collection 名称改为基于完整 embedding 指纹生成，避免只按模型名和维度隔离时遗漏 provider 差异
+  - `index_resource()` 写入文档和 chunk 时，会把 `embedding_provider`、`embedding_model`、`embedding_dimensions`、`embedding_fingerprint`、`knowledge_namespace`、`vector_collection_name` 写入 SQLite 权威 metadata
+  - `index_resource()` 的增量跳过逻辑会检查 embedding 指纹；如果正文未变但 embedding 配置变化，不会跳过，会进入新 collection 重建索引
+  - `KnowledgeSearchResult` 新增 `knowledge_namespace`、`vector_collection_name`、`embedding_provider`、`embedding_model`、`embedding_dimensions`
+  - `search_chunks()` 会先统计当前检索范围内的 embedding domain 状态；如果只有指纹不一致或缺少指纹的旧索引，会拒绝混合检索并返回明确原因
+  - SQLite 关键词召回和 Chroma 向量召回回表阶段都会过滤 embedding 指纹不一致的文档，避免同一次检索混用不同向量空间
+  - Chroma metadata 同步写入 embedding 指纹和 namespace，便于后续向量库侧审计
+- 当前实现边界：
+  - 当前策略是“新 embedding 配置使用新 collection，旧索引在检索时被过滤或拒绝混查”；未对所有旧文档批量写入 `stale` 状态，避免读路径隐式修改大量数据
+  - 旧版没有 embedding 指纹的索引会被视为 `unknown`，需要重新索引后才能参与当前知识域检索
+- 当前验证方式：
+  - 已通过 `python3 -m py_compile config/*.py core/knowledge.py core/agent.py scripts/knowledge_tools_demo.py` 验证语法正确
+  - 已用临时 SQLite 验证当前 embedding 指纹的数据可以被 `knowledge.search` 检索，并返回 namespace 与 collection 信息
+  - 已用临时 SQLite 验证当库中只有旧模型/旧维度索引时，当前配置会拒绝混合检索并说明 incompatible/unknown 数量
+
 ### T3.12 扩展 chunk schema 与结构化位置元数据
 
 - 优先级：`P1`
@@ -436,6 +460,30 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - 每个 chunk 都能定位到原始飞书资源中的具体段落、行或时间片段
   - 表格、妙记和文档 chunk 的 metadata 字段可区分来源类型和结构位置
   - `knowledge.fetch_chunk` 能返回结构化位置，而不是只返回纯文本 `source_locator`
+
+#### T3.12 当前实现细节
+
+- 已更新文件：
+  - `core/knowledge.py`
+  - `docs/tasks/m3-pre-meeting.md`
+- 已实现的核心能力：
+  - `KnowledgeChunk` 新增 `chunk_order`、`parent_chunk_id`、`doc_type`、`content_tokens`
+  - `knowledge_chunks` SQLite 表新增同名列，并在 `KnowledgeIndexStore.initialize()` 中通过 `ensure_knowledge_chunk_schema()` 为旧库自动补列
+  - `chunk_resource_text()` 会为每个 chunk 写入顺序、文档类型、粗略 token 数和增强 metadata
+  - metadata 统一补充 `positions`、`keywords`、`questions` 和 `doc_type`
+  - 文档 chunk 的 `positions` 保留标题、来源类型、source locator 和 chunk 顺序
+  - 表格 chunk 的 `positions` 保留 sheet 和行号，metadata 保留表头字段 `fields`
+  - 妙记 chunk 的 `positions` 保留章节，并会从 `[00:01]` 等章节标题中提取 `timestamp`
+  - `KnowledgeChunkFetchResult` 新增 `positions` 字段，`knowledge.fetch_chunk` 会直接返回结构化位置，调用方不必从纯文本 `source_locator` 反解析
+  - ChromaDB metadata 同步写入 `chunk_order`、`parent_chunk_id`、`doc_type`、`content_tokens`，SQLite 仍作为权威元数据来源
+- 当前实现边界：
+  - `keywords` / `questions` 采用轻量规则提取，不引入中文分词或 LLM 生成；后续可在 T3.13/T3.14 的检索评估中逐步增强
+  - `parent_chunk_id` 字段已落库，但父子 chunk 的实际构建和展开逻辑留给 T3.15
+- 当前验证方式：
+  - 已通过 `python3 -m py_compile core/knowledge.py core/pre_meeting.py scripts/knowledge_index_demo.py scripts/knowledge_tools_demo.py` 验证语法正确
+  - 已用本地构造的 chunk 验证 `chunk_order`、`doc_type`、`content_tokens`、`positions`、`keywords` 写入正常
+  - 已用临时 SQLite 验证旧库初始化会补齐新增列
+  - 已用临时 SQLite 验证 `knowledge.fetch_chunk` 能按 `ref_id` 返回结构化 `positions`
 
 ### T3.13 实现可配置混合检索和可解释分数
 
@@ -453,6 +501,27 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - 同一 query 可以通过参数控制召回范围和最终返回数量
   - 低于阈值的结果不会进入高置信会前摘要
 
+#### T3.13 当前实现细节
+
+- 已更新文件：
+  - `core/knowledge.py`
+  - `docs/tasks/m3-pre-meeting.md`
+- 已实现的核心能力：
+  - `knowledge.search` 内部区分 `top_k` 和 `top_n`：`top_k` 控制候选召回量，`top_n` 控制最终进入 evidence pack 的片段数
+  - `KnowledgeSearchHit` 新增 `vector_similarity`、`term_similarity` 和 `final_score`，保留旧 `score` 字段作为兼容别名
+  - 新增关键词召回路径：即使 ChromaDB 或 embedding 服务暂不可用，也可以基于 SQLite 权威元数据和 chunk 文本做关键词回退
+  - 新增 `merge_hybrid_hits()`：融合向量命中和关键词命中，并按 `vector_weight`、`keyword_weight`、默认 freshness 权重生成最终分数
+  - 新增 `similarity_threshold`：低于最终分数阈值的结果不会进入高置信 evidence pack
+  - 新增显式 metadata filter：`filter_project_id`、`filter_meeting_id`、`document_id`、`source_url`、`owner_id`、`updated_after`、`permission_scope`
+  - 当显式指定 `document_id` 或 `source_url` 时，检索会放宽相似度阈值，并在 `reason` 中写明“显式资源过滤放宽阈值”
+  - `knowledge.search` 工具 schema 已暴露 `top_n`、`similarity_threshold`、`vector_weight`、`keyword_weight` 和上述 metadata filter 参数
+- 当前实现边界：
+  - 现有 `project_id` / `meeting_id` 仍用于检索增强和 query term 提取，不默认作为硬过滤，避免破坏旧 demo；需要硬过滤时使用 `filter_project_id` / `filter_meeting_id`
+  - freshness 目前只作为轻量辅助分，不单独暴露为字段；后续 T3.14/T3.15 或评估审计需要时可扩展
+- 当前验证方式：
+  - 已通过 `python3 -m py_compile core/knowledge.py core/pre_meeting.py scripts/knowledge_tools_demo.py` 验证语法正确
+  - 已用临时 SQLite 构造 `knowledge_documents` / `knowledge_chunks`，验证关键词回退、metadata filter、`term_similarity`、`final_score` 和原因解释可正常返回
+
 ### T3.14 接入可选 reranker 阶段
 
 - 优先级：`P1`
@@ -468,6 +537,35 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - 关闭 reranker 时，检索链路仍可正常使用
   - 返回结果能区分 `vector_similarity`、`term_similarity` 和 `rerank_score`
 
+#### T3.14 当前实现细节
+
+- 已更新文件：
+  - `config/loader.py`
+  - `config/settings.example.json`
+  - `config/__init__.py`
+  - `config/README.md`
+  - `core/agent.py`
+  - `core/knowledge.py`
+  - `docs/tasks/m3-pre-meeting.md`
+- 已实现的核心能力：
+  - 配置层新增 `RerankerSettings`，字段包括 `enabled`、`provider`、`model`、`top_k`、`timeout_seconds`
+  - `settings.example.json` 新增 `reranker` 配置段，默认 `enabled=false`、`provider=local-rule`、`top_k=32`
+  - 支持环境变量覆盖：`MEETFLOW_RERANKER_ENABLED`、`MEETFLOW_RERANKER_PROVIDER`、`MEETFLOW_RERANKER_MODEL`、`MEETFLOW_RERANKER_TOP_K`、`MEETFLOW_RERANKER_TIMEOUT_SECONDS`
+  - `create_meetflow_agent()` 初始化 `KnowledgeIndexStore` 时会传入 `settings.reranker`
+  - `knowledge.search` 工具 schema 新增 `reranker_enabled`、`reranker_provider`、`reranker_model`、`reranker_top_k`、`reranker_weight`
+  - `KnowledgeSearchHit` 新增 `rerank_score`，并保留 `vector_similarity`、`term_similarity`、`final_score`
+  - 新增 `apply_optional_reranker()`：在混合检索之后、evidence pack 截断之前执行可选重排
+  - 当前实现 `local-rule` provider：根据 query 覆盖率、标题命中、问题命中和完整查询命中生成 `rerank_score`
+  - reranker 候选数量限制为最大 64，默认使用配置里的 32，避免后续真实 provider 成本失控
+- 当前实现边界：
+  - 真实 bge-reranker、Jina 或 OpenAI-compatible rerank provider 尚未接入；当前 provider 用于打通可插拔重排链路和审计字段
+  - 开发阶段默认关闭 reranker；只有配置或工具参数显式开启时才会重排
+- 当前验证方式：
+  - 已通过 `python3 -m py_compile config/*.py core/knowledge.py core/agent.py scripts/knowledge_tools_demo.py` 验证语法正确
+  - 已验证 `load_settings()` 能读取默认 `reranker` 配置
+  - 已用本地构造的 `KnowledgeSearchHit` 验证开启 `local-rule` 后会写入 `rerank_score` 并改变排序
+  - 已用临时 SQLite 验证 `knowledge.search(reranker_enabled=True)` 会返回带 `rerank_score` 的结果，关闭 reranker 时链路仍使用原混合检索
+
 ### T3.15 支持 TOC 增强与父子 chunk 展开
 
 - 优先级：`P1`
@@ -482,6 +580,27 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - 命中短片段后可以展开对应章节，而不是只能看到孤立片段
   - 会前摘要使用父级上下文时仍能保留具体命中 chunk 的引用
   - TOC 或章节路径能出现在检索解释和证据回链中
+
+#### T3.15 当前实现细节
+
+- 已更新文件：
+  - `core/knowledge.py`
+  - `docs/tasks/m3-pre-meeting.md`
+- 已实现的核心能力：
+  - `chunk_resource_text()` 在生成小 chunk 后，会通过 `attach_parent_chunks()` 按 TOC 路径聚合同章节内容，并生成 `parent_section` 类型的 parent chunk
+  - 子 chunk 会写入稳定 `parent_chunk_id`，metadata 中同步保留 `parent_chunk_id` 和 `toc_path`
+  - 文档 chunk 使用标题路径作为 parent 边界；妙记使用章节路径；表格使用 sheet 路径
+  - `knowledge.search` 的向量和关键词检索都会跳过 `parent_section`，避免父级长文本抢走小 chunk 的精准召回位置
+  - `KnowledgeSearchHit` 新增 `parent_chunk_id` 和 `toc_path`，检索结果能解释命中的章节路径
+  - `KnowledgeChunkFetchResult` 新增 `parent_chunk_id`、`parent_text`、`context_chunks` 和 `toc_path`
+  - `knowledge.fetch_chunk` 命中子 chunk 后，会按 `parent_chunk_id` 展开同章节 sibling chunks，并在 `context_chunks` 中保留每个 sibling 的 `ref_id`、`chunk_id`、位置和 `is_hit`
+- 当前实现边界：
+  - parent chunk 目前用于上下文展开和审计，不作为搜索结果返回；后续摘要生成可显式读取 `parent_text`
+  - TOC 路径仍是轻量规则生成，飞书 Docx 原生目录层级读取接入后可以替换为真实层级
+- 当前验证方式：
+  - 已通过 `python3 -m py_compile core/knowledge.py core/pre_meeting.py scripts/knowledge_index_demo.py scripts/knowledge_tools_demo.py` 验证语法正确
+  - 已用本地文档切片验证会生成 parent chunk，且子 chunk 写入 `parent_chunk_id` 和 `toc_path`
+  - 已用临时 SQLite 验证 `knowledge.fetch_chunk` 命中子 chunk 后能返回 `parent_text`、同章节 `context_chunks`，并保留具体命中 chunk 的 `is_hit`
 
 ### T3.16 实现 evidence pack token budget 与稳定引用格式
 

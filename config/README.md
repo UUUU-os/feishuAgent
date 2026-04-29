@@ -81,6 +81,11 @@ export DEEPSEEK_API_KEY="你的 DeepSeek Key"
 - `MEETFLOW_EMBEDDING_API_KEY`
 - `MEETFLOW_EMBEDDING_DIMENSIONS`
 - `MEETFLOW_EMBEDDING_TIMEOUT_SECONDS`
+- `MEETFLOW_RERANKER_ENABLED`
+- `MEETFLOW_RERANKER_PROVIDER`
+- `MEETFLOW_RERANKER_MODEL`
+- `MEETFLOW_RERANKER_TOP_K`
+- `MEETFLOW_RERANKER_TIMEOUT_SECONDS`
 - `MEETFLOW_LOG_LEVEL`
 - `MEETFLOW_STORAGE_DB_PATH`
 
@@ -109,6 +114,25 @@ export MEETFLOW_EMBEDDING_API_KEY="你的 embedding API Key"
 export MEETFLOW_EMBEDDING_MODEL="text-embedding-3-small"
 export MEETFLOW_EMBEDDING_DIMENSIONS="1536"
 ```
+
+索引治理规则：
+
+- MeetFlow 会用 `provider + model + dimensions` 生成 embedding 指纹。
+- ChromaDB collection 会按 embedding 指纹隔离，避免不同向量空间混检。
+- SQLite 文档和 chunk metadata 会记录 embedding 指纹、知识域 namespace 和 collection 名称。
+- 切换 embedding 配置后，需要重新索引相关资源；旧版缺少指纹的索引不会参与当前知识域检索。
+
+## Reranker 配置
+
+M3 知识检索默认关闭 reranker，避免开发阶段额外依赖和接口成本。需要验证重排链路时，可以先启用本地轻量规则 provider：
+
+```bash
+export MEETFLOW_RERANKER_ENABLED="true"
+export MEETFLOW_RERANKER_PROVIDER="local-rule"
+export MEETFLOW_RERANKER_TOP_K="32"
+```
+
+当前 `local-rule` 不需要模型和 API key，只根据 query 覆盖率、标题命中、问题命中等轻量信号生成 `rerank_score`。后续接入 bge-reranker、Jina 或 OpenAI-compatible rerank 时，应继续通过本配置段扩展，不要把密钥写入示例配置。
 
 ## 使用方式
 

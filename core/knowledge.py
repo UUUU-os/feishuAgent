@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from config import EmbeddingSettings, StorageSettings
+from config import EmbeddingSettings, RerankerSettings, StorageSettings
 from core.logging import get_logger
 from core.models import BaseModel, Resource
 from core.pre_meeting import RetrievedResource
@@ -23,6 +23,12 @@ DEFAULT_EVIDENCE_TOKEN_BUDGET = 600
 DEFAULT_EVIDENCE_SNIPPET_TOKEN_BUDGET = 120
 MAX_EVIDENCE_TOKEN_BUDGET = 2000
 MAX_EVIDENCE_SNIPPET_TOKEN_BUDGET = 300
+DEFAULT_VECTOR_WEIGHT = 0.65
+DEFAULT_KEYWORD_WEIGHT = 0.30
+DEFAULT_FRESHNESS_WEIGHT = 0.05
+DEFAULT_SIMILARITY_THRESHOLD = 0.20
+DEFAULT_RERANKER_TOP_K = 32
+DEFAULT_RERANKER_WEIGHT = 0.25
 
 
 @dataclass(slots=True)
@@ -56,6 +62,10 @@ class KnowledgeChunk(BaseModel):
     chunk_type: str
     text: str
     source_locator: str = ""
+    chunk_order: int = 0
+    parent_chunk_id: str = ""
+    doc_type: str = ""
+    content_tokens: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
     embedding_ref: str = ""
     checksum: str = ""
@@ -351,8 +361,14 @@ class KnowledgeSearchHit(BaseModel):
     snippet: str
     reason: str
     score: float
+    vector_similarity: float = 0.0
+    term_similarity: float = 0.0
+    rerank_score: float = 0.0
+    final_score: float = 0.0
     source_url: str = ""
     source_locator: str = ""
+    parent_chunk_id: str = ""
+    toc_path: list[str] = field(default_factory=list)
     updated_at: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -366,6 +382,11 @@ class KnowledgeSearchResult(BaseModel):
     omitted_count: int = 0
     token_budget: int = DEFAULT_EVIDENCE_TOKEN_BUDGET
     used_tokens: int = 0
+    knowledge_namespace: str = ""
+    vector_collection_name: str = ""
+    embedding_provider: str = ""
+    embedding_model: str = ""
+    embedding_dimensions: int = 0
     low_confidence: bool = False
     reason: str = ""
 
@@ -382,6 +403,11 @@ class KnowledgeChunkFetchResult(BaseModel):
     text: str
     source_url: str = ""
     source_locator: str = ""
+    parent_chunk_id: str = ""
+    parent_text: str = ""
+    context_chunks: list[dict[str, Any]] = field(default_factory=list)
+    toc_path: list[str] = field(default_factory=list)
+    positions: dict[str, Any] = field(default_factory=dict)
     updated_at: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -399,14 +425,20 @@ class KnowledgeIndexStore:
         settings: StorageSettings,
         db_path: str | Path | None = None,
         embedding_settings: EmbeddingSettings | None = None,
+        reranker_settings: RerankerSettings | None = None,
     ) -> None:
         self.settings = settings
         self.db_path = Path(db_path) if db_path else Path(settings.db_path).parent / "knowledge" / "knowledge.sqlite"
         self.vector_path = self.db_path.parent / "chroma"
         if embedding_settings is None:
             embedding_settings = build_embedding_settings_from_env()
+        if reranker_settings is None:
+            reranker_settings = build_reranker_settings_from_env()
         self.embedding_settings = embedding_settings
-        model_digest = hashlib.sha1(f"{embedding_settings.model}:{embedding_settings.dimensions}".encode("utf-8")).hexdigest()[:8]
+        self.reranker_settings = reranker_settings
+        self.embedding_fingerprint = build_embedding_fingerprint(embedding_settings)
+        self.knowledge_namespace = build_knowledge_namespace(embedding_settings)
+        model_digest = hashlib.sha1(self.embedding_fingerprint.encode("utf-8")).hexdigest()[:8]
         self.vector_collection_name = f"meetflow_knowledge_chunks_{model_digest}"
         self.vector_index = ChromaKnowledgeVectorIndex(
             persist_path=self.vector_path,
@@ -446,6 +478,10 @@ class KnowledgeIndexStore:
                     chunk_type TEXT NOT NULL,
                     text TEXT NOT NULL,
                     source_locator TEXT NOT NULL,
+                    chunk_order INTEGER NOT NULL DEFAULT 0,
+                    parent_chunk_id TEXT NOT NULL DEFAULT '',
+                    doc_type TEXT NOT NULL DEFAULT '',
+                    content_tokens INTEGER NOT NULL DEFAULT 0,
                     metadata_json TEXT NOT NULL,
                     embedding_ref TEXT NOT NULL,
                     checksum TEXT NOT NULL,
@@ -455,7 +491,9 @@ class KnowledgeIndexStore:
                 )
                 """
             )
+            ensure_knowledge_chunk_schema(conn)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_document_id ON knowledge_chunks(document_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_doc_type ON knowledge_chunks(doc_type)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_documents_source_type ON knowledge_documents(source_type)")
             conn.commit()
         self.logger.info("知识索引存储初始化完成 db_path=%s", self.db_path)
@@ -468,12 +506,16 @@ class KnowledgeIndexStore:
         """
 
         document, chunks = build_knowledge_index(resource)
+        embedding_metadata = self.build_embedding_metadata()
+        document.metadata = {**document.metadata, **embedding_metadata}
         existing = self.get_document(document.document_id)
+        existing_embedding_fingerprint = str((existing or {}).get("metadata", {}).get("embedding_fingerprint") or "")
         if (
             existing
             and not force
             and existing.get("updated_at") == document.updated_at
             and existing.get("checksum") == document.checksum
+            and existing_embedding_fingerprint == self.embedding_fingerprint
         ):
             document.index_status = existing.get("index_status", "succeeded")
             document.last_indexed_at = int(existing.get("last_indexed_at", 0) or 0)
@@ -495,6 +537,7 @@ class KnowledgeIndexStore:
                 chunk.created_at = now
             chunk.updated_at = now
             chunk.embedding_ref = f"chroma:{self.vector_collection_name}:{chunk.chunk_id}"
+            chunk.metadata = {**chunk.metadata, **embedding_metadata}
 
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("DELETE FROM knowledge_chunks WHERE document_id = ?", (document.document_id,))
@@ -538,12 +581,16 @@ class KnowledgeIndexStore:
                     chunk_type,
                     text,
                     source_locator,
+                    chunk_order,
+                    parent_chunk_id,
+                    doc_type,
+                    content_tokens,
                     metadata_json,
                     embedding_ref,
                     checksum,
                     created_at,
                     updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -552,6 +599,10 @@ class KnowledgeIndexStore:
                         chunk.chunk_type,
                         chunk.text,
                         chunk.source_locator,
+                        chunk.chunk_order,
+                        chunk.parent_chunk_id,
+                        chunk.doc_type,
+                        chunk.content_tokens,
                         json.dumps(chunk.metadata, ensure_ascii=False),
                         chunk.embedding_ref,
                         chunk.checksum,
@@ -596,7 +647,7 @@ class KnowledgeIndexStore:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                "SELECT * FROM knowledge_chunks WHERE document_id = ? ORDER BY chunk_id",
+                "SELECT * FROM knowledge_chunks WHERE document_id = ? ORDER BY chunk_order, chunk_id",
                 (document_id,),
             ).fetchall()
         chunks: list[dict[str, Any]] = []
@@ -606,6 +657,77 @@ class KnowledgeIndexStore:
             chunks.append(data)
         return chunks
 
+    def build_embedding_metadata(self) -> dict[str, Any]:
+        """构造写入文档和 chunk 的 embedding 治理元数据。"""
+
+        return {
+            "embedding_provider": self.embedding_settings.provider,
+            "embedding_model": self.embedding_settings.model,
+            "embedding_dimensions": self.embedding_settings.dimensions,
+            "embedding_fingerprint": self.embedding_fingerprint,
+            "knowledge_namespace": self.knowledge_namespace,
+            "vector_collection_name": self.vector_collection_name,
+        }
+
+    def get_embedding_domain_status(
+        self,
+        resource_types: set[str] | None = None,
+        metadata_filter: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """统计当前检索范围内 embedding 指纹是否和当前配置一致。"""
+
+        self.initialize()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT
+                    chunks.chunk_id,
+                    chunks.document_id,
+                    chunks.chunk_type,
+                    chunks.text,
+                    chunks.source_locator,
+                    chunks.parent_chunk_id,
+                    chunks.metadata_json AS chunk_metadata_json,
+                    chunks.updated_at AS chunk_updated_at,
+                    documents.source_type,
+                    documents.title,
+                    documents.source_url,
+                    documents.owner_id,
+                    documents.permission_scope,
+                    documents.updated_at AS document_updated_at,
+                    documents.metadata_json AS document_metadata_json
+                FROM knowledge_chunks AS chunks
+                JOIN knowledge_documents AS documents
+                    ON documents.document_id = chunks.document_id
+                WHERE chunks.chunk_type != 'parent_section'
+                """
+            ).fetchall()
+        compatible: set[str] = set()
+        incompatible: set[str] = set()
+        unknown: set[str] = set()
+        for row in rows:
+            source_type = normalize_source_type(str(row["source_type"] or ""))
+            if resource_types and source_type not in resource_types:
+                continue
+            if not row_matches_metadata_filter(row, metadata_filter or {}):
+                continue
+            if row_matches_embedding_namespace(row, self.embedding_fingerprint):
+                compatible.add(str(row["document_id"]))
+                continue
+            document_metadata = json.loads(row["document_metadata_json"] or "{}")
+            if document_metadata.get("embedding_fingerprint"):
+                incompatible.add(str(row["document_id"]))
+            else:
+                unknown.add(str(row["document_id"]))
+        return {
+            "compatible_count": len(compatible),
+            "incompatible_count": len(incompatible),
+            "unknown_count": len(unknown),
+            "incompatible_document_ids": sorted(incompatible)[:10],
+            "unknown_document_ids": sorted(unknown)[:10],
+        }
+
     def search_chunks(
         self,
         query: str,
@@ -614,6 +736,22 @@ class KnowledgeIndexStore:
         resource_types: list[str] | None = None,
         time_window: str = "recent_90_days",
         top_k: int = 5,
+        top_n: int = 0,
+        similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
+        vector_weight: float = DEFAULT_VECTOR_WEIGHT,
+        keyword_weight: float = DEFAULT_KEYWORD_WEIGHT,
+        reranker_enabled: bool | None = None,
+        reranker_provider: str = "",
+        reranker_model: str = "",
+        reranker_top_k: int = 0,
+        reranker_weight: float = DEFAULT_RERANKER_WEIGHT,
+        filter_project_id: str = "",
+        filter_meeting_id: str = "",
+        document_id: str = "",
+        source_url: str = "",
+        owner_id: str = "",
+        updated_after: str = "",
+        permission_scope: str = "",
         evidence_token_budget: int = DEFAULT_EVIDENCE_TOKEN_BUDGET,
         max_snippet_tokens: int = DEFAULT_EVIDENCE_SNIPPET_TOKEN_BUDGET,
     ) -> KnowledgeSearchResult:
@@ -626,7 +764,76 @@ class KnowledgeIndexStore:
         self.initialize()
         normalized_types = {normalize_source_type(item) for item in resource_types or [] if item}
         query_terms = extract_query_terms(query, project_id=project_id, meeting_id=meeting_id)
-        final_top_k = max(1, min(int(top_k or 5), 10))
+        metadata_filter = build_search_metadata_filter(
+            project_id=filter_project_id,
+            meeting_id=filter_meeting_id,
+            document_id=document_id,
+            source_url=source_url,
+            owner_id=owner_id,
+            updated_after=updated_after,
+            permission_scope=permission_scope,
+        )
+        domain_status = self.get_embedding_domain_status(
+            resource_types=normalized_types,
+            metadata_filter=metadata_filter,
+        )
+        if (
+            domain_status["compatible_count"] == 0
+            and (domain_status["incompatible_count"] > 0 or domain_status["unknown_count"] > 0)
+        ):
+            return KnowledgeSearchResult(
+                query=query,
+                hits=[],
+                omitted_count=domain_status["incompatible_count"] + domain_status["unknown_count"],
+                token_budget=DEFAULT_EVIDENCE_TOKEN_BUDGET,
+                used_tokens=0,
+                knowledge_namespace=self.knowledge_namespace,
+                vector_collection_name=self.vector_collection_name,
+                embedding_provider=self.embedding_settings.provider,
+                embedding_model=self.embedding_settings.model,
+                embedding_dimensions=self.embedding_settings.dimensions,
+                low_confidence=True,
+                reason=(
+                    "当前检索范围只有 embedding 指纹不一致或缺少指纹的旧索引，已拒绝混合检索；"
+                    f"当前 namespace={self.knowledge_namespace} collection={self.vector_collection_name}；"
+                    f"incompatible={domain_status['incompatible_count']} unknown={domain_status['unknown_count']}。"
+                ),
+            )
+        final_top_k = max(1, min(int(top_k or 20), 50))
+        final_top_n = max(1, min(int(top_n or top_k or 5), 10))
+        final_threshold = clamp_float(
+            similarity_threshold,
+            minimum=0.0,
+            maximum=0.95,
+            default=DEFAULT_SIMILARITY_THRESHOLD,
+        )
+        final_vector_weight = clamp_float(
+            vector_weight,
+            minimum=0.0,
+            maximum=1.0,
+            default=DEFAULT_VECTOR_WEIGHT,
+        )
+        final_keyword_weight = clamp_float(
+            keyword_weight,
+            minimum=0.0,
+            maximum=1.0,
+            default=DEFAULT_KEYWORD_WEIGHT,
+        )
+        final_reranker_enabled = self.reranker_settings.enabled if reranker_enabled is None else bool(reranker_enabled)
+        final_reranker_provider = (reranker_provider or self.reranker_settings.provider or "local-rule").strip()
+        final_reranker_model = (reranker_model or self.reranker_settings.model or "").strip()
+        final_reranker_top_k = clamp_int(
+            reranker_top_k or self.reranker_settings.top_k,
+            minimum=1,
+            maximum=64,
+            default=DEFAULT_RERANKER_TOP_K,
+        )
+        final_reranker_weight = clamp_float(
+            reranker_weight,
+            minimum=0.0,
+            maximum=1.0,
+            default=DEFAULT_RERANKER_WEIGHT,
+        )
         final_token_budget = clamp_int(
             evidence_token_budget,
             minimum=120,
@@ -645,43 +852,104 @@ class KnowledgeIndexStore:
             resource_types=list(normalized_types),
             top_k=final_top_k,
         )
+        vector_hits: list[KnowledgeSearchHit] = []
+        vector_error = ""
         if vector_result.get("ok") and vector_result.get("chunk_ids"):
-            hits = self._build_vector_hits(
+            vector_hits = self._build_vector_hits(
                 chunk_ids=list(vector_result.get("chunk_ids") or []),
                 distances=list(vector_result.get("distances") or []),
                 query_terms=query_terms,
                 query=query,
                 time_window=time_window,
                 top_k=final_top_k,
+                metadata_filter=metadata_filter,
             )
-            packed_hits, budget_omitted, used_tokens = build_evidence_pack(
-                hits,
-                token_budget=final_token_budget,
-                max_snippet_tokens=final_snippet_budget,
-            )
-            candidate_omitted = max(int(vector_result.get("total_candidates", len(hits))) - len(hits), 0)
+        elif not vector_result.get("ok"):
+            vector_error = str(vector_result.get("error") or "")
+
+        keyword_hits = self._build_keyword_hits(
+            query_terms=query_terms,
+            query=query,
+            time_window=time_window,
+            resource_types=normalized_types,
+            metadata_filter=metadata_filter,
+            top_k=final_top_k,
+        )
+        merged_hits = merge_hybrid_hits(
+            vector_hits=vector_hits,
+            keyword_hits=keyword_hits,
+            vector_weight=final_vector_weight,
+            keyword_weight=final_keyword_weight,
+            freshness_weight=DEFAULT_FRESHNESS_WEIGHT,
+            similarity_threshold=final_threshold,
+            threshold_relaxed=bool(document_id or source_url),
+        )
+        reranker_result = apply_optional_reranker(
+            query=query,
+            query_terms=query_terms,
+            hits=merged_hits,
+            enabled=final_reranker_enabled,
+            provider=final_reranker_provider,
+            model=final_reranker_model,
+            top_k=final_reranker_top_k,
+            reranker_weight=final_reranker_weight,
+        )
+        ranked_hits = reranker_result["hits"]
+        final_hits = ranked_hits[:final_top_n]
+        packed_hits, budget_omitted, used_tokens = build_evidence_pack(
+            final_hits,
+            token_budget=final_token_budget,
+            max_snippet_tokens=final_snippet_budget,
+        )
+        candidate_count = len(ranked_hits)
+        candidate_omitted = max(candidate_count - len(final_hits), 0)
+        if packed_hits:
+            reason_parts = [
+                f"混合检索候选 {candidate_count} 条",
+                f"向量命中 {len(vector_hits)} 条",
+                f"关键词命中 {len(keyword_hits)} 条",
+                f"最终返回 {len(packed_hits)} 条",
+            ]
+            if reranker_result["enabled"]:
+                reason_parts.append(f"reranker:{reranker_result['provider']} 重排 {reranker_result['reranked_count']} 条")
+            if domain_status["incompatible_count"] or domain_status["unknown_count"]:
+                reason_parts.append(
+                    f"已过滤 embedding 不兼容文档 {domain_status['incompatible_count']} 个、缺少指纹旧文档 {domain_status['unknown_count']} 个"
+                )
+            reason_parts.append(f"namespace={self.knowledge_namespace}")
+            reason_parts.append(f"collection={self.vector_collection_name}")
+            if vector_error:
+                reason_parts.append(f"向量检索失败后使用关键词回退:{vector_error}")
             return KnowledgeSearchResult(
                 query=query,
                 hits=packed_hits,
                 omitted_count=candidate_omitted + budget_omitted,
                 token_budget=final_token_budget,
                 used_tokens=used_tokens,
-                low_confidence=not packed_hits or packed_hits[0].score < 0.35,
-                reason=(
-                    f"通过 ChromaDB 向量索引召回 {len(hits)} 条知识片段，"
-                    f"按 evidence token budget 返回 {len(packed_hits)} 条。"
-                ),
+                knowledge_namespace=self.knowledge_namespace,
+                vector_collection_name=self.vector_collection_name,
+                embedding_provider=self.embedding_settings.provider,
+                embedding_model=self.embedding_settings.model,
+                embedding_dimensions=self.embedding_settings.dimensions,
+                low_confidence=packed_hits[0].final_score < max(final_threshold, 0.35),
+                reason="；".join(reason_parts),
             )
-        if not vector_result.get("ok"):
-            raise RuntimeError(f"ChromaDB 向量检索失败 error={vector_result.get('error')}")
         return KnowledgeSearchResult(
             query=query,
             hits=[],
             omitted_count=0,
             token_budget=final_token_budget,
             used_tokens=0,
+            knowledge_namespace=self.knowledge_namespace,
+            vector_collection_name=self.vector_collection_name,
+            embedding_provider=self.embedding_settings.provider,
+            embedding_model=self.embedding_settings.model,
+            embedding_dimensions=self.embedding_settings.dimensions,
             low_confidence=True,
-            reason="ChromaDB 向量索引未召回到知识片段，请确认资源是否已索引或放宽查询条件。",
+            reason=(
+                "混合检索未召回到满足阈值的知识片段，请确认资源是否已索引或放宽查询条件；"
+                f"namespace={self.knowledge_namespace} collection={self.vector_collection_name}。"
+            ),
         )
 
     def _build_vector_hits(
@@ -692,6 +960,7 @@ class KnowledgeIndexStore:
         query: str,
         time_window: str,
         top_k: int,
+        metadata_filter: dict[str, str] | None = None,
     ) -> list[KnowledgeSearchHit]:
         """把 ChromaDB 返回的 chunk_id 转回权威元数据和 evidence pack。"""
 
@@ -708,17 +977,21 @@ class KnowledgeIndexStore:
                     chunks.chunk_type,
                     chunks.text,
                     chunks.source_locator,
+                    chunks.parent_chunk_id,
                     chunks.metadata_json AS chunk_metadata_json,
                     chunks.updated_at AS chunk_updated_at,
                     documents.source_type,
                     documents.title,
                     documents.source_url,
+                    documents.owner_id,
+                    documents.permission_scope,
                     documents.updated_at AS document_updated_at,
                     documents.metadata_json AS document_metadata_json
                 FROM knowledge_chunks AS chunks
                 JOIN knowledge_documents AS documents
                     ON documents.document_id = chunks.document_id
                 WHERE chunks.chunk_id IN ({placeholders})
+                    AND chunks.chunk_type != 'parent_section'
                 """,
                 chunk_ids,
             ).fetchall()
@@ -728,13 +1001,71 @@ class KnowledgeIndexStore:
             row = row_by_id.get(chunk_id)
             if row is None:
                 continue
+            if not row_matches_metadata_filter(row, metadata_filter or {}):
+                continue
+            if not row_matches_embedding_namespace(row, self.embedding_fingerprint):
+                continue
             hit = score_chunk_row(row, query_terms=query_terms, query=query, time_window=time_window)
             vector_score = distance_to_similarity(distances[index] if index < len(distances) else 1.0)
-            hit.score = round(min((hit.score * 0.35) + (vector_score * 0.65), 0.99), 3)
-            hit.reason = f"ChromaDB 向量召回:{vector_score:.2f}；{hit.reason}"
+            hit.vector_similarity = vector_score
+            hit.reason = f"向量召回:{vector_score:.2f}；{hit.reason}"
             scored.append(hit)
-        scored.sort(key=lambda item: (item.score, item.updated_at, item.title), reverse=True)
-        return scored[: max(1, min(int(top_k or 5), 10))]
+        scored.sort(key=lambda item: (item.vector_similarity, item.term_similarity, item.updated_at), reverse=True)
+        return scored[: max(1, min(int(top_k or 20), 50))]
+
+    def _build_keyword_hits(
+        self,
+        query_terms: list[str],
+        query: str,
+        time_window: str,
+        resource_types: set[str],
+        metadata_filter: dict[str, str],
+        top_k: int,
+    ) -> list[KnowledgeSearchHit]:
+        """从 SQLite 权威元数据做关键词召回，作为向量召回的互补和回退。"""
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT
+                    chunks.chunk_id,
+                    chunks.document_id,
+                    chunks.chunk_type,
+                    chunks.text,
+                    chunks.source_locator,
+                    chunks.parent_chunk_id,
+                    chunks.metadata_json AS chunk_metadata_json,
+                    chunks.updated_at AS chunk_updated_at,
+                    documents.source_type,
+                    documents.title,
+                    documents.source_url,
+                    documents.owner_id,
+                    documents.permission_scope,
+                    documents.updated_at AS document_updated_at,
+                    documents.metadata_json AS document_metadata_json
+                FROM knowledge_chunks AS chunks
+                JOIN knowledge_documents AS documents
+                    ON documents.document_id = chunks.document_id
+                WHERE chunks.chunk_type != 'parent_section'
+                """
+            ).fetchall()
+        hits: list[KnowledgeSearchHit] = []
+        for row in rows:
+            source_type = normalize_source_type(str(row["source_type"] or ""))
+            if resource_types and source_type not in resource_types:
+                continue
+            if not row_matches_metadata_filter(row, metadata_filter):
+                continue
+            if not row_matches_embedding_namespace(row, self.embedding_fingerprint):
+                continue
+            hit = score_chunk_row(row, query_terms=query_terms, query=query, time_window=time_window)
+            if hit.term_similarity <= 0 and query_terms:
+                continue
+            hit.reason = f"关键词召回:{hit.term_similarity:.2f}；{hit.reason}"
+            hits.append(hit)
+        hits.sort(key=lambda item: (item.term_similarity, item.updated_at, item.title), reverse=True)
+        return hits[: max(1, min(int(top_k or 20), 50))]
 
     def fetch_chunk(self, chunk_id: str = "", ref_id: str = "") -> KnowledgeChunkFetchResult:
         """按 chunk_id 或 ref_id 读取更完整证据。"""
@@ -752,8 +1083,10 @@ class KnowledgeIndexStore:
                     SELECT
                         chunks.chunk_id,
                         chunks.document_id,
+                        chunks.chunk_type,
                         chunks.text,
                         chunks.source_locator,
+                        chunks.parent_chunk_id,
                         chunks.metadata_json AS chunk_metadata_json,
                         documents.source_type,
                         documents.title,
@@ -773,8 +1106,10 @@ class KnowledgeIndexStore:
                     SELECT
                         chunks.chunk_id,
                         chunks.document_id,
+                        chunks.chunk_type,
                         chunks.text,
                         chunks.source_locator,
+                        chunks.parent_chunk_id,
                         chunks.metadata_json AS chunk_metadata_json,
                         documents.source_type,
                         documents.title,
@@ -798,6 +1133,7 @@ class KnowledgeIndexStore:
             raise ToolParameterError(f"未找到知识 chunk：{final_chunk_id or final_ref_id}")
         chunk_metadata = json.loads(row["chunk_metadata_json"] or "{}")
         document_metadata = json.loads(row["document_metadata_json"] or "{}")
+        parent_context = self._fetch_parent_context(row)
         return KnowledgeChunkFetchResult(
             ref_id=stable_evidence_ref_id(str(row["document_id"]), str(row["chunk_id"])),
             chunk_id=str(row["chunk_id"]),
@@ -807,9 +1143,57 @@ class KnowledgeIndexStore:
             text=str(row["text"] or ""),
             source_url=str(row["source_url"] or ""),
             source_locator=str(row["source_locator"] or ""),
+            parent_chunk_id=str(row["parent_chunk_id"] or ""),
+            parent_text=parent_context["parent_text"],
+            context_chunks=parent_context["context_chunks"],
+            toc_path=list(chunk_metadata.get("toc_path") or []),
+            positions=dict(chunk_metadata.get("positions") or {}),
             updated_at=str(row["document_updated_at"] or ""),
             metadata={**document_metadata, **chunk_metadata},
         )
+
+    def _fetch_parent_context(self, row: sqlite3.Row) -> dict[str, Any]:
+        """按 parent_chunk_id 展开同章节上下文，保留具体命中 chunk 的引用。"""
+
+        parent_chunk_id = str(row["parent_chunk_id"] or "")
+        if not parent_chunk_id:
+            return {"parent_text": "", "context_chunks": []}
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            parent_row = conn.execute(
+                "SELECT text FROM knowledge_chunks WHERE chunk_id = ?",
+                (parent_chunk_id,),
+            ).fetchone()
+            sibling_rows = conn.execute(
+                """
+                SELECT chunk_id, chunk_type, text, source_locator, metadata_json, chunk_order
+                FROM knowledge_chunks
+                WHERE parent_chunk_id = ?
+                    AND chunk_type != 'parent_section'
+                ORDER BY chunk_order, chunk_id
+                """,
+                (parent_chunk_id,),
+            ).fetchall()
+        context_chunks = []
+        for sibling in sibling_rows:
+            sibling_metadata = json.loads(sibling["metadata_json"] or "{}")
+            context_chunks.append(
+                {
+                    "ref_id": stable_evidence_ref_id(str(row["document_id"]), str(sibling["chunk_id"])),
+                    "chunk_id": str(sibling["chunk_id"]),
+                    "chunk_type": str(sibling["chunk_type"] or ""),
+                    "source_locator": str(sibling["source_locator"] or ""),
+                    "chunk_order": int(sibling["chunk_order"] or 0),
+                    "snippet": build_snippet(str(sibling["text"] or ""), []),
+                    "positions": dict(sibling_metadata.get("positions") or {}),
+                    "toc_path": list(sibling_metadata.get("toc_path") or []),
+                    "is_hit": str(sibling["chunk_id"]) == str(row["chunk_id"]),
+                }
+            )
+        return {
+            "parent_text": str(parent_row["text"] or "") if parent_row else "",
+            "context_chunks": context_chunks,
+        }
 
 
 def build_knowledge_index(resource: Resource | RetrievedResource) -> tuple[KnowledgeDocument, list[KnowledgeChunk]]:
@@ -900,25 +1284,36 @@ def chunk_resource_text(
     else:
         raw_chunks = chunk_document_text(text)
 
-    chunks: list[KnowledgeChunk] = []
+    child_chunks: list[KnowledgeChunk] = []
     for index, item in enumerate(raw_chunks, start=1):
         chunk_text = item["text"].strip()
         if not chunk_text:
             continue
         locator = item.get("source_locator") or f"{base_locator or source_type}:chunk:{index}"
         chunk_checksum = sha256_text(chunk_text)
-        chunks.append(
+        child_chunks.append(
             KnowledgeChunk(
                 chunk_id=stable_chunk_id(document_id, index, chunk_checksum),
                 document_id=document_id,
                 chunk_type=item.get("chunk_type", "paragraph"),
                 text=chunk_text,
                 source_locator=locator,
-                metadata={**(metadata or {}), **item.get("metadata", {})},
+                chunk_order=index,
+                parent_chunk_id=str(item.get("parent_chunk_id") or ""),
+                doc_type=source_type,
+                content_tokens=estimate_text_tokens(chunk_text),
+                metadata=build_chunk_metadata(
+                    base_metadata=metadata or {},
+                    item_metadata=item.get("metadata", {}),
+                    source_type=source_type,
+                    source_locator=locator,
+                    text=chunk_text,
+                    chunk_order=index,
+                ),
                 checksum=chunk_checksum,
             )
         )
-    return chunks
+    return attach_parent_chunks(document_id=document_id, source_type=source_type, chunks=child_chunks)
 
 
 def chunk_document_text(text: str) -> list[dict[str, Any]]:
@@ -936,7 +1331,7 @@ def chunk_document_text(text: str) -> list[dict[str, Any]]:
             {
                 "chunk_type": "paragraph",
                 "text": "\n".join(buffer),
-                "metadata": {"heading": current_heading},
+                "metadata": {"heading": current_heading, "positions": {"heading": current_heading}},
             }
         )
         buffer.clear()
@@ -952,7 +1347,7 @@ def chunk_document_text(text: str) -> list[dict[str, Any]]:
                 {
                     "chunk_type": "heading",
                     "text": current_heading,
-                    "metadata": {"heading": current_heading},
+                    "metadata": {"heading": current_heading, "positions": {"heading": current_heading}},
                 }
             )
             continue
@@ -962,7 +1357,7 @@ def chunk_document_text(text: str) -> list[dict[str, Any]]:
                 {
                     "chunk_type": "table",
                     "text": line,
-                    "metadata": {"heading": current_heading},
+                    "metadata": {"heading": current_heading, "positions": {"heading": current_heading}},
                 }
             )
             continue
@@ -985,7 +1380,7 @@ def chunk_sheet_text(text: str) -> list[dict[str, Any]]:
             "chunk_type": "table",
             "text": header,
             "source_locator": "sheet:header",
-            "metadata": {"row_index": 0},
+            "metadata": {"row_index": 0, "fields": split_sheet_fields(header), "positions": {"sheet": "default", "row_index": 0}},
         }
     ]
     for index, line in enumerate(lines[1:], start=1):
@@ -994,7 +1389,12 @@ def chunk_sheet_text(text: str) -> list[dict[str, Any]]:
                 "chunk_type": "row",
                 "text": f"{header}\n{line}",
                 "source_locator": f"sheet:row:{index}",
-                "metadata": {"row_index": index, "header": header},
+                "metadata": {
+                    "row_index": index,
+                    "header": header,
+                    "fields": split_sheet_fields(header),
+                    "positions": {"sheet": "default", "row_index": index},
+                },
             }
         )
     return chunks
@@ -1015,7 +1415,10 @@ def chunk_minute_text(text: str) -> list[dict[str, Any]]:
             {
                 "chunk_type": "minute_section",
                 "text": "\n".join(buffer),
-                "metadata": {"section": current_section},
+                "metadata": {
+                    "section": current_section,
+                    "positions": build_minute_positions(current_section),
+                },
             }
         )
         buffer.clear()
@@ -1082,11 +1485,193 @@ def build_chroma_metadata(document: KnowledgeDocument, chunk: KnowledgeChunk) ->
         "source_url": document.source_url,
         "updated_at": document.updated_at,
         "source_locator": chunk.source_locator,
+        "chunk_order": chunk.chunk_order,
+        "parent_chunk_id": chunk.parent_chunk_id,
+        "doc_type": chunk.doc_type,
+        "content_tokens": chunk.content_tokens,
         "chunk_type": chunk.chunk_type,
         "checksum": chunk.checksum,
+        "embedding_provider": str(document.metadata.get("embedding_provider") or ""),
+        "embedding_model": str(document.metadata.get("embedding_model") or ""),
+        "embedding_dimensions": int(document.metadata.get("embedding_dimensions") or 0),
+        "embedding_fingerprint": str(document.metadata.get("embedding_fingerprint") or ""),
+        "knowledge_namespace": str(document.metadata.get("knowledge_namespace") or ""),
         "metadata_json": json.dumps({**document.metadata, **chunk.metadata}, ensure_ascii=False),
     }
     return {key: value for key, value in metadata.items() if value is not None}
+
+
+def ensure_knowledge_chunk_schema(conn: sqlite3.Connection) -> None:
+    """为旧版 SQLite 知识库补齐 T3.12 新增 chunk 字段。"""
+
+    existing_columns = {
+        str(row[1])
+        for row in conn.execute("PRAGMA table_info(knowledge_chunks)").fetchall()
+    }
+    migrations = {
+        "chunk_order": "ALTER TABLE knowledge_chunks ADD COLUMN chunk_order INTEGER NOT NULL DEFAULT 0",
+        "parent_chunk_id": "ALTER TABLE knowledge_chunks ADD COLUMN parent_chunk_id TEXT NOT NULL DEFAULT ''",
+        "doc_type": "ALTER TABLE knowledge_chunks ADD COLUMN doc_type TEXT NOT NULL DEFAULT ''",
+        "content_tokens": "ALTER TABLE knowledge_chunks ADD COLUMN content_tokens INTEGER NOT NULL DEFAULT 0",
+    }
+    for column, statement in migrations.items():
+        if column not in existing_columns:
+            conn.execute(statement)
+
+
+def build_chunk_metadata(
+    base_metadata: dict[str, Any],
+    item_metadata: dict[str, Any],
+    source_type: str,
+    source_locator: str,
+    text: str,
+    chunk_order: int,
+) -> dict[str, Any]:
+    """补齐 chunk 的结构化位置、关键词和问题字段，便于解释和回链。"""
+
+    metadata = {**base_metadata, **item_metadata}
+    positions = dict(metadata.get("positions") or {})
+    positions.setdefault("source_type", source_type)
+    positions.setdefault("source_locator", source_locator)
+    positions.setdefault("chunk_order", chunk_order)
+    metadata["positions"] = positions
+    metadata["toc_path"] = build_toc_path(metadata, source_type)
+    metadata.setdefault("keywords", extract_chunk_keywords(text, metadata))
+    metadata.setdefault("questions", extract_chunk_questions(text))
+    metadata.setdefault("doc_type", source_type)
+    return metadata
+
+
+def build_toc_path(metadata: dict[str, Any], source_type: str) -> list[str]:
+    """从标题、章节或表格位置生成轻量 TOC 路径。"""
+
+    if source_type == "sheet":
+        positions = dict(metadata.get("positions") or {})
+        return unique_strings(["sheet", str(positions.get("sheet") or "default")])
+    if source_type == "minute":
+        section = str(metadata.get("section") or "")
+        return unique_strings(["minute", section])
+    heading = str(metadata.get("heading") or "")
+    return unique_strings(["doc", heading])
+
+
+def attach_parent_chunks(document_id: str, source_type: str, chunks: list[KnowledgeChunk]) -> list[KnowledgeChunk]:
+    """按 TOC 路径聚合同章节子 chunk，并创建用于展开上下文的 parent chunk。"""
+
+    if not chunks:
+        return []
+    grouped: dict[str, list[KnowledgeChunk]] = {}
+    for chunk in chunks:
+        group_key = build_parent_group_key(chunk)
+        grouped.setdefault(group_key, []).append(chunk)
+
+    parent_chunks: list[KnowledgeChunk] = []
+    for group_index, (group_key, group_chunks) in enumerate(grouped.items(), start=1):
+        parent_text = "\n\n".join(item.text for item in group_chunks if item.text)
+        parent_checksum = sha256_text(parent_text)
+        parent_chunk_id = stable_parent_chunk_id(document_id, group_key, parent_checksum)
+        toc_path = list(group_chunks[0].metadata.get("toc_path") or [])
+        first_order = min(item.chunk_order for item in group_chunks)
+        for child in group_chunks:
+            child.parent_chunk_id = parent_chunk_id
+            child.metadata["parent_chunk_id"] = parent_chunk_id
+            child.metadata.setdefault("toc_path", toc_path)
+        parent_chunks.append(
+            KnowledgeChunk(
+                chunk_id=parent_chunk_id,
+                document_id=document_id,
+                chunk_type="parent_section",
+                text=parent_text,
+                source_locator=str(group_chunks[0].source_locator or ""),
+                chunk_order=max(first_order - 1, 0),
+                parent_chunk_id="",
+                doc_type=source_type,
+                content_tokens=estimate_text_tokens(parent_text),
+                metadata={
+                    "doc_type": source_type,
+                    "toc_path": toc_path,
+                    "positions": {
+                        "source_type": source_type,
+                        "source_locator": str(group_chunks[0].source_locator or ""),
+                        "chunk_order": max(first_order - 1, 0),
+                        "parent_group": group_key,
+                    },
+                    "child_chunk_ids": [item.chunk_id for item in group_chunks],
+                    "keywords": extract_chunk_keywords(parent_text, {"toc_path": " ".join(toc_path)}),
+                    "questions": extract_chunk_questions(parent_text),
+                },
+                checksum=parent_checksum,
+            )
+        )
+
+    return sorted([*parent_chunks, *chunks], key=lambda item: (item.chunk_order, item.chunk_type, item.chunk_id))
+
+
+def build_parent_group_key(chunk: KnowledgeChunk) -> str:
+    """按文档结构确定 parent chunk 边界。"""
+
+    toc_path = [item for item in list(chunk.metadata.get("toc_path") or []) if item]
+    if toc_path:
+        return "/".join(toc_path)
+    positions = dict(chunk.metadata.get("positions") or {})
+    return str(
+        positions.get("heading")
+        or positions.get("section")
+        or positions.get("sheet")
+        or chunk.doc_type
+        or "root"
+    )
+
+
+def extract_chunk_keywords(text: str, metadata: dict[str, Any]) -> list[str]:
+    """从 chunk 文本和标题元数据中提取轻量关键词，服务关键词召回和审计。"""
+
+    values = [
+        str(metadata.get("title") or ""),
+        str(metadata.get("heading") or ""),
+        str(metadata.get("section") or ""),
+        text,
+    ]
+    raw_terms: list[str] = []
+    for value in values:
+        raw_terms.extend(re.split(r"[\s,，;；:：|/()（）\[\]【】]+", value))
+    keywords: list[str] = []
+    for term in raw_terms:
+        clean = term.strip("#：:,.。").lower()
+        if len(clean) <= 1 or clean in {"the", "and", "for", "with", "会议", "同步", "讨论"}:
+            continue
+        keywords.append(clean)
+    return unique_strings(keywords)[:12]
+
+
+def extract_chunk_questions(text: str) -> list[str]:
+    """提取 chunk 中显式的问题句，供后续 query 改写和会前问题识别使用。"""
+
+    questions: list[str] = []
+    for sentence in re.split(r"(?<=[?？])\s*|[\n。；;]+", text):
+        clean = sentence.strip()
+        if not clean:
+            continue
+        if clean.endswith(("?", "？")) or any(marker in clean for marker in ("是否", "如何", "为什么", "待确认", "问题")):
+            questions.append(clean[:120])
+    return unique_strings(questions)[:5]
+
+
+def split_sheet_fields(header: str) -> list[str]:
+    """从表头行中提取字段名，兼容 CSV 和 Markdown 表格。"""
+
+    separator = "|" if "|" in header else ","
+    return [item.strip() for item in header.strip("|").split(separator) if item.strip()]
+
+
+def build_minute_positions(section: str) -> dict[str, Any]:
+    """从妙记章节标题中提取时间片段等结构化位置。"""
+
+    positions: dict[str, Any] = {"section": section}
+    match = re.search(r"\[?(\d{1,2}:\d{2}(?::\d{2})?)", section or "")
+    if match:
+        positions["timestamp"] = match.group(1)
+    return positions
 
 
 def build_embedding_settings_from_env() -> EmbeddingSettings:
@@ -1104,6 +1689,36 @@ def build_embedding_settings_from_env() -> EmbeddingSettings:
         dimensions=int(os.getenv("MEETFLOW_EMBEDDING_DIMENSIONS", "1536")),
         timeout_seconds=int(os.getenv("MEETFLOW_EMBEDDING_TIMEOUT_SECONDS", "30")),
     )
+
+
+def build_reranker_settings_from_env() -> RerankerSettings:
+    """从环境变量构造 reranker 配置，默认关闭以避免开发阶段额外成本。"""
+
+    return RerankerSettings(
+        enabled=os.getenv("MEETFLOW_RERANKER_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
+        provider=os.getenv("MEETFLOW_RERANKER_PROVIDER", "local-rule"),
+        model=os.getenv("MEETFLOW_RERANKER_MODEL", ""),
+        top_k=int(os.getenv("MEETFLOW_RERANKER_TOP_K", str(DEFAULT_RERANKER_TOP_K))),
+        timeout_seconds=int(os.getenv("MEETFLOW_RERANKER_TIMEOUT_SECONDS", "30")),
+    )
+
+
+def build_embedding_fingerprint(settings: EmbeddingSettings) -> str:
+    """生成 embedding 向量空间指纹，防止不同模型或维度混检。"""
+
+    provider = settings.provider.strip().lower()
+    model = settings.model.strip()
+    dimensions = int(settings.dimensions or 0)
+    return f"{provider}:{model}:{dimensions}"
+
+
+def build_knowledge_namespace(settings: EmbeddingSettings) -> str:
+    """生成知识索引命名空间，作为日志和检索解释中的人类可读标识。"""
+
+    digest = hashlib.sha1(build_embedding_fingerprint(settings).encode("utf-8")).hexdigest()[:8]
+    safe_provider = re.sub(r"[^a-zA-Z0-9]+", "_", settings.provider.strip().lower()).strip("_") or "unknown"
+    safe_model = re.sub(r"[^a-zA-Z0-9]+", "_", settings.model.strip().lower()).strip("_") or "unknown"
+    return f"{safe_provider}_{safe_model}_{settings.dimensions}_{digest}"
 
 
 def join_url(base_url: str, suffix: str) -> str:
@@ -1162,27 +1777,35 @@ def score_chunk_row(
             json.dumps({**document_metadata, **chunk_metadata}, ensure_ascii=False),
         ]
     ).lower()
-    score = 0.0
+    term_score = 0.0
     reasons: list[str] = []
+    matched_terms: set[str] = set()
     for term in query_terms:
         if term in combined:
-            score += 0.22 if term in text.lower() else 0.14
+            term_score += 0.22 if term in text.lower() else 0.14
+            matched_terms.add(term)
             reasons.append(f"命中查询词:{term}")
     if query and query.lower() in combined:
-        score += 0.18
+        term_score += 0.18
         reasons.append("命中完整查询")
+    if query_terms:
+        coverage = len(matched_terms) / max(len(query_terms), 1)
+        term_similarity = round(min((term_score * 0.55) + (coverage * 0.45), 1.0), 3)
+    else:
+        term_similarity = 0.0
+    metadata_score = 0.0
     if row["source_locator"]:
-        score += 0.04
+        metadata_score += 0.04
         reasons.append("包含回链定位")
     if row["source_url"]:
-        score += 0.03
+        metadata_score += 0.03
         reasons.append("包含来源链接")
     freshness = estimate_document_freshness(str(row["document_updated_at"] or ""), time_window=time_window)
     if freshness:
-        score += freshness
         reasons.append("资源更新时间符合窗口")
 
     snippet = build_snippet(text, query_terms)
+    score = round(min(term_similarity + metadata_score + freshness, 0.99), 3)
     return KnowledgeSearchHit(
         ref_id=stable_evidence_ref_id(str(row["document_id"]), str(row["chunk_id"])),
         chunk_id=str(row["chunk_id"]),
@@ -1191,9 +1814,13 @@ def score_chunk_row(
         title=title,
         snippet=snippet,
         reason="；".join(unique_strings(reasons[:5])) or "知识片段候选",
-        score=round(min(score, 0.99), 3),
+        score=score,
+        term_similarity=term_similarity,
+        final_score=score,
         source_url=str(row["source_url"] or ""),
         source_locator=str(row["source_locator"] or ""),
+        parent_chunk_id=str(row["parent_chunk_id"] or ""),
+        toc_path=list(chunk_metadata.get("toc_path") or []),
         updated_at=str(row["document_updated_at"] or ""),
         metadata={**document_metadata, **chunk_metadata},
     )
@@ -1217,6 +1844,136 @@ def build_snippet(text: str, query_terms: list[str], max_length: int = 220) -> s
     return f"{prefix}{compact[start:end]}{suffix}"
 
 
+def merge_hybrid_hits(
+    vector_hits: list[KnowledgeSearchHit],
+    keyword_hits: list[KnowledgeSearchHit],
+    vector_weight: float = DEFAULT_VECTOR_WEIGHT,
+    keyword_weight: float = DEFAULT_KEYWORD_WEIGHT,
+    freshness_weight: float = DEFAULT_FRESHNESS_WEIGHT,
+    similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
+    threshold_relaxed: bool = False,
+) -> list[KnowledgeSearchHit]:
+    """融合向量召回和关键词召回，并把最终分数拆开写回 evidence。"""
+
+    merged: dict[str, KnowledgeSearchHit] = {}
+    for hit in [*vector_hits, *keyword_hits]:
+        existing = merged.get(hit.chunk_id)
+        if existing is None:
+            merged[hit.chunk_id] = hit
+            continue
+        existing.vector_similarity = max(existing.vector_similarity, hit.vector_similarity)
+        existing.term_similarity = max(existing.term_similarity, hit.term_similarity)
+        existing.reason = "；".join(unique_strings([existing.reason, hit.reason]))
+
+    final_hits: list[KnowledgeSearchHit] = []
+    for hit in merged.values():
+        freshness = estimate_document_freshness(hit.updated_at)
+        final_score = round(
+            min(
+                (hit.vector_similarity * vector_weight)
+                + (hit.term_similarity * keyword_weight)
+                + (freshness * freshness_weight),
+                0.99,
+            ),
+            3,
+        )
+        hit.final_score = final_score
+        hit.score = final_score
+        if hit.vector_similarity > 0 and hit.term_similarity > 0:
+            hit.reason = f"混合命中 final_score:{final_score:.3f}；{hit.reason}"
+        elif hit.vector_similarity > 0:
+            hit.reason = f"向量命中 final_score:{final_score:.3f}；{hit.reason}"
+        else:
+            hit.reason = f"关键词命中 final_score:{final_score:.3f}；{hit.reason}"
+        if threshold_relaxed:
+            hit.reason = f"显式资源过滤放宽阈值；{hit.reason}"
+        elif final_score < similarity_threshold:
+            continue
+        final_hits.append(hit)
+
+    final_hits.sort(key=lambda item: (item.final_score, item.updated_at, item.title), reverse=True)
+    return final_hits
+
+
+def apply_optional_reranker(
+    query: str,
+    query_terms: list[str],
+    hits: list[KnowledgeSearchHit],
+    enabled: bool,
+    provider: str,
+    model: str,
+    top_k: int,
+    reranker_weight: float,
+) -> dict[str, Any]:
+    """在混合检索之后执行可选重排，默认使用本地轻量规则 provider。"""
+
+    if not enabled or not hits:
+        return {"enabled": False, "provider": provider or "disabled", "reranked_count": 0, "hits": hits}
+    provider_name = (provider or "local-rule").strip().lower()
+    candidate_limit = max(1, min(int(top_k or DEFAULT_RERANKER_TOP_K), 64))
+    candidates = hits[:candidate_limit]
+    remaining = hits[candidate_limit:]
+    if provider_name not in {"local-rule", "local", "rule", "disabled"}:
+        raise RuntimeError(f"暂不支持的 reranker provider：{provider}")
+    reranked = rerank_hits_locally(
+        query=query,
+        query_terms=query_terms,
+        hits=candidates,
+        provider=provider_name,
+        model=model,
+        reranker_weight=reranker_weight,
+    )
+    return {
+        "enabled": True,
+        "provider": provider_name,
+        "reranked_count": len(reranked),
+        "hits": [*reranked, *remaining],
+    }
+
+
+def rerank_hits_locally(
+    query: str,
+    query_terms: list[str],
+    hits: list[KnowledgeSearchHit],
+    provider: str,
+    model: str,
+    reranker_weight: float,
+) -> list[KnowledgeSearchHit]:
+    """本地轻量 reranker，用 query 覆盖率、标题命中和问题命中微调排序。"""
+
+    for hit in hits:
+        rerank_score = calculate_local_rerank_score(query=query, query_terms=query_terms, hit=hit)
+        base_score = hit.final_score or hit.score
+        hit.rerank_score = rerank_score
+        hit.final_score = round(min((base_score * (1.0 - reranker_weight)) + (rerank_score * reranker_weight), 0.99), 3)
+        hit.score = hit.final_score
+        provider_label = provider if not model else f"{provider}:{model}"
+        hit.reason = f"reranker:{provider_label} score:{rerank_score:.3f}；{hit.reason}"
+    hits.sort(key=lambda item: (item.final_score, item.rerank_score, item.updated_at), reverse=True)
+    return hits
+
+
+def calculate_local_rerank_score(query: str, query_terms: list[str], hit: KnowledgeSearchHit) -> float:
+    """计算本地重排分，强调 query 与标题、snippet、TOC 和问题字段的贴合度。"""
+
+    metadata = dict(hit.metadata)
+    combined = " ".join(
+        [
+            hit.title,
+            hit.snippet,
+            " ".join(hit.toc_path),
+            " ".join(str(item) for item in metadata.get("keywords") or []),
+            " ".join(str(item) for item in metadata.get("questions") or []),
+        ]
+    ).lower()
+    matched_terms = [term for term in query_terms if term and term in combined]
+    coverage = len(set(matched_terms)) / max(len(query_terms), 1) if query_terms else 0.0
+    title_bonus = 0.15 if any(term in hit.title.lower() for term in query_terms) else 0.0
+    question_bonus = 0.10 if metadata.get("questions") and any(term in " ".join(metadata.get("questions") or []) for term in query_terms) else 0.0
+    exact_bonus = 0.12 if query and query.lower() in combined else 0.0
+    return round(min((coverage * 0.63) + title_bonus + question_bonus + exact_bonus, 1.0), 3)
+
+
 def build_evidence_pack(
     hits: list[KnowledgeSearchHit],
     token_budget: int = DEFAULT_EVIDENCE_TOKEN_BUDGET,
@@ -1236,8 +1993,14 @@ def build_evidence_pack(
             snippet=truncate_text_by_token_budget(hit.snippet, max_snippet_tokens),
             reason=hit.reason,
             score=hit.score,
+            vector_similarity=hit.vector_similarity,
+            term_similarity=hit.term_similarity,
+            rerank_score=hit.rerank_score,
+            final_score=hit.final_score,
             source_url=hit.source_url,
             source_locator=hit.source_locator,
+            parent_chunk_id=hit.parent_chunk_id,
+            toc_path=hit.toc_path,
             updated_at=hit.updated_at,
             metadata=hit.metadata,
         )
@@ -1313,6 +2076,86 @@ def clamp_int(value: Any, minimum: int, maximum: int, default: int) -> int:
     except (TypeError, ValueError):
         number = default
     return max(minimum, min(number, maximum))
+
+
+def clamp_float(value: Any, minimum: float, maximum: float, default: float) -> float:
+    """把工具参数里的浮点数收敛到安全范围。"""
+
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = default
+    return max(minimum, min(number, maximum))
+
+
+def build_search_metadata_filter(
+    project_id: str = "",
+    meeting_id: str = "",
+    document_id: str = "",
+    source_url: str = "",
+    owner_id: str = "",
+    updated_after: str = "",
+    permission_scope: str = "",
+) -> dict[str, str]:
+    """整理检索 metadata filter，空值不参与过滤。"""
+
+    return {
+        key: value
+        for key, value in {
+            "project_id": project_id,
+            "meeting_id": meeting_id,
+            "document_id": document_id,
+            "source_url": source_url,
+            "owner_id": owner_id,
+            "updated_after": updated_after,
+            "permission_scope": permission_scope,
+        }.items()
+        if str(value or "").strip()
+    }
+
+
+def row_matches_metadata_filter(row: sqlite3.Row, metadata_filter: dict[str, str]) -> bool:
+    """判断 SQLite chunk 行是否满足结构化 metadata filter。"""
+
+    if not metadata_filter:
+        return True
+    chunk_metadata = json.loads(row["chunk_metadata_json"] or "{}")
+    document_metadata = json.loads(row["document_metadata_json"] or "{}")
+    metadata = {**document_metadata, **chunk_metadata}
+    document_id = str(row["document_id"] or "")
+    source_url = str(row["source_url"] or "")
+    owner_id = str(row["owner_id"] or metadata.get("owner_id") or metadata.get("owner") or "")
+    permission_scope = str(row["permission_scope"] or metadata.get("permission_scope") or "")
+
+    if metadata_filter.get("document_id") and metadata_filter["document_id"] != document_id:
+        return False
+    if metadata_filter.get("source_url") and metadata_filter["source_url"] not in source_url:
+        return False
+    if metadata_filter.get("owner_id") and metadata_filter["owner_id"] != owner_id:
+        return False
+    if metadata_filter.get("permission_scope") and metadata_filter["permission_scope"] != permission_scope:
+        return False
+    if metadata_filter.get("updated_after"):
+        updated_at = str(row["document_updated_at"] or "")
+        if parse_date_like_timestamp(updated_at) < parse_date_like_timestamp(metadata_filter["updated_after"]):
+            return False
+    for key in ("project_id", "meeting_id"):
+        expected = metadata_filter.get(key)
+        if expected and str(metadata.get(key) or "") != expected:
+            return False
+    return True
+
+
+def row_matches_embedding_namespace(row: sqlite3.Row, current_fingerprint: str) -> bool:
+    """判断 chunk 所属文档是否属于当前 embedding 向量空间。"""
+
+    document_metadata = json.loads(row["document_metadata_json"] or "{}")
+    chunk_metadata = json.loads(row["chunk_metadata_json"] or "{}")
+    document_fingerprint = str(document_metadata.get("embedding_fingerprint") or "")
+    chunk_fingerprint = str(chunk_metadata.get("embedding_fingerprint") or "")
+    return bool(document_fingerprint) and document_fingerprint == current_fingerprint and (
+        not chunk_fingerprint or chunk_fingerprint == current_fingerprint
+    )
 
 
 def stable_evidence_ref_id(document_id: str, chunk_id: str) -> str:
@@ -1395,7 +2238,26 @@ def build_knowledge_search_tool(store: KnowledgeIndexStore) -> AgentTool:
                     "description": "可选资源类型，如 doc、sheet、minute、task。",
                 },
                 "time_window": {"type": "string", "description": "可选时间窗口，如 recent_90_days。"},
-                "top_k": {"type": "integer", "description": "最多返回的证据片段数，最大 10。"},
+                "top_k": {"type": "integer", "description": "候选召回数量，默认 20，最大 50。"},
+                "top_n": {"type": "integer", "description": "最终进入 evidence pack 的片段数，默认等于 top_k，最大 10。"},
+                "similarity_threshold": {
+                    "type": "number",
+                    "description": "最终分数阈值，低于阈值的结果不会进入高置信证据包。",
+                },
+                "vector_weight": {"type": "number", "description": "向量相似度权重，默认 0.65。"},
+                "keyword_weight": {"type": "number", "description": "关键词相似度权重，默认 0.30。"},
+                "reranker_enabled": {"type": "boolean", "description": "是否开启可选 reranker 重排。"},
+                "reranker_provider": {"type": "string", "description": "reranker provider，当前支持 local-rule。"},
+                "reranker_model": {"type": "string", "description": "reranker 模型名，local-rule 可为空。"},
+                "reranker_top_k": {"type": "integer", "description": "送入 reranker 的候选数量，默认 32，最大 64。"},
+                "reranker_weight": {"type": "number", "description": "rerank_score 融入 final_score 的权重，默认 0.25。"},
+                "filter_project_id": {"type": "string", "description": "可选 metadata project_id 精确过滤。"},
+                "filter_meeting_id": {"type": "string", "description": "可选 metadata meeting_id 精确过滤。"},
+                "document_id": {"type": "string", "description": "可选文档 ID 精确过滤。"},
+                "source_url": {"type": "string", "description": "可选来源 URL 过滤，支持包含匹配。"},
+                "owner_id": {"type": "string", "description": "可选 owner_id 过滤。"},
+                "updated_after": {"type": "string", "description": "可选更新时间下限，如 2026-04-01。"},
+                "permission_scope": {"type": "string", "description": "可选权限范围过滤。"},
                 "evidence_token_budget": {
                     "type": "integer",
                     "description": "本次 evidence pack 的粗略 token 预算，默认 600，最大 2000。",
@@ -1413,7 +2275,23 @@ def build_knowledge_search_tool(store: KnowledgeIndexStore) -> AgentTool:
             project_id=str(arguments.get("project_id") or ""),
             resource_types=list(arguments.get("resource_types") or []),
             time_window=str(arguments.get("time_window") or "recent_90_days"),
-            top_k=int(arguments.get("top_k") or 5),
+            top_k=int(arguments.get("top_k") or 20),
+            top_n=int(arguments.get("top_n") or 0),
+            similarity_threshold=float(arguments.get("similarity_threshold") or DEFAULT_SIMILARITY_THRESHOLD),
+            vector_weight=float(arguments.get("vector_weight") or DEFAULT_VECTOR_WEIGHT),
+            keyword_weight=float(arguments.get("keyword_weight") or DEFAULT_KEYWORD_WEIGHT),
+            reranker_enabled=arguments.get("reranker_enabled") if "reranker_enabled" in arguments else None,
+            reranker_provider=str(arguments.get("reranker_provider") or ""),
+            reranker_model=str(arguments.get("reranker_model") or ""),
+            reranker_top_k=int(arguments.get("reranker_top_k") or 0),
+            reranker_weight=float(arguments.get("reranker_weight") or DEFAULT_RERANKER_WEIGHT),
+            filter_project_id=str(arguments.get("filter_project_id") or ""),
+            filter_meeting_id=str(arguments.get("filter_meeting_id") or ""),
+            document_id=str(arguments.get("document_id") or ""),
+            source_url=str(arguments.get("source_url") or ""),
+            owner_id=str(arguments.get("owner_id") or ""),
+            updated_after=str(arguments.get("updated_after") or ""),
+            permission_scope=str(arguments.get("permission_scope") or ""),
             evidence_token_budget=int(arguments.get("evidence_token_budget") or DEFAULT_EVIDENCE_TOKEN_BUDGET),
             max_snippet_tokens=int(arguments.get("max_snippet_tokens") or DEFAULT_EVIDENCE_SNIPPET_TOKEN_BUDGET),
         ),
@@ -1457,6 +2335,13 @@ def stable_chunk_id(document_id: str, index: int, checksum: str) -> str:
 
     digest = hashlib.sha1(f"{document_id}:{index}:{checksum}".encode("utf-8")).hexdigest()[:12]
     return f"{document_id}#chunk_{index}_{digest}"
+
+
+def stable_parent_chunk_id(document_id: str, group_key: str, checksum: str) -> str:
+    """生成章节级 parent chunk 的稳定 ID。"""
+
+    digest = hashlib.sha1(f"{document_id}:parent:{group_key}:{checksum}".encode("utf-8")).hexdigest()[:12]
+    return f"{document_id}#parent_{digest}"
 
 
 def sha256_text(text: str) -> str:

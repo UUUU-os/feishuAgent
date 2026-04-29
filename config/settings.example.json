@@ -38,6 +38,13 @@
     "dimensions": 512,
     "timeout_seconds": 30
   },
+  "reranker": {
+    "enabled": false,
+    "provider": "local-rule",
+    "model": "",
+    "top_k": 32,
+    "timeout_seconds": 30
+  },
   "scheduler": {
     "pre_meeting_minutes_before": 30,
     "risk_scan_cron": "0 9 * * *",
