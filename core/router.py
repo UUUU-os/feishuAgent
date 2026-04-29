@@ -135,6 +135,8 @@ def build_default_route_rules() -> list[RouteRule]:
             reason="会议即将开始，需要读取日历、关联文档和任务，生成会前背景卡。",
             required_tools=[
                 "calendar.list_events",
+                "knowledge.search",
+                "knowledge.fetch_chunk",
                 "docs.fetch_resource",
                 "minutes.fetch_resource",
                 "tasks.list_my_tasks",
@@ -180,6 +182,8 @@ def build_default_route_rules() -> list[RouteRule]:
 MANUAL_WORKFLOW_TOOLS: dict[str, list[str]] = {
     "pre_meeting_brief": [
         "calendar.list_events",
+        "knowledge.search",
+        "knowledge.fetch_chunk",
         "docs.fetch_resource",
         "minutes.fetch_resource",
         "tasks.list_my_tasks",

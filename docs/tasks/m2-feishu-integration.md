@@ -1,0 +1,438 @@
+## 5.2 M2：飞书接入与数据读取
+
+### T2.1 实现飞书 API 客户端
+
+- 优先级：`P0`
+- 目标：提供统一飞书调用入口
+- 覆盖能力：
+  - 鉴权
+  - GET/POST 请求封装
+  - 错误处理
+  - 限流重试
+- 验收标准：
+  - 能成功调用至少一个飞书读取接口和一个写入接口
+
+#### T2.1 当前实现细节
+
+- 已创建文件：
+  - `adapters/feishu_client.py`
+  - `adapters/__init__.py`
+  - `scripts/feishu_client_demo.py`
+  - `scripts/oauth_device_login.py`
+  - `config/settings.example.json` 中已补充飞书客户端超时与重试配置
+  - `config/loader.py` 中已补充飞书客户端配置字段与环境变量映射
+  - `config/README.md` 中已补充相关环境变量说明
+- 已实现的核心类：
+  - `FeishuAPIError`：飞书接口通用异常，用于封装 HTTP 或业务错误
+  - `FeishuAuthError`：飞书鉴权异常
+  - `TokenCache`：访问令牌缓存对象，统一处理 tenant/user token 的有效期判断
+  - `FeishuClient`：飞书开放平台客户端，负责鉴权、请求发送、重试、OAuth Device Flow 与错误处理
+  - `OAuthTokenBundle`：统一承接用户身份 token 与 refresh token 的刷新结果
+  - `DeviceAuthorizationBundle`：统一承接 Device Flow 的 device_code、user_code 与验证链接
+- 已实现的核心函数：
+  - `get_access_token()`：按身份模式统一获取访问令牌
+  - `_build_url()`：把接口路径拼成完整飞书 API URL
+  - `_build_headers()`：构建请求头，并按 `tenant` / `user` 自动注入正确的 `Authorization`
+  - `get_tenant_access_token()`：调用飞书鉴权接口获取并缓存 `tenant_access_token`
+  - `get_user_access_token()`：优先读取本地用户 token，并在需要时自动触发 refresh token 刷新
+  - `refresh_user_access_token()`：用 `refresh_token` 刷新用户令牌
+  - `request_device_authorization()`：发起 Device Flow，获取 device_code 与验证链接
+  - `poll_device_token()`：轮询 token 接口，等待用户扫码或确认完成
+  - `get_current_user_info()`：使用用户 token 获取当前登录用户的 open_id 与 name
+  - `_parse_oauth_token_bundle()`：把 OAuth token 响应转换为统一结构
+  - `_parse_response_payload()`：统一解析 Device Flow 与 user_info 这类原始 HTTP 响应
+  - `_apply_user_oauth_bundle()`：把最新 token 结果应用到客户端缓存
+  - `get()`：统一封装 GET 请求
+  - `post()`：统一封装 POST 请求
+  - `_request()`：底层请求入口，统一处理重试、超时、状态码检查和业务 code 检查
+- 当前新增配置项：
+  - `feishu.request_timeout_seconds`：单次请求超时时间
+  - `feishu.max_retries`：网络异常、限流和部分 5xx 状态码下的最大重试次数
+  - `feishu.default_identity`：默认请求身份模式
+  - `feishu.user_oauth_scope`：默认 OAuth 授权 scope
+  - `feishu.user_access_token`：用户身份访问令牌
+  - `feishu.user_access_token_expires_at`：用户身份访问令牌过期时间
+  - `feishu.user_refresh_token`：用户身份刷新令牌
+  - `feishu.user_refresh_token_expires_at`：用户刷新令牌过期时间
+  - `feishu.redirect_uri`：预留给未来浏览器授权流程的回调地址
+- 运行逻辑说明：
+  - 第一步，业务代码通过 `load_settings()` 读取飞书配置，再创建 `FeishuClient(settings.feishu)`
+  - 第二步，当需要访问普通飞书接口时，调用 `get()` 或 `post()`，并可显式传入 `identity`
+  - 第三步，客户端会先通过 `_build_url()` 拼出完整接口地址
+  - 第四步，如果当前请求需要鉴权，客户端会根据 `identity` 决定取哪一种 token：
+    - `tenant`：调用 `get_tenant_access_token()`
+    - `user`：调用 `get_user_access_token()`
+  - 第五步，`user` 身份下如果本地 access token 已过期，但 refresh token 仍有效，则自动调用 `refresh_user_access_token()` 刷新
+  - 第六步，请求发送后，客户端会统一检查 HTTP 状态码；如果命中 `429` 或部分 `5xx`，会按重试次数自动重试
+  - 第七步，如果接口返回 JSON 中的 `code` 不为 `0`，会抛出 `FeishuAPIError`
+  - 第八步，成功时返回解析后的 JSON 字典，供后续文档读取、任务读取、消息发送等能力复用
+  - 第九步，如果用户还没有登录过，可以执行 `scripts/oauth_device_login.py`：
+    - 客户端先调用 `request_device_authorization()` 申请 `device_code`
+    - 脚本打印 `verification_uri_complete`
+    - 用户扫码或确认授权后，客户端通过 `poll_device_token()` 自动轮询拿到 token
+    - 最后调用 `get_current_user_info()` 校验用户身份，并把 token 写入本地配置
+- 当前演示脚本逻辑：
+  - `scripts/feishu_client_demo.py` 会先加载配置并初始化日志
+  - 然后创建 `FeishuClient`
+  - 脚本不会发真实请求，而是展示客户端初始化结果、鉴权接口 URL 和示例业务接口 URL
+  - `scripts/oauth_device_login.py` 会发起 Device Flow，打印验证链接，等待用户扫码或授权完成后自动写回用户令牌
+- 当前验证结果：
+  - 已验证 `FeishuClient` 可以正常初始化
+  - 已验证 `_build_url()` 能正确拼接飞书接口地址
+  - 已验证 `MEETFLOW_FEISHU_REQUEST_TIMEOUT_SECONDS` 和 `MEETFLOW_FEISHU_MAX_RETRIES` 的环境变量覆盖生效
+  - 已验证 `python3 scripts/feishu_client_demo.py` 可直接运行
+  - 已验证 `python3 scripts/oauth_device_login.py` 可直接完成用户扫码登录并写回本地 token
+- 当前双身份模式说明：
+  - 当前已经支持 `tenant` / `user` 两种身份模式
+  - 其中 `tenant` 模式可直接走应用身份鉴权
+  - `user` 模式的正式登录方案已经确定为纯 Python Device Flow：
+    - 申请 `device_code`
+    - 打印验证链接
+    - 自动轮询 token 接口
+    - 获取当前用户信息并写回本地配置
+  - Device Flow 轮询逻辑已针对飞书协议做兼容：
+    - 当 token 接口返回 `HTTP 400 + authorization_pending` 时，不会当作真正错误退出
+    - 当返回 `slow_down` 时，会自动放慢轮询间隔
+    - 只有 `access_denied`、`expired_token` 等真正失败状态才会抛出异常
+
+### T2.2 实现会议/日历读取能力
+
+- 优先级：`P0`
+- 目标：读取即将开始的会议信息
+- 输出：
+  - 会议标题
+  - 开始时间
+  - 参与人
+  - 会议描述
+- 验收标准：
+  - 能拿到一条真实或模拟会议数据
+
+#### T2.2 当前实现细节
+
+- 已创建文件：
+  - `scripts/calendar_demo.py`
+  - `scripts/calendar_live_test.py`
+- 已更新文件：
+  - `adapters/feishu_client.py`
+  - `core/models.py`
+  - `core/__init__.py`
+- 已新增的核心类：
+  - `CalendarAttendee`：统一描述会议参与人
+  - `CalendarEvent`：统一描述会议/日历事件
+- 已实现的核心函数：
+  - `FeishuClient.get_primary_calendars()`：调用获取主日历接口，拿到真实日历信息列表
+  - `FeishuClient.resolve_calendar_id()`：当传入 `primary` 时，先解析出真实 `calendar_id`
+  - `FeishuClient.list_calendar_event_instances()`：调用飞书日历 `instance_view` 接口读取指定时间窗口内的日程
+  - `FeishuClient.to_calendar_event()`：把飞书原始日程对象转换为统一 `CalendarEvent`
+  - `FeishuClient.to_calendar_info()`：把“获取主日历”接口返回的原始对象转换为统一 `CalendarInfo`
+  - `FeishuClient._extract_event_time()`：统一提取飞书时间对象中的 `timestamp` 或 `date`
+  - `build_lark_cli_calendar_command()`：构造 `lark-cli calendar events instance_view` 调试命令
+  - `build_demo_calendar_event()`：使用模拟数据演示日历事件标准化过程
+- 运行逻辑说明：
+  - 第一步，业务代码创建 `FeishuClient(settings.feishu)`
+  - 第二步，当需要拉取会议数据时，调用 `list_calendar_event_instances(calendar_id, start_time, end_time)`
+  - 第三步，如果业务层传入的是 `primary`，客户端不会直接拿它查事件，而是先调用 `get_primary_calendars()`
+  - 第四步，客户端会从主日历返回结果里解析出真实的 `calendar_id`
+  - 第五步，再使用这个真实 `calendar_id` 请求飞书日历接口 `calendar/v4/calendars/{calendar_id}/events/instance_view`
+  - 第六步，接口返回的每个原始事件对象，会通过 `to_calendar_event()` 转换为统一的 `CalendarEvent`
+  - 第七步，在转换过程中，参与人列表会被进一步转换为 `CalendarAttendee`
+  - 第八步，最终业务层拿到的是统一结构的 `CalendarEvent[]`，而不是飞书原始 JSON，便于后续会前卡片直接使用
+- 当前 CLI 接入方式：
+  - 已确认可用命令为 `lark-cli calendar events instance_view`
+  - `scripts/calendar_demo.py` 中已经实现 `build_lark_cli_calendar_command()`，用于生成真实 CLI 调试命令
+  - 当前脚本默认使用 `--dry-run`，避免误调用真实飞书接口，同时方便理解请求结构
+- 当前演示脚本逻辑：
+  - 脚本先用模拟日程数据演示 `CalendarEvent` 的标准化过程
+  - 然后构造 `lark-cli calendar events instance_view` 的 dry-run 命令
+  - 最后输出 dry-run 结果，验证我们对飞书 CLI 参数的理解是正确的
+- 当前真实测试脚本逻辑：
+  - `scripts/calendar_live_test.py` 会真实调用 Python 版 `FeishuClient`
+  - 脚本默认查询“当前时间起未来 24 小时”的日历事件
+  - 如果你传入 `--calendar-id`、`--start-time`、`--end-time`，则按指定区间查询
+  - 如果你没有显式传入 `--identity`，脚本会自动使用 `feishu.default_identity`
+  - 如果你传入 `--identity user`，则会改用通过 Device Flow 获取并缓存的用户 token 调用同一套飞书日历接口
+  - 脚本会先鉴权，再调用飞书日历 `instance_view` 接口，最后把结果格式化打印出来
+  - 如果鉴权失败、接口失败或查询为空，脚本会给出明确提示，帮助定位问题
+- 当前验证结果：
+  - 已验证 `CalendarEvent` 和 `CalendarAttendee` 可正常实例化
+  - 已验证 `FeishuClient.to_calendar_event()` 能把原始日历数据转换为统一模型
+  - 已验证 `python3 scripts/calendar_demo.py` 可直接运行
+  - 已验证 `lark-cli calendar events instance_view --dry-run` 输出的请求路径为：
+    - `GET /open-apis/calendar/v4/calendars/primary/events/instance_view?...`
+  - 已验证 `python3 scripts/calendar_live_test.py --identity user --calendar-id primary --debug-calendar` 能真实返回用户主日历与会议事件
+  - 说明当前 Python 客户端已经可以独立完成用户身份日历读取，不再依赖临时桥接方案
+
+#### T2.1 / T2.2 排障总结
+
+- 之前失败时主要做了这些排查与修正：
+  - 发现最初使用的是 `tenant_access_token`，导致看到的是应用视角日历，而不是用户自己的主日历
+  - 发现 `calendar_id` 一度被重复放进 URL path 和 query 参数里，导致 `400 Bad Request`
+  - 发现不能直接把 `primary` 当作最终日历 ID，必须先调用主日历接口，再解析出真实 `calendar_id`
+  - 发现最初尝试的浏览器回调授权链路在本地开发环境中体验较差，拿 `code` 容易卡在回调地址处理上
+  - 发现 Device Flow 轮询时，`authorization_pending` 虽然返回 `HTTP 400`，但其实是协议中的正常状态，需要特殊兼容
+- 现在成功后最终保留的方案是：
+  - `T2.1`：`FeishuClient` 同时支持 `tenant` / `user` 两种身份
+  - `user` 登录统一使用 `scripts/oauth_device_login.py` 走 Device Flow
+  - 用户 token、refresh token 和过期时间写回本地配置，后续脚本自动复用
+  - `T2.2`：`calendar_live_test.py` 统一走 Python HTTP 客户端，不再依赖临时 CLI 桥接
+  - 日历查询链路固定为：
+    - 获取主日历
+    - 解析真实 `calendar_id`
+    - 调用 `events/instance_view`
+    - 转换为统一的 `CalendarEvent`
+
+### T2.3 实现飞书文档读取能力
+
+- 优先级：`P0`
+- 目标：读取文档标题、正文摘要、链接
+- 验收标准：
+  - 能读取指定文档内容
+  - 能转换为内部 `Resource` 结构
+- 状态：已完成
+- 本次创建 / 修改的文件：
+  - `adapters/feishu_client.py`
+  - `scripts/docs_live_test.py`
+  - `config/settings.example.json`
+  - `config/settings.local.json`
+  - `config/README.md`
+  - `tasks.md`
+- 代码结构说明：
+  - `FeishuClient.extract_document_token()`：从飞书文档 URL 或裸 token 中解析 `document_id`，支持 `/docx/`、`/doc/`、`/wiki/` 三类链接
+  - `FeishuClient.fetch_document()`：调用飞书 `docs_ai` 文档读取接口，保留原始响应，便于排查接口返回
+  - `FeishuClient.fetch_document_resource()`：面向业务层的主入口，读取文档后直接转换成内部 `Resource`
+  - `FeishuClient.to_document_resource()`：把飞书返回的 `document.content`、`revision_id` 等字段映射为统一资源模型
+  - `FeishuClient._build_document_fetch_payload()`：统一构造 `docs_ai/v1/documents/{document_id}/fetch` 请求体
+  - `FeishuClient._build_document_read_option()`：支持 `full`、`outline`、`range`、`keyword`、`section` 等读取范围
+  - `FeishuClient._build_text_excerpt()`：把 XML/Markdown 正文压缩成适合日志和卡片展示的短摘要
+  - `scripts/docs_live_test.py`：提供真实联调入口，可测试文档读取、局部读取、正文预览和完整 `Resource` JSON 输出
+- 运行业务逻辑：
+  - 第一步，用户传入文档 URL 或 token，例如 `--doc https://xxx.feishu.cn/docx/xxxxx`
+  - 第二步，脚本读取 `config/settings.local.json`，默认使用 `feishu.default_identity`；当前默认是 `user`
+  - 第三步，`FeishuClient` 自动获取或刷新 `user_access_token`
+  - 第四步，客户端把 URL 解析为 `document_id`
+  - 第五步，调用 `POST /open-apis/docs_ai/v1/documents/{document_id}/fetch`
+  - 第六步，飞书返回 `document.content` 后，客户端转换为 `Resource(resource_type="feishu_document")`
+  - 第七步，脚本打印标题、正文摘要、正文预览和可选的完整资源 JSON
+- 权限与配置说明：
+  - 文档读取需要用户授权 scope：`docx:document:readonly`
+  - 已在 `settings.example.json` 和 `settings.local.json` 的 `user_oauth_scope` 中补充该权限
+  - 因为 OAuth token 的权限来自授权时的 scope，所以修改配置后需要重新执行 `python3 scripts/oauth_device_login.py`
+- 验证方式：
+  - 已通过 `python3 -m py_compile adapters/feishu_client.py scripts/docs_live_test.py`
+  - 已通过 `python3 scripts/docs_live_test.py --help`
+  - 真实读取命令示例：
+    - `python3 scripts/oauth_device_login.py`
+    - `python3 scripts/docs_live_test.py --doc "你的飞书文档链接" --scope full`
+    - `python3 scripts/docs_live_test.py --doc "你的飞书文档链接" --scope outline --max-depth 3`
+
+### T2.4 实现妙记元数据与内容读取能力
+
+- 优先级：`P0`
+- 目标：支持根据妙记 token 拉取元信息与后续正文
+- 验收标准：
+  - 能获取妙记标题、创建时间、链接
+  - 若正文接口可用，能获取内容；否则能为 Demo 留出 mock 能力
+- 状态：已完成
+- 本次创建 / 修改的文件：
+  - `adapters/feishu_client.py`
+  - `scripts/minutes_live_test.py`
+  - `config/settings.example.json`
+  - `config/settings.local.json`
+  - `config/README.md`
+  - `tasks.md`
+- 代码结构说明：
+  - `FeishuClient.extract_minute_token()`：从妙记 URL 或裸 token 中解析 `minute_token`
+  - `FeishuClient.get_minute()`：调用 `GET /open-apis/minutes/v1/minutes/{minute_token}` 读取妙记基础信息
+  - `FeishuClient.get_minute_artifacts()`：调用 `GET /open-apis/minutes/v1/minutes/{minute_token}/artifacts` 尝试读取 AI 总结、待办和章节
+  - `FeishuClient.fetch_minute_resource()`：业务层主入口，先读取元数据，再尽力读取 AI 产物，最后转换为统一 `Resource`
+  - `FeishuClient.to_minute_resource()`：把妙记标题、链接、创建时间、时长、所有者和 AI 产物映射到内部资源模型
+  - `FeishuClient._build_minute_content()`：将元数据、summary、todos、chapters 拼成可被召回和摘要模块消费的 Markdown 文本
+  - `FeishuClient._format_minute_artifact_item()`：兼容不同形态的待办 / 章节条目，优先提取 `content`、`text`、`title` 等字段
+  - `scripts/minutes_live_test.py`：提供真实联调入口，可测试妙记读取、元数据退化模式和完整 `Resource` JSON 输出
+- 运行业务逻辑：
+  - 第一步，用户传入妙记 URL 或 token，例如 `--minute https://xxx.feishu.cn/minutes/obcn...`
+  - 第二步，脚本读取配置，默认使用 `feishu.default_identity`，当前默认是 `user`
+  - 第三步，`FeishuClient` 自动获取或刷新 `user_access_token`
+  - 第四步，客户端解析出 `minute_token`
+  - 第五步，调用 `minutes.get` 获取标题、创建时间、时长、所有者、链接等基础信息
+  - 第六步，默认继续调用 `artifacts` 接口读取 AI 总结、待办和章节
+  - 第七步，如果 AI 产物读取失败，不中断主流程，而是在 `source_meta.artifacts_error` 中记录原因，并返回仅包含元数据的 `Resource`
+  - 第八步，脚本打印资源摘要、正文预览和可选完整 JSON
+- 权限与配置说明：
+  - 妙记基础信息需要用户授权 scope：`minutes:minutes:readonly`
+  - 妙记 AI 产物需要用户授权 scope：`minutes:minutes.artifacts:read`
+  - 已在 `settings.example.json` 和 `settings.local.json` 的 `user_oauth_scope` 中补充以上权限
+  - 修改 scope 后需要重新执行 `python3 scripts/oauth_device_login.py`，让本地用户 token 带上新增权限
+- 验证方式：
+  - 已通过 `python3 -m py_compile adapters/feishu_client.py scripts/minutes_live_test.py scripts/docs_live_test.py`
+  - 已通过 `python3 scripts/minutes_live_test.py --help`
+  - 已通过本地 token 解析测试，能从 `/minutes/<token>` 链接中提取 `minute_token`
+  - 真实读取命令示例：
+    - `python3 scripts/oauth_device_login.py`
+    - `python3 scripts/minutes_live_test.py --minute "你的飞书妙记链接"`
+    - `python3 scripts/minutes_live_test.py --minute "你的飞书妙记链接" --metadata-only`
+
+### T2.5 实现任务读取能力
+
+- 优先级：`P0`
+- 目标：获取任务列表、负责人、截止时间、状态
+- 验收标准：
+  - 能读取未完成任务
+  - 能映射到内部任务模型
+- 状态：已完成
+- 本次创建 / 修改的文件：
+  - `adapters/feishu_client.py`
+  - `scripts/tasks_live_test.py`
+  - `config/settings.example.json`
+  - `config/settings.local.json`
+  - `config/README.md`
+  - `tasks.md`
+- 代码结构说明：
+  - `FeishuClient.list_my_task_items()`：调用 `GET /open-apis/task/v2/tasks`，使用 `type=my_tasks` 读取当前用户负责的任务原始 JSON
+  - `FeishuClient.list_my_tasks()`：在原始任务列表基础上做模型转换，返回 `list[ActionItem]`
+  - `FeishuClient.to_action_item()`：把飞书任务中的 `guid`、`summary`、`members`、`due.timestamp`、`status` 等字段映射到内部 `ActionItem`
+  - `FeishuClient._extract_task_owner()`：从任务成员里提取负责人，优先取 `role=assignee`，兼容部分任务返回 `editor` 的情况
+  - `scripts/tasks_live_test.py`：提供真实联调入口，可读取未完成 / 已完成 / 全部任务，并支持本地标题关键词过滤
+- 运行业务逻辑：
+  - 第一步，脚本读取配置，默认使用 `feishu.default_identity`
+  - 第二步，任务接口强依赖用户资源，所以请求身份应为 `user`
+  - 第三步，客户端自动获取或刷新 `user_access_token`
+  - 第四步，调用 `GET /open-apis/task/v2/tasks`，参数包含 `type=my_tasks`、`completed`、`page_size`、`page_token`
+  - 第五步，若返回 `has_more=true`，客户端继续用 `page_token` 翻页，直到达到 `page_limit` 或没有更多数据
+  - 第六步，每条飞书任务转换为 `ActionItem`
+  - 第七步，脚本打印任务 ID、标题、负责人、截止时间、状态、链接和可选原始 JSON
+- 字段映射说明：
+  - `ActionItem.item_id`：优先使用飞书任务 `guid`，没有时退回 `task_id`
+  - `ActionItem.title`：来自飞书任务 `summary`
+  - `ActionItem.owner`：来自 `members` 中的负责人名称或 ID
+  - `ActionItem.due_date`：来自 `due.timestamp`，单位为毫秒
+  - `ActionItem.status`：来自飞书任务 `status`，通常为 `todo` 或 `done`
+  - `ActionItem.extra`：保留任务链接、描述、创建时间、更新时间、成员、清单和原始 payload，方便后续追踪表、风险扫描和回链
+- 权限与配置说明：
+  - 读取飞书任务需要用户授权 scope：`task:task:read`
+  - 已在 `settings.example.json` 和 `settings.local.json` 的 `user_oauth_scope` 中补充该权限
+  - 修改 scope 后需要重新执行 `python3 scripts/oauth_device_login.py`，让本地用户 token 带上新增权限
+- 验证方式：
+  - 已通过 `python3 -m py_compile adapters/feishu_client.py scripts/tasks_live_test.py scripts/minutes_live_test.py scripts/docs_live_test.py`
+  - 已通过 `python3 scripts/tasks_live_test.py --help`
+  - 已通过本地样例映射测试，能把飞书任务 JSON 转换为 `ActionItem`
+  - 真实读取命令示例：
+    - `python3 scripts/oauth_device_login.py`
+    - `python3 scripts/tasks_live_test.py`
+    - `python3 scripts/tasks_live_test.py --completed all`
+    - `python3 scripts/tasks_live_test.py --query "任务关键词"`
+
+### T2.6 实现群消息/卡片发送能力
+
+- 优先级：`P0`
+- 目标：能向群或私聊发送文本与卡片
+- 验收标准：
+  - 能发出一张测试卡片
+  - 卡片内容支持动态填充
+- 状态：已完成
+- 本次创建 / 修改的文件：
+  - `adapters/feishu_client.py`
+  - `scripts/message_live_test.py`
+  - `config/settings.example.json`
+  - `config/settings.local.json`
+  - `config/README.md`
+  - `tasks.md`
+- 代码结构说明：
+  - `FeishuClient.send_message()`：封装 `POST /open-apis/im/v1/messages`，统一处理 `receive_id_type`、`msg_type`、`content` 和幂等键
+  - `FeishuClient.send_text_message()`：发送纯文本消息，内部自动构造 `{"text": "..."}`
+  - `FeishuClient.send_card_message()`：发送交互卡片消息，`msg_type=interactive`
+  - `FeishuClient.build_meetflow_card()`：构造 MeetFlow 通知卡片模板，支持标题、摘要、要点和按钮跳转
+  - `scripts/message_live_test.py`：提供真实联调入口，支持群聊 / 私聊、文本 / 卡片、dry-run 预览和显式发送
+- 运行业务逻辑：
+  - 第一步，用户通过 `--chat-id` 指定群聊，或通过 `--user-id` 指定私聊对象
+  - 第二步，如果没有传 `--chat-id`，脚本会尝试读取配置中的 `feishu.default_chat_id`
+  - 第三步，脚本根据 `--message-type` 构造文本 payload 或卡片 payload
+  - 第四步，默认只打印 dry-run payload，不会真实发送
+  - 第五步，只有显式传入 `--send` 时，才调用飞书消息接口发出消息
+  - 第六步，发送成功后打印飞书返回的 `message_id`、`chat_id`、`create_time` 等结果
+- 安全设计说明：
+  - 因为消息发送会影响真实群聊和用户，脚本默认是 dry-run
+  - 真实发送必须显式加 `--send`
+  - 支持 `--idempotency-key`，避免调试时重复发送同一条消息
+- 字段与接口说明：
+  - 群聊发送使用 `receive_id_type=chat_id`
+  - 私聊发送使用 `receive_id_type=open_id`
+  - `receive_id_type` 必须作为 URL query 参数传递，不能只放在 body 或 dry-run 预览里
+  - 文本消息使用 `msg_type=text`
+  - 卡片消息使用 `msg_type=interactive`
+  - 飞书要求 `content` 是 JSON 字符串，因此客户端会对 Python 字典做 `json.dumps`
+- 本次排障记录：
+  - 真实发送卡片时曾返回 `99992402 field validation failed`
+  - 原因是 dry-run payload 中展示了 `receive_id_type`，但真实 `send_message()` 请求没有把它传给飞书接口
+  - 已修复为 `POST /open-apis/im/v1/messages?receive_id_type=chat_id`
+- 权限与配置说明：
+  - 用户身份发送消息需要用户授权 scope：`im:message.send_as_user` 和 `im:message`
+  - 机器人身份发送消息需要后台开通 `im:message:send_as_bot`，并确保机器人已经加入目标群
+  - 已在 `settings.example.json` 和 `settings.local.json` 的 `user_oauth_scope` 中补充用户身份发送权限
+  - 修改 scope 后需要重新执行 `python3 scripts/oauth_device_login.py`，让本地用户 token 带上新增权限
+- 验证方式：
+  - 已通过 `python3 -m py_compile adapters/feishu_client.py scripts/message_live_test.py scripts/tasks_live_test.py`
+  - 已通过 `python3 scripts/message_live_test.py --help`
+  - 已通过卡片 dry-run 测试，能够生成 `interactive` 消息 payload
+  - 真实发送命令示例：
+    - `python3 scripts/oauth_device_login.py`
+    - `python3 scripts/message_live_test.py --chat-id "oc_xxx" --message-type text --text "MeetFlow 测试消息"`
+    - `python3 scripts/message_live_test.py --chat-id "oc_xxx" --message-type card --text "会前背景卡已生成" --fact "会议：项目周会" --send`
+
+### T2.7 实现任务创建能力
+
+- 优先级：`P0`
+- 目标：支持将结构化 Action Item 写入飞书任务
+- 验收标准：
+  - 输入一条 `ActionItem` 能成功生成任务
+  - 返回的任务 ID 可被记录
+- 状态：已完成
+- 本次创建 / 修改的文件：
+  - `adapters/feishu_client.py`
+  - `scripts/task_create_live_test.py`
+  - `config/settings.example.json`
+  - `config/settings.local.json`
+  - `config/README.md`
+  - `tasks.md`
+- 代码结构说明：
+  - `FeishuClient.build_create_task_payload()`：构造 `POST /open-apis/task/v2/tasks` 的请求体，支持标题、描述、负责人、截止时间、任务清单和幂等键
+  - `FeishuClient.create_task()`：调用飞书任务创建接口，并把返回的 `task` 转换为内部 `ActionItem`
+  - `FeishuClient.create_task_from_action_item()`：以内部 `ActionItem` 为输入创建飞书任务，服务于后续“会议 Action Item 自动落任务”
+  - `scripts/task_create_live_test.py`：提供真实联调入口，支持 dry-run、显式创建、负责人、截止时间和幂等键
+- 运行业务逻辑：
+  - 第一步，脚本把命令行输入转换为内部 `ActionItem`
+  - 第二步，`ActionItem.title` 映射为飞书任务 `summary`
+  - 第三步，`ActionItem.extra.description` 映射为飞书任务 `description`
+  - 第四步，`ActionItem.due_date` 映射为飞书任务 `due.timestamp`
+  - 第五步，`--assignee-open-id` 映射为 `members[].id`，角色固定为 `assignee`
+  - 第六步，默认只打印 dry-run payload，不创建真实任务
+  - 第七步，只有显式传入 `--create` 时，才调用飞书创建任务接口
+  - 第八步，创建成功后把飞书返回的任务转换为 `ActionItem`，并打印任务 ID、标题、负责人、截止时间、状态和链接
+- 安全设计说明：
+  - 创建任务属于写操作，脚本默认 dry-run
+  - 真实创建必须显式加 `--create`
+  - 支持 `--idempotency-key`，避免调试时重复创建同一条任务
+- 字段与接口说明：
+  - 创建接口：`POST /open-apis/task/v2/tasks`
+  - 查询参数：`user_id_type=open_id`
+  - `summary` 为必填
+  - `description` 最大 3000 字符，当前作为任务描述
+  - `due.timestamp` 使用毫秒时间戳
+  - `--due` 支持毫秒时间戳、`YYYY-MM-DD`、ISO 时间和 `+Nd` 相对天数
+  - `client_token` 用于飞书侧幂等创建
+- 权限与配置说明：
+  - 创建飞书任务需要用户授权 scope：`task:task:write`
+  - 已在 `settings.example.json` 和 `settings.local.json` 的 `user_oauth_scope` 中补充该权限
+  - 修改 scope 后需要重新执行 `python3 scripts/oauth_device_login.py`，让本地用户 token 带上新增权限
+- 验证方式：
+  - 已通过 `python3 -m py_compile adapters/feishu_client.py scripts/task_create_live_test.py scripts/tasks_live_test.py`
+  - 已通过 `python3 scripts/task_create_live_test.py --help`
+  - 已通过 dry-run 创建任务 payload 测试
+  - 已通过本地 payload 映射测试，能把 `ActionItem` 字段转换为飞书创建任务 JSON
+  - 真实创建命令示例：
+    - `python3 scripts/oauth_device_login.py`
+    - `python3 scripts/task_create_live_test.py --summary "整理会议纪要" --description "根据今天的项目周会补齐行动项"`
+    - `python3 scripts/task_create_live_test.py --summary "整理会议纪要" --due +2d --idempotency-key meetflow-task-001 --create`
+
+---
+

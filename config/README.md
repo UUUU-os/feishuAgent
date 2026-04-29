@@ -75,8 +75,40 @@ export DEEPSEEK_API_KEY="你的 DeepSeek Key"
 - `MEETFLOW_LLM_TEMPERATURE`
 - `MEETFLOW_LLM_MAX_TOKENS`
 - `MEETFLOW_LLM_REASONING_EFFORT`
+- `MEETFLOW_EMBEDDING_PROVIDER`
+- `MEETFLOW_EMBEDDING_MODEL`
+- `MEETFLOW_EMBEDDING_API_BASE`
+- `MEETFLOW_EMBEDDING_API_KEY`
+- `MEETFLOW_EMBEDDING_DIMENSIONS`
+- `MEETFLOW_EMBEDDING_TIMEOUT_SECONDS`
 - `MEETFLOW_LOG_LEVEL`
 - `MEETFLOW_STORAGE_DB_PATH`
+
+## Embedding 配置
+
+M3 知识检索使用 ChromaDB 作为向量数据库，embedding 支持两种真实模型来源：
+
+- 开发阶段：`sentence-transformers`，使用本地开源模型，不需要商业 API key，但首次运行需要安装依赖并下载模型。
+- 测试/生产阶段：`openai-compatible`，调用 OpenAI 或兼容厂商的 `/embeddings` 接口。
+
+开发阶段免费模型示例：
+
+```bash
+pip install sentence-transformers
+export MEETFLOW_EMBEDDING_PROVIDER="sentence-transformers"
+export MEETFLOW_EMBEDDING_MODEL="BAAI/bge-small-zh-v1.5"
+export MEETFLOW_EMBEDDING_DIMENSIONS="512"
+```
+
+切换到 OpenAI `text-embedding-3-small` 示例：
+
+```bash
+export MEETFLOW_EMBEDDING_PROVIDER="openai-compatible"
+export MEETFLOW_EMBEDDING_API_BASE="https://api.openai.com/v1"
+export MEETFLOW_EMBEDDING_API_KEY="你的 embedding API Key"
+export MEETFLOW_EMBEDDING_MODEL="text-embedding-3-small"
+export MEETFLOW_EMBEDDING_DIMENSIONS="1536"
+```
 
 ## 使用方式
 

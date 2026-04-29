@@ -60,6 +60,18 @@ class LLMSettings:
 
 
 @dataclass(slots=True)
+class EmbeddingSettings:
+    """Embedding 服务配置。"""
+
+    provider: str
+    model: str
+    api_base: str
+    api_key: str
+    dimensions: int
+    timeout_seconds: int
+
+
+@dataclass(slots=True)
 class SchedulerSettings:
     """调度器配置，负责会前提醒和失败重试等时机控制。"""
 
@@ -102,6 +114,7 @@ class Settings:
     app: AppSettings
     feishu: FeishuSettings
     llm: LLMSettings
+    embedding: EmbeddingSettings
     scheduler: SchedulerSettings
     risk_rules: RiskRuleSettings
     logging: LoggingSettings
@@ -145,6 +158,12 @@ ENV_MAPPING: dict[str, tuple[str, str, Any]] = {
     "MEETFLOW_LLM_TEMPERATURE": ("llm", "temperature", float),
     "MEETFLOW_LLM_MAX_TOKENS": ("llm", "max_tokens", int),
     "MEETFLOW_LLM_REASONING_EFFORT": ("llm", "reasoning_effort", str),
+    "MEETFLOW_EMBEDDING_PROVIDER": ("embedding", "provider", str),
+    "MEETFLOW_EMBEDDING_MODEL": ("embedding", "model", str),
+    "MEETFLOW_EMBEDDING_API_BASE": ("embedding", "api_base", str),
+    "MEETFLOW_EMBEDDING_API_KEY": ("embedding", "api_key", str),
+    "MEETFLOW_EMBEDDING_DIMENSIONS": ("embedding", "dimensions", int),
+    "MEETFLOW_EMBEDDING_TIMEOUT_SECONDS": ("embedding", "timeout_seconds", int),
     "MEETFLOW_SCHEDULER_PRE_MEETING_MINUTES": ("scheduler", "pre_meeting_minutes_before", int),
     "MEETFLOW_SCHEDULER_RISK_SCAN_CRON": ("scheduler", "risk_scan_cron", str),
     "MEETFLOW_SCHEDULER_MINUTE_RETRY_INTERVAL": ("scheduler", "minute_retry_interval_minutes", int),
@@ -269,6 +288,7 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         app=AppSettings(**merged["app"]),
         feishu=FeishuSettings(**merged["feishu"]),
         llm=LLMSettings(**merged["llm"]),
+        embedding=EmbeddingSettings(**merged["embedding"]),
         scheduler=SchedulerSettings(**merged["scheduler"]),
         risk_rules=RiskRuleSettings(**merged["risk_rules"]),
         logging=LoggingSettings(**merged["logging"]),

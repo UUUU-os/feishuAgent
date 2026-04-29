@@ -23,6 +23,7 @@ from core import (
     AgentToolCall,
     DryRunLLMProvider,
     GenerationSettings,
+    KnowledgeIndexStore,
     LLMConfigError,
     LLMProvider,
     LLMResponse,
@@ -34,6 +35,7 @@ from core import (
     build_agent_input,
     configure_logging,
     create_llm_provider,
+    register_knowledge_tools,
 )
 from core.agent import MeetFlowAgent, create_meetflow_agent
 from scripts.meetflow_agent_live_test import (
@@ -381,6 +383,10 @@ def build_local_registry() -> ToolRegistry:
             read_only=True,
         )
     )
+    settings = load_settings()
+    knowledge_store = KnowledgeIndexStore(settings.storage, embedding_settings=settings.embedding)
+    knowledge_store.initialize()
+    register_knowledge_tools(registry, knowledge_store)
     return registry
 
 
@@ -438,6 +444,26 @@ class ScriptedDebugProvider(LLMProvider):
                 ],
             )
 
+        if "knowledge_search" in available_tools:
+            return LLMResponse(
+                finish_reason="tool_calls",
+                model="scripted-debug",
+                tool_calls=[
+                    AgentToolCall(
+                        call_id="debug_knowledge_search",
+                        tool_name="knowledge_search",
+                        arguments={
+                            "query": context_payload.get("query", "MeetFlow M3 会前知识卡片"),
+                            "meeting_id": context_payload.get("meeting_id", ""),
+                            "project_id": context_payload.get("project_id", "meetflow"),
+                            "resource_types": ["doc", "minute", "task"],
+                            "time_window": "recent_90_days",
+                            "top_k": 3,
+                        },
+                    )
+                ],
+            )
+
         if "calendar_list_events" in available_tools:
             return LLMResponse(
                 finish_reason="tool_calls",
@@ -462,7 +488,7 @@ def extract_context_payload(user_content: str) -> dict[str, str]:
     """从 user message 中粗略提取调试参数。"""
 
     payload: dict[str, str] = {}
-    for key in ("calendar_id", "start_time", "end_time"):
+    for key in ("calendar_id", "start_time", "end_time", "project_id", "meeting_id", "query"):
         marker = f"- {key}:"
         for line in user_content.splitlines():
             if line.strip().startswith(marker):

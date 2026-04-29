@@ -653,11 +653,14 @@ KnowledgeChunk
 - 飞书妙记：按章节、时间段、发言主题或 Action Item 上下文切片。
 - 图片和附件：首版保留元信息、文件名和所在上下文；OCR 和文件解析作为后续增强。
 
+当前实现中，SQLite 保存 `KnowledgeDocument` / `KnowledgeChunk` 的权威元数据和原文回链，ChromaDB 作为持久化向量数据库保存 chunk 向量索引；`embedding_ref` 采用 `chroma:{collection}:{chunk_id}` 形式指向向量库记录。
+
 检索时采用混合策略：
 
 - 关键词和元数据用于项目名、人名、版本号、文档类型、时间窗口等精确过滤。
-- 语义向量用于召回表达不同但含义相近的背景资料。
+- ChromaDB 向量检索用于召回表达不同但含义相近的背景资料。
 - 排序阶段综合相似度、更新时间、来源权威性、与参会人的关系和历史使用次数。
+- 当前 embedding 通过真实模型生成：开发阶段可使用 `sentence-transformers` 本地开源模型，例如 `BAAI/bge-small-zh-v1.5`；测试/生产阶段可切换到 OpenAI-compatible `/embeddings`，例如 `text-embedding-3-small` 或企业内部 embedding 服务。
 
 ### 关键设计点四：RAG 检索通过受控工具进入 Agent Loop
 

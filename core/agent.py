@@ -11,6 +11,7 @@ from config.loader import Settings
 from core.agent_loop import MeetFlowAgentLoop
 from core.context import WorkflowContextBuilder
 from core.llm import GenerationSettings, LLMProvider, create_llm_provider
+from core.knowledge import KnowledgeIndexStore, register_knowledge_tools
 from core.logging import bind_trace_id, get_logger, reset_trace_id
 from core.models import AgentDecision, AgentInput, AgentRunResult
 from core.policy import AgentPolicy
@@ -221,6 +222,10 @@ def create_meetflow_agent(
         client=client,
         default_chat_id=settings.feishu.default_chat_id,
     )
+    if tool_registry is None:
+        knowledge_store = KnowledgeIndexStore(settings.storage, embedding_settings=settings.embedding)
+        knowledge_store.initialize()
+        register_knowledge_tools(final_tool_registry, knowledge_store)
     final_llm_provider = llm_provider or create_llm_provider(settings.llm)
     final_policy = policy or AgentPolicy()
 

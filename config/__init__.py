@@ -1,5 +1,6 @@
 from .loader import (
     AppSettings,
+    EmbeddingSettings,
     FeishuSettings,
     LLMSettings,
     LoggingSettings,
@@ -11,6 +12,7 @@ from .loader import (
 
 __all__ = [
     "AppSettings",
+    "EmbeddingSettings",
     "FeishuSettings",
     "LLMSettings",
     "LoggingSettings",

@@ -30,6 +30,14 @@
     "max_tokens": 4000,
     "reasoning_effort": ""
   },
+  "embedding": {
+    "provider": "sentence-transformers",
+    "model": "BAAI/bge-small-zh-v1.5",
+    "api_base": "",
+    "api_key": "",
+    "dimensions": 512,
+    "timeout_seconds": 30
+  },
   "scheduler": {
     "pre_meeting_minutes_before": 30,
     "risk_scan_cron": "0 9 * * *",
