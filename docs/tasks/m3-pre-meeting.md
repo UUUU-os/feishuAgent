@@ -213,7 +213,7 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - `build_knowledge_index()`：把 `Resource` / `RetrievedResource` 清洗为 `KnowledgeDocument + KnowledgeChunk[]`
   - `KnowledgeIndexStore.index_resource()`：索引资源并写入本地 SQLite；当 `updated_at + checksum` 未变化时跳过重复构建
   - `KnowledgeIndexStore.get_document()` / `list_chunks()`：读取文档元数据和 chunk 列表
-  - `chunk_document_text()`：按标题、段落、列表和表格行切分飞书文档文本
+  - `chunk_document_text()`：按飞书 DocxXML/HTML-like 结构解析标题、段落、列表、表格单元、引用和图片，再按 TOC 路径与 token 预算合并为可检索子 chunk
   - `chunk_sheet_text()`：按表头和行记录切分表格/CSV 风格文本
   - `chunk_minute_text()`：按章节或时间戳切分妙记文本
   - `normalize_source_type()`：把 `feishu_document/docx/sheet/minute/task` 等来源类型归一
@@ -226,11 +226,13 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - T3.4 先完成本地清洗、切片、索引状态和增量跳过；T3.6 已在此基础上接入 ChromaDB 向量索引
   - `embedding_ref` 在 T3.6 后会写入 `chroma:{collection}:{chunk_id}`，SQLite 仍保存权威元数据和回链信息
   - 当前清洗输入是已读取到的 `Resource` / `RetrievedResource`，真实飞书资源读取仍沿用 M2 的 adapter 和后续 T3.6 工具链
+  - 飞书文档导出内容如果是一整行 XML/HTML 字符串，会优先走结构化解析；普通 Markdown/纯文本仍保留换行切分兜底
 - 当前验证方式：
   - 已通过 `python3 -m py_compile core/*.py scripts/knowledge_index_demo.py scripts/pre_meeting_retrieval_demo.py scripts/workflow_runner_demo.py` 验证语法正确
   - 已通过 `python3 scripts/knowledge_index_demo.py` 验证文档、表格、妙记三类资源可清洗为 `KnowledgeDocument` 和 `KnowledgeChunk`
   - 已验证同一资源第二次索引会因为 `updated_at + checksum` 未变化返回 `status=skipped`
   - 已验证本地创建 `storage/knowledge/knowledge.sqlite`，且可以读取文档元数据和 chunk 列表
+  - 已用真实飞书 DocxXML 文档 `飞书 AI 校园挑战赛-线上开赛仪式` 验证结构化切分：原先整篇退化为 1 个超长子 chunk，优化后可切为 13 个带 TOC 路径的可检索子 chunk
 
 ### T3.5 实现证据排序与摘要生成
 
@@ -382,6 +384,24 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
 
 - 优先级：`P0`
 - 目标：在会议开始前固定时间自动执行
+- 当前实现状态：已完成本地可验证版本
+- 当前修改文件：
+  - `core/pre_meeting_trigger.py`
+  - `core/__init__.py`
+  - `scripts/pre_meeting_trigger_demo.py`
+- 已实现的核心能力：
+  - 新增 `PreMeetingTriggerPlan`，把“日历事件进入会前窗口”的判断结果封装为稳定触发计划
+  - 新增 `select_due_pre_meeting_events()`，按 `settings.scheduler.pre_meeting_minutes_before` 和容忍窗口筛选即将开始的会议
+  - 新增 `build_pre_meeting_trigger_plan()`，把日历事件转换为 `meeting.soon` 的 `AgentInput`
+  - 自动补齐 `workflow_type=pre_meeting_brief`、`project_id`、`meeting_id`、`calendar_event_id` 和 `idempotency_key`
+  - `WorkflowRouter.build_idempotency_key()` 会直接复用触发器已生成的完整 `idempotency_key`，避免路由层再次追加工作流前缀
+  - 触发后仍进入 `WorkflowRouter -> PreMeetingBriefWorkflow -> Agent Loop`，不会绕过固定工作流骨架
+  - `scripts/pre_meeting_trigger_demo.py` 使用本地 scripted provider 演练定时触发，并在同一事件重复运行时验证幂等跳过
+- 当前实现边界：
+  - 当前是 scheduler/cron 可调用的触发构造层，尚未接入真实后台定时进程
+  - demo 不发送真实飞书卡片，`allow_write=False` 会移除 `im.send_card`
+- 当前验证方式：
+  - 已通过 `python3 scripts/pre_meeting_trigger_demo.py` 验证：命中 1 条会前事件，第一次执行 `success`，第二次执行 `skipped`，且返回的幂等键不会重复追加 `pre_meeting_brief:`
 - 验收标准：
   - 能通过定时或模拟触发运行整个工作流
   - 不重复发送相同卡片
@@ -393,6 +413,21 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
 - 目标：支持命令式触发
 - 示例：
   - “生成项目 A 今日会前卡片”
+- 当前实现状态：已完成本地可验证版本
+- 当前修改文件：
+  - `core/pre_meeting_trigger.py`
+  - `core/__init__.py`
+  - `scripts/pre_meeting_manual_demo.py`
+- 已实现的核心能力：
+  - 新增 `build_manual_pre_meeting_input()`，把用户命令转换为 `message.command` 的 `AgentInput`
+  - 手动入口固定写入 `workflow_type=pre_meeting_brief`，确保路由到会前卡片工作流
+  - 根据命令文本生成稳定 `meeting_id`、`calendar_event_id` 和 `idempotency_key`，便于后续接入真实命令入口时做去重
+  - `scripts/pre_meeting_manual_demo.py` 支持通过 `--command`、`--project-id`、`--meeting-title` 模拟手动触发
+- 当前实现边界：
+  - 当前手动入口是本地 CLI 演示脚本，后续可挂到飞书消息命令、机器人菜单或管理后台按钮
+  - 默认 `enable_idempotency=False`，便于本地重复演示；真实命令入口接入时应按业务需要打开幂等
+- 当前验证方式：
+  - 已通过 `python3 scripts/pre_meeting_manual_demo.py --command '生成 MeetFlow 今日会前卡片'` 验证：入口为 `message.command`，工作流为 `pre_meeting_brief`，执行状态为 `success`
 - 验收标准：
   - 自动触发失败时仍可演示主能力
 
@@ -400,10 +435,29 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
 
 - 优先级：`P1`
 - 目标：为后续监听飞书文档、表格、知识库变化预留索引刷新入口
+- 当前实现状态：已完成本地队列与刷新入口
 - M3 实现边界：
   - 记录资源 `updated_at`、`checksum`、`last_indexed_at`、`index_status`
   - 支持按资源 token 手动触发重新索引
   - 支持对最近被会议引用过的资源做定时校验
+- 当前修改文件：
+  - `core/knowledge.py`
+  - `core/__init__.py`
+  - `scripts/knowledge_refresh_demo.py`
+- 已实现的核心能力：
+  - 新增 `IndexJob` 模型，记录 `job_id`、资源 ID、资源类型、刷新原因、状态、失败原因、chunk 数和 token 数
+  - `KnowledgeIndexStore.initialize()` 新增 `index_jobs` SQLite 表和 `status/resource_id` 索引
+  - 新增 `enqueue_index_job()`，供手动刷新、定时校验、后续飞书事件订阅统一写入任务
+  - 新增 `refresh_resource()`，执行单个资源重索引，并把任务状态更新为 `running/succeeded/skipped/failed`
+  - 新增 `enqueue_recent_document_refresh_jobs()`，为最近索引过的资源生成 `scheduled` 刷新任务
+  - 新增 `list_index_jobs()` 和 `get_index_job()`，便于调试和后续 worker 查看任务状态
+  - `ensure_knowledge_chunk_schema()` 改为幂等迁移，兼容旧库已经部分添加字段时重复初始化
+  - `scripts/knowledge_refresh_demo.py` 使用 `NoopVectorIndex` 演示本地刷新链路，避免 demo 依赖外部 embedding 服务或下载模型
+- 当前实现边界：
+  - 当前已实现队列、手动刷新和定时候选任务生成；后台 worker 消费循环和飞书事件订阅接入仍是后续增强
+  - 当前刷新入口依赖调用方传入已拉取的 `Resource/RetrievedResource`；真实 worker 后续需要负责按资源 token 调飞书接口拉取最新内容
+- 当前验证方式：
+  - 已通过 `python3 scripts/knowledge_refresh_demo.py` 验证：手动 job 从 `pending` 更新为 `succeeded`，并记录 chunk 数、token 数；定时校验可生成 `scheduled` 的 `pending` job
 - 后续增强方向：
   - 接入飞书事件订阅，把文档/表格/知识库变更事件写入 `index_jobs`
   - 后台 worker 消费任务并更新 chunk 与检索索引
@@ -420,7 +474,7 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - `IndexJob.resource_id`
   - `IndexJob.resource_type`
   - `IndexJob.reason`: `manual | scheduled | feishu_event | dependency`
-  - `IndexJob.status`: `pending | running | succeeded | failed`
+  - `IndexJob.status`: `pending | running | succeeded | skipped | failed`
   - `IndexJob.last_error`
   - `IndexJob.created_at`
   - `IndexJob.updated_at`
@@ -616,8 +670,8 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - `core/knowledge.py`
   - `docs/tasks/m3-pre-meeting.md`
 - 已实现的核心能力：
-  - `chunk_resource_text()` 在生成小 chunk 后，会通过 `attach_parent_chunks()` 按 TOC 路径聚合同章节内容，并生成 `parent_section` 类型的 parent chunk
-  - 子 chunk 会写入稳定 `parent_chunk_id`，metadata 中同步保留 `parent_chunk_id` 和 `toc_path`
+  - `chunk_resource_text()` 在生成小 chunk 后，会通过 `attach_parent_chunks()` 按 TOC 路径聚合同章节内容；只有同一章节被拆成多个子 chunk 时才生成 `parent_section`，避免单子 chunk 章节重复保存一份完全相同的父 chunk
+  - 多子 chunk 章节会写入稳定 `parent_chunk_id`，metadata 中同步保留 `parent_chunk_id` 和 `toc_path`
   - 文档 chunk 使用标题路径作为 parent 边界；妙记使用章节路径；表格使用 sheet 路径
   - `knowledge.search` 的向量和关键词检索都会跳过 `parent_section`，避免父级长文本抢走小 chunk 的精准召回位置
   - `KnowledgeSearchHit` 新增 `parent_chunk_id` 和 `toc_path`，检索结果能解释命中的章节路径
@@ -625,10 +679,11 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - `knowledge.fetch_chunk` 命中子 chunk 后，会按 `parent_chunk_id` 展开同章节 sibling chunks，并在 `context_chunks` 中保留每个 sibling 的 `ref_id`、`chunk_id`、位置和 `is_hit`
 - 当前实现边界：
   - parent chunk 目前用于上下文展开和审计，不作为搜索结果返回；后续摘要生成可显式读取 `parent_text`
+  - 单子 chunk 章节不创建 parent chunk，此时 `knowledge.fetch_chunk` 直接返回该命中 chunk；多子 chunk 章节才通过 `parent_chunk_id` 展开同章节上下文
   - TOC 路径仍是轻量规则生成，飞书 Docx 原生目录层级读取接入后可以替换为真实层级
 - 当前验证方式：
   - 已通过 `python3 -m py_compile core/knowledge.py core/pre_meeting.py scripts/knowledge_index_demo.py scripts/knowledge_tools_demo.py` 验证语法正确
-  - 已用本地文档切片验证会生成 parent chunk，且子 chunk 写入 `parent_chunk_id` 和 `toc_path`
+  - 已用本地长章节文档切片验证：同一 TOC 下拆成多个子 chunk 时会生成 parent chunk，且子 chunk 写入 `parent_chunk_id` 和 `toc_path`
   - 已用临时 SQLite 验证 `knowledge.fetch_chunk` 命中子 chunk 后能返回 `parent_text`、同章节 `context_chunks`，并保留具体命中 chunk 的 `is_hit`
 
 ### T3.16 实现 evidence pack token budget 与稳定引用格式
@@ -666,3 +721,34 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - 已用本地构造的 `KnowledgeSearchHit` 验证 evidence pack 会按 token budget 截断、生成 `kref_...` 稳定引用，并累计 `omitted_count`
 
 ---
+
+## M3 真实环境联调入口
+
+- 新增脚本：
+  - `scripts/pre_meeting_live_test.py`
+- 相关更新：
+  - `scripts/agent_demo.py`
+- 适用场景：
+  - 选择一条真实日历会议，按当前 embedding 指纹拉取并重建指定文档/妙记索引，然后执行 `pre_meeting_brief`
+  - 默认只读联调，确认链路稳定后再加 `--allow-write` 真发卡
+- 运行逻辑：
+  - 先读取真实日历，在给定时间窗口内选择指定 `event_id` 或最近一条即将开始的会议
+  - 可通过 `--doc` / `--minute` 传入真实飞书文档或妙记，脚本会先读取资源，再调用 `KnowledgeIndexStore.index_resource(..., force=True)` 按当前 embedding 指纹重建索引
+  - 将真实会议和已索引资源转换为 `meeting.soon` 触发 payload，再进入 `WorkflowRouter -> PreMeetingBriefWorkflow -> Agent Loop`
+  - `--llm-provider scripted_debug` 可先稳定验证真实飞书 + 真实知识索引链路；切到 `settings/default/其他 provider` 时可验证真实 LLM
+  - 每次运行会在 `storage/reports/m3/` 生成 Markdown 与 JSON 报告，展示会议输入、检索 query、资源 chunk、工具命中结果和卡片 payload 草案
+  - 报告会把“可检索子 chunk”和“父级上下文 chunk”分开展示，避免把 parent_section 误读为重复检索片段
+  - `scripted_debug` 会优先解析 Agent Loop 消息中的“运行时上下文 JSON”，并用真实会议标题、会议描述和相关资料标题构造 `knowledge.search` query，避免真实联调时继续使用固定的 MeetFlow 调试查询词
+- 推荐命令：
+  - `python3 scripts/pre_meeting_live_test.py --identity user --lookahead-hours 24 --doc '<你的飞书文档 URL>'`
+  - `python3 scripts/pre_meeting_live_test.py --identity user --event-id '<真实 event_id>' --doc '<文档 URL>' --minute '<妙记 URL>'`
+  - `python3 scripts/pre_meeting_live_test.py --identity user --event-id '<真实 event_id>' --doc '<文档 URL>' --allow-write --enable-idempotency`
+- 当前验证方式：
+  - 已通过 `python3 -m py_compile scripts/pre_meeting_live_test.py` 验证语法正确
+  - 已通过 `python3 scripts/pre_meeting_live_test.py --help` 验证 CLI 参数可正常解析
+  - 已确认 `--report-dir` 参数可用于输出 M3 链路可观察性报告
+  - 已通过 `python3 -m py_compile scripts/agent_demo.py scripts/pre_meeting_live_test.py` 验证真实联调脚本和 scripted_debug 上下文解析语法正确
+  - 已用真实会议 `飞书 AI 校园竞赛-主题分享直播-产品专场` 和真实文档 `飞书 AI 校园挑战赛-线上开赛仪式` 完成只读联调，报告输出到 `storage/reports/m3/pre_meeting_live_ff39cd17f654.md` 与 `storage/reports/m3/pre_meeting_live_ff39cd17f654.json`
+  - 早期联调 `pre_meeting_live_ff39cd17f654` 确认链路状态为 `success`，但暴露出飞书 XML 文档被切成 1 个子 chunk + 1 个重复 parent chunk 的问题
+  - 已完成飞书 DocxXML/HTML-like 结构化切分优化，并用真实会议 `飞书 AI 校园竞赛-主题分享直播-产品专场` 和真实文档 `飞书 AI 校园挑战赛-线上开赛仪式` 重新只读联调，报告输出到 `storage/reports/m3/pre_meeting_live_da829619a3ba.md` 与 `storage/reports/m3/pre_meeting_live_da829619a3ba.json`
+  - 新联调确认链路状态为 `success`，文档被重建为 13 个可检索子 chunk、0 个重复 parent chunk，`knowledge.search` 首条命中为 `「飞书 AI 校园挑战赛」-赛事介绍` 章节，最终生成会前卡片 payload 草案但未发送

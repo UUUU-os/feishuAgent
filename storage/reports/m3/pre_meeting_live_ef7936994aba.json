@@ -1,0 +1,1032 @@
+{
+  "event": {
+    "event_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+    "summary": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+    "description": "",
+    "start_time": "1777456800",
+    "end_time": "1777460400",
+    "timezone": "Asia/Shanghai",
+    "organizer_name": "肖凯琴",
+    "organizer_id": "ou_33094053373f5047941809ff7071deb0",
+    "status": "confirmed",
+    "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c&originalTime=0&startTime=1777456800",
+    "attendees": [
+      {
+        "attendee_id": "resource_7034860021963931649",
+        "display_name": "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)",
+        "attendee_type": "resource",
+        "rsvp_status": "accept",
+        "is_optional": false,
+        "is_organizer": false
+      }
+    ],
+    "raw_payload": {
+      "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c&originalTime=0&startTime=1777456800",
+      "attendee_ability": "none",
+      "attendees": [
+        {
+          "attendee_id": "resource_7034860021963931649",
+          "display_name": "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)",
+          "is_external": true,
+          "is_organizer": false,
+          "room_id": "omm_71bf83d7fb7de96bce8b2fdaeefc9ee2",
+          "rsvp_status": "accept",
+          "type": "resource"
+        }
+      ],
+      "color": -1,
+      "description": "",
+      "end_time": {
+        "timestamp": "1777460400",
+        "timezone": "Asia/Shanghai"
+      },
+      "event_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+      "event_organizer": {
+        "display_name": "肖凯琴",
+        "user_id": "ou_33094053373f5047941809ff7071deb0"
+      },
+      "free_busy_status": "busy",
+      "is_exception": false,
+      "location": {
+        "address": "",
+        "latitude": 360,
+        "longitude": 360,
+        "name": ""
+      },
+      "organizer_calendar_id": "feishu.cn_B8MUHWJyG93d5jJAL9cUNa@group.calendar.feishu.cn",
+      "self_rsvp_status": "accept",
+      "start_time": {
+        "timestamp": "1777456800",
+        "timezone": "Asia/Shanghai"
+      },
+      "status": "confirmed",
+      "summary": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+      "vchat": {
+        "meeting_url": "https://vc.feishu.cn/j/211843100",
+        "vc_type": "vc"
+      },
+      "visibility": "default"
+    }
+  },
+  "identity": "user",
+  "allow_write": false,
+  "index_summaries": [
+    {
+      "resource_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+      "resource_type": "feishu_document",
+      "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+      "status": "indexed",
+      "skipped": false,
+      "chunk_count": 2,
+      "knowledge_namespace": "sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce"
+    }
+  ],
+  "resources": [
+    {
+      "resource": {
+        "resource_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+        "resource_type": "feishu_document",
+        "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+        "content": "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b>：参赛收获、赛程安排、赛事支持</li><li><b>技术嘉宾分享（约 25min）</b>：《飞书 AI-friendly 分享》飞书技术专家@黄同学</li><li><b>资源与环境配置（10min）</b>：资源领取方式、开发环境配置、个人阶段成果小结/提交流程</li><li><b>Q&amp;A（5–10min）</b>：集中答疑 + 会后渠道说明</li></ol><p></p><h1 seq=\"auto\" seq-level=\"auto\">飞书：<b>字节跳动旗下 AI 工作平台</b></h1><hr/><p><b>飞书是 AI 时代先进生产力平台</b><blockquote><p><b>飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。</b></p><p><b>从互联网、高科技、消费零售，到制造、金融、医疗健康等，各行各业先进企业都在选择飞书，与飞书共创行业最佳实践。先进团队，先用飞书。</b></p></blockquote><p></p></p><hr/><synced_reference src-block-id=\"LYvud97assbkLGbyzMWc21Aznuc\" src-token=\"J8xydMIWzo8Sbnx7y4BcorQenAd\"></synced_reference><h1>🚀 飞书，让每个人都拥有自己的 AI 智能伙伴</h1><callout emoji=\"💭\"><p>在 AI 时代，我们正在重新定义「办公」。以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇</p></callout><p>🧠AI 原生体验，飞书已就绪</p><p><b>1. 飞书知识问答</b> —— 企业的\"AI 大脑\"，一问即答👉 <a href=\"https://bytedance.larkoffice.com/wiki/XCcvwSFP8iwhbTkv8bbcnlqRnfd\">了解详情</a></p><p><b>2. 飞书智能会议纪要 全新升级</b> —— 纪要图文并茂，图表画龙点睛👉 <a href=\"https://bytedance.larkoffice.com/wiki/TBY3w8bGgigKUmkFJh7cmYNjnag\">了解详情</a></p><p><b>3. 多维表格 · AI 系统搭建</b> —— 懂业务、会执行、能落地，为每个想法搭好一套系统👉 <a href=\"https://larkcommunity.feishu.cn/wiki/QdcrwTZdti8ywskiJSvcOUgynmg\">了解详情</a></p><hr/><p>🛠️ 飞书开发套件 —— 从\"用 AI\"到\"造 AI\"</p><p>飞书开发套件正式发布！包含三大核心产品，总览请看 👉 <a href=\"https://bytedance.larkoffice.com/wiki/BNqYwTfvXiE6IQkVYiVcrXMDn2S\">飞书开发套件详情</a></p><p><b>4. 飞书 aily</b> —— 每个人的智能伙伴，好上手、超能干、更放心👉 <a href=\"https://aily.feishu.cn/universal/landing?from=feishu_home_nav\">立即访问</a> 或在飞书搜索「aily」</p><p><b>5. 飞书 aily 专业版</b> —— 复杂任务的专业伙伴，创作可视化，更强更可控👉 <a href=\"https://aily.feishu.cn/\">立即访问</a></p><p><b>6. 飞书妙搭</b> —— 懂开发的智能伙伴，业务系统\"当天想、当天用\"👉 <a href=\"https://miaoda.feishu.cn/\">立即访问</a> 或在 aily 专业版中点击「开发应用」</p><hr/><p>💻 工程师最爱 · OpenClaw 插件</p><p><b>7. OpenClaw 飞书官方插件</b> —— 工程师首选，一键安装、免配置、全功能📘 <a href=\"https://bytedance.larkoffice.com/docx/MFK7dDFLFoVlOGxWCv5cTXKmnMh?from=from_copylink\">插件使用指南</a> ｜ 🐙 <a href=\"http://github.com/larksuite/openclaw-lark\">GitHub 开源</a> ｜ 🚀 <a href=\"https://openclaw.feishu.cn/\">一键部署</a></p><hr/><p>🌍 全球化团队专属</p><p><b>8. AnyGen × Lark</b> —— 全球化办公无缝衔接👉 <a href=\"https://www.anygen.io/home\">非中国区用户点击访问</a></p><hr/><callout emoji=\"⭐\"><p>✨ <b>同学们，这就是你们即将使用的平台。不只是\"工具\"，更是你们在 AI 时代的创造力舞台——开赛见真章！</b> </p></callout><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"Lh03beMqZo9aiqxOj91cU6Sjnge\"/><hr/><h1 seq=\"auto\" seq-level=\"auto\">「飞书 AI 校园挑战赛」-赛事介绍</h1><ul><li>飞书打造的 AI 实战挑战赛，面向全国高校学生开放，立足真实 AI 办公业务场景，搭建实战平台。</li><li>大赛聚焦 AI 的场景化应用落地，设置多元赛道：既深耕飞书生态内的办公协同、业务提效实践，也鼓励面向全域场景的 AI 创新探索。</li><li>在 AI 能力快速迭代、产业深度融合的背景下，本次挑战赛旨在助力参赛者完成从创意构想到项目落地的全流程实践，打造可运行、可验证的 AI 实战成果，让 AI 切实解决真实问题、创造可持续的产业价值。</li></ul><hr/><h2 seq=\"auto\" seq-level=\"auto\">参加本次大赛，你能获得什么？<p>同学：<ul><li>优秀选手可获得校招实习 / 校招正式 Offer 机会</li><li>赛事全程提供免费开发资源（火山方舟 Coding 豪华套餐 + 飞书 API 无限调用额度）</li><li>获奖可瓜分 8 万元总现金奖池，赢取字节 AI 全家桶会员 （一等奖可获得 2 万元现金；字节 Al 全家桶涵盖火山引擎 ArkClaw、即梦 AI、剪映、扣子、飞书 AI、即创，全场景 智能能力一站集齐）</li></ul></p></h2><hr/><h2 seq=\"auto\" seq-level=\"auto\">赛事整体的安排是什么样的？</h2><ul><li><b>飞书 AI 校园挑战赛时间： 4 月 22 日 -5 月 14 日</b></li></ul><readonly-block type=\"isv\"></readonly-block><p>*以上时间为预计时间，若有调整，项目组会及时与同学们在飞书赛事（初赛）总群同步。</p><hr/><h2 seq=\"auto\" seq-level=\"auto\">你需要做什么 &amp; 我们为你提供什么支持</h2><h3>你需要做到：<ul><li>全情投入，把赛事当作<b>真实项目实践</b>，不敷衍、不应付。</li><li>主动学习、动手实践，高标准完成课题开发。</li><li>积极参与群内讨论、直播分享、个人阶段成果小结填写，充分展示自己的能力。</li></ul></h3><h3>我们为你提供：<ul><li>技术专家全程担任项目观察员，群内实时答疑、初赛进度观察、复赛中期验收</li><li>专业 HR 全程陪伴：为同学提供字节跳动 &amp; 飞书校招投递咨询，覆盖<b>投递/流程答疑、关键节点提醒</b>与常见问题解答</li></ul></h3><h3>重要提醒：请勿中途退赛<ul><li>中途退赛会影响团队进度与整体项目产出。</li><li>请提前规划好未来 1 个月的时间，保证充足精力投入。</li><li>无特殊情况随意退赛，将<b>无法参与后续飞书任何赛事 / 训练营类项目</b>。</li></ul></h3><hr/><h1 seq=\"auto\" seq-level=\"auto\">飞书技术嘉宾主题分享——《飞书 AI-friendly 分享》（嘉宾：黄梦轩）</h1><p>在进入实战赛道之前，我们先用一段 <b>技术嘉宾分享</b>，帮助大家建立对“飞书为什么是 AI-friendly”的整体认知：</p><ul><li>AI 时代做一个真正有价值的应用，不只是“多一个能回答问题的入口”，更关键是 <b>能调用平台能力、参与协作、形成闭环</b>。</li><li>在飞书的协作与业务场景里，哪些能力最适合与 Agent / MCP / 工具调用结合？</li><li>从“想法”到“可运行 demo”，如何更高效地推进？</li></ul><p><b>嘉宾介绍｜黄梦轩</b></p><ul><li>飞书研发工程师（Lark App-Core Services）</li><li>大三开始在飞书实习，校招加入飞书至今约 6 年</li><li>当前主要负责：飞书面向 AI 的开放性与友好能力建设（包含飞书 MCP / CLI 等方向的实践）</li></ul><p><b>嘉宾 PPT（演示入口）</b></p><ul><li>嘉宾 PPT： https://bytedance.larkoffice.com/wiki/SuPrw0FRhi1Ctmkh2IUcA1fxnQc</li></ul><p></p><hr/><h1 seq=\"auto\" seq-level=\"auto\">赛事资源 &amp; 开发环境配置</h1><table><colgroup><col/><col/><col/></colgroup><tbody><tr><td><p><b>我们提供哪些</b><b>开发资源/</b><b>统一</b><b>环境</b><b>？</b></p></td><td><p><b>需要同学侧做什么？</b></p></td><td><p><b>相关文档链接</b></p></td></tr><tr><td><p><b>大模型 Token</b><b> </b></p><blockquote><p>版本：Doubao 1.6</p><p>额度：单人 TPM 1w</p></blockquote></td><td><p>1、自助认领 EP</p><p>2、输入 EP、模型 ID（Doubao 1.6）以及 API Key 后，完成 Trae IDE 模型配置（当天内完成）。</p><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"KXIlb0ct7o65mJxDChXcKmXCnad\"/></td><td><p><b><em>认领入口：</em></b><b><em><cite doc-id=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" file-type=\"sheets\" title=\"EP自助认领—for Trae Idea配置\" token=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" type=\"doc\"></cite></em></b></p><p><cite doc-id=\"KlW9dIlyzo17ccxl26Gc9TGsnig\" file-type=\"docx\" title=\"Trae IDE 模型配置指南\" token=\"KlW9dIlyzo17ccxl26Gc9TGsnig\" type=\"doc\"></cite></p><p></p></td></tr><tr><td rowspan=\"2\"><p><b>丰富</b><b>的飞书 AI 资源：</b></p><p>1、飞书 API 调用额度（不限）</p><p></p><p>2、飞书妙搭（AI Coding 工具）</p><blockquote><p>官网链接：<a href=\"http://miaoda.feishu.cn\">miaoda.feishu.cn</a></p><p>介绍文档：<cite doc-id=\"HDpQwwP91i9xvjk9apkciZ9Sn0d\" file-type=\"docx\" title=\"欢迎使用「飞书妙搭」\" token=\"VvrtdIgI3oCcWcxCAPpcAcRPnKd\" type=\"doc\"></cite></p></blockquote><p>3、飞书 OpenClaw 一键部署</p><blockquote><p>官网链接：<a href=\"http://openclaw.feishu.cn\">openclaw.feishu.cn</a></p><p>介绍文档：<cite doc-id=\"YSWlw0JzwigpYOk4ujFcJF9qnfe\" file-type=\"docx\" title=\"飞书｜全网最简单的 OpenClaw 真一键部署来了！｜限时免费，含高级玩法\" token=\"HR0odwYU7oHwwgxBFjvc5H5xnab\" type=\"doc\"></cite></p></blockquote><p></p></td><td rowspan=\"2\"><p>加入飞书商业版租户后即可免费享用；各团队根据情况自由取需。</p><p>过程中如果额度不够，可联系项目组同学。</p><p></p></td><td rowspan=\"2\"><p></p></td></tr><tr></tr><tr><td><p><b>GitHub 代码仓库</b></p><p></p></td><td><p>1、各组为一个单位，创建自己的 GitHub 代码仓库（当天内完成）。</p><p>2、<b>Github 的项目可见性需要设置成public。</b></p><p>3、将仓库链接填写到信息收集问卷中。</p><blockquote><p>问卷链接🔗：https://bytedance.larkoffice.com/share/base/form/shrcnzEu4HIkSVRpcU1EF0ZH8JC</p></blockquote><p></p></td><td><p></p><p></p></td></tr><tr><td><p><b>个人阶段成果小结</b></p><p></p></td><td><p><b>1</b><b>、</b><b>创建个人阶段成果小结</b></p><ul><li>使用「个人阶段成果小结模板」创建个人阶段成果小结链接（记得开外部阅读权限）</li><li>命名格式：<code>姓名-个人阶段成果小结</code></li><li>把个人阶段成果小结链接填写到信息收集问卷中。 </li></ul><blockquote><p>问卷链接🔗：https://bytedance.larkoffice.com/share/base/form/shrcnzEu4HIkSVRpcU1EF0ZH8JC</p></blockquote><p><b>2、填写时间</b></p><ul><li>需要大家正式开营后，每三天完成一次个人阶段成果小结内容填写。</li><li>提交时间：当天 12 点前完成</li></ul><p><b>3</b><b>、</b><b>填写方式</b></p><ul><li>在对应时间周期的子标题下，更新当周内容，总计五期</li><li>请务必认真、完整填写</li></ul><p></p></td><td><p><cite doc-id=\"ZD3xwFgoYiZJD0kYSU4cn4OCnEe\" file-type=\"docx\" title=\"🚀飞书AI校园大赛-个人周报模版\" token=\"F9BFd6jbeomt0yxvxJdc1eEGnFg\" type=\"doc\"></cite></p><p></p><p></p></td></tr></tbody></table><hr/><h1 seq=\"auto\" seq-level=\"auto\">常见问题答疑：</h1><p><b>问题 1：</b><b>大赛最终的</b><b>校招</b><b>实习/</b><b>校招正式</b><b>offer 机会是怎么评估的？</b></p><p>回答：这个问题确实是大家比较关心提及次数较多的，先给大家吃个定心丸：Offer 机会<b>不与决赛排名强绑定</b>。而是综合评估大家在整个赛事过程中的表现、最终作品成果，每周提交的<cite doc-id=\"ZD3xwFgoYiZJD0kYSU4cn4OCnEe\" file-type=\"docx\" title=\"🚀飞书AI校园大赛-个人阶段成果小结模版\" token=\"F9BFd6jbeomt0yxvxJdc1eEGnFg\" type=\"doc\"></cite>，结合赛事过程中由飞书专家成员组成的-观察员的综合评价，只要足够优秀，就能获得实习/校招正式offer  机会～</p><p></p><p><b>问题 2</b><b> ：如果有实习机会，会是产品岗位还是技术岗位呀？</b></p><p>回答：本次大赛全程会有观察员跟进大家的表现并提供指导。后续若获得实习机会，具体岗位方向（技术/产品/设计等），我们会结合你在赛事中的<b>实际表现、个人优势与对应岗位需求</b>综合确定，目前暂无法提前锁定。建议大家先在赛事里全力投入、充分展示自己就好～如果自己有明确的职位方向诉求，也可以在过程中与观察员、跟进的HR 同学进行随时的反馈，我们将为同学做好信息登记。</p><p></p><p><b>问题 3：请问决赛的时间有确定吗，会改动吗？</b></p><p>回答：决赛时间目前定在 5 月 14 日（星期四），形式是线上路演。如果后续有任何特殊情况需要调整，我们一定会第一时间提前在赛事群里通知大家，绝对给足大家准备时间，不会临时搞突袭，大家放心；</p><p></p><ul><li>大家可以把问题发在群聊/聊天区，我们选取部分问题进行线上答疑</li><li>若还有问题因为时间问题无法回答大家，也欢迎你联系赛事跟进工作人员（即初赛通知邮件里的HR 同学），我们将尽快线上回复大家</li></ul><p></p><h1 seq=\"auto\" seq-level=\"auto\">抽奖环节</h1><p>🎁 开赛福利抽奖来啦！</p><p>本次我们为同学们准备了三款超实用的字节文创周边，快把好运刷起来！</p><p>请直播间的同学们，在评论区统一刷出我们的赛事名称（需要确保文字无误，否则将视为无效弹幕，顺位至第二位截图的同学）：飞书 AI 校园挑战赛</p><p>稍后我会倒数3个数，数到1的时候，主持人会现场随机截屏抽奖，中奖的同学记得第一时间联系赛事工作人员<cite type=\"user\" user-id=\"ou_7db220c3a676ba59415fabff4af3d558\"></cite>核验身份，并把邮寄信息发给 <cite type=\"user\" user-id=\"ou_7db220c3a676ba59415fabff4af3d558\"></cite>，奖品会统一采购寄送到你手上！</p><table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><p><b>抽奖数量</b></p></td><td><p><b>礼品名称</b></p></td><td><p><b>礼品图</b></p></td><td><p><b>礼品亮点</b></p></td></tr><tr><td><p>1份</p><p></p></td><td><p>抖音文创 OTM 系列带电脑隔层轻量双肩包</p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"ZYrFbxjNJo6PxJxL4W9cOoWQn2f\"/><p></p><p></p></td><td><p>内置电脑隔层，大容量超能装，上课 / 实习 / 通勤一包搞定</p><p></p></td></tr><tr><td><p>1 份</p></td><td><p>抖音文创「OTM」系列-自带插头自带线充电宝</p><p></p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"HBfYb2yyVoo0XBx8YZGcsKeLn0B\"/><p></p></td><td><p>自带插头与充电线，即插即充，便携实用</p></td></tr><tr><td><p>1 份</p></td><td><p>汽水音乐 复古磁带造型充电宝（自带双线快充移动电源）</p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"SiJbbmKCMoT0N7xvoDWck2uXnqc\"/><p></p></td><td><p>复古磁带造型，自带双线快充，颜值与实用性兼备</p></td></tr></tbody></table><p></p>",
+        "source_url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+        "source_meta": {
+          "document_id": "Ak9dd3uUbozl3SxdhvncFEZenOf",
+          "revision_id": 1310,
+          "doc_format": "xml",
+          "detail": "simple",
+          "scope": "full",
+          "content_length": 9230,
+          "content_excerpt": "飞书 AI 校园挑战赛-线上开赛仪式 开赛仪式流程总览 飞书介绍（6–8min） ：飞书是什么？飞书 AI 相关产品介绍 赛事介绍（6–8min） ：参赛收获、赛程安排、赛事支持 技术嘉宾分享（约 25min） ：《飞书 AI-friendly 分享》飞书技术专家@黄同学 资源与环境配置（10min） ：资源领取方式、开发环境配置、个人阶段成果小结/提交流程 Q&A（5–10min） ：集中答疑 + 会后渠道说明 飞书： 字节跳动旗下 AI 工作平台 飞书是 AI 时代先进生产力平台 飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。 从互联网、高科技、消费零售，到制造、金融、医疗健康等，各行各业先进企业都在选择飞书，与飞书共创行业最佳实践。先进团队，先用飞书。 🚀 飞书，让每个人都拥有自己的 AI 智能伙伴 在 AI 时代，我们正在重新定义「办公」。以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇 🧠AI 原生体验，飞书已就绪 1. 飞书知识问答 —— 企业的\"AI 大脑..."
+        },
+        "updated_at": "1310"
+      },
+      "document": {
+        "document_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+        "source_type": "doc",
+        "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+        "source_url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+        "owner_id": "",
+        "updated_at": "1310",
+        "permission_scope": "",
+        "checksum": "fc7abea7389325f3bb0b96581191efca874faeb555d77dea07a8db6b80bb08f6",
+        "index_status": "succeeded",
+        "last_indexed_at": 1777454485,
+        "chunk_count": 2,
+        "metadata": {
+          "document_id": "Ak9dd3uUbozl3SxdhvncFEZenOf",
+          "revision_id": 1310,
+          "doc_format": "xml",
+          "detail": "simple",
+          "scope": "full",
+          "content_length": 9230,
+          "content_excerpt": "飞书 AI 校园挑战赛-线上开赛仪式 开赛仪式流程总览 飞书介绍（6–8min） ：飞书是什么？飞书 AI 相关产品介绍 赛事介绍（6–8min） ：参赛收获、赛程安排、赛事支持 技术嘉宾分享（约 25min） ：《飞书 AI-friendly 分享》飞书技术专家@黄同学 资源与环境配置（10min） ：资源领取方式、开发环境配置、个人阶段成果小结/提交流程 Q&A（5–10min） ：集中答疑 + 会后渠道说明 飞书： 字节跳动旗下 AI 工作平台 飞书是 AI 时代先进生产力平台 飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。 从互联网、高科技、消费零售，到制造、金融、医疗健康等，各行各业先进企业都在选择飞书，与飞书共创行业最佳实践。先进团队，先用飞书。 🚀 飞书，让每个人都拥有自己的 AI 智能伙伴 在 AI 时代，我们正在重新定义「办公」。以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇 🧠AI 原生体验，飞书已就绪 1. 飞书知识问答 —— 企业的\"AI 大脑...",
+          "embedding_provider": "sentence-transformers",
+          "embedding_model": "BAAI/bge-small-zh-v1.5",
+          "embedding_dimensions": 512,
+          "embedding_fingerprint": "sentence-transformers:BAAI/bge-small-zh-v1.5:512",
+          "knowledge_namespace": "sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce",
+          "vector_collection_name": "meetflow_knowledge_chunks_137933ce"
+        }
+      },
+      "chunks": [
+        {
+          "chunk_id": "Eq0ywVPwdirCLakfBeucCwKWnoh#parent_c21aa3900278",
+          "chunk_type": "parent_section",
+          "chunk_order": 0,
+          "parent_chunk_id": "",
+          "doc_type": "doc",
+          "content_tokens": 4554,
+          "source_locator": "doc:chunk:1",
+          "toc_path": [
+            "doc"
+          ],
+          "positions": {
+            "source_type": "doc",
+            "source_locator": "doc:chunk:1",
+            "chunk_order": 0,
+            "parent_group": "doc"
+          },
+          "keywords": [
+            "<title>飞书",
+            "ai",
+            "校园挑战赛-线上开赛仪式<",
+            "title><h1>开赛仪式流程总览<",
+            "h1><ol><li><b>飞书介绍",
+            "6–8min",
+            "b>",
+            "飞书是什么？飞书",
+            "相关产品介绍<",
+            "li><li><b>赛事介绍",
+            "参赛收获、赛程安排、赛事支持<",
+            "li><li><b>技术嘉宾分享"
+          ],
+          "questions": [
+            "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？",
+            "以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇</p></callout><p>🧠AI 原生体验，飞书已就绪</p><p><b>1. 飞书知识问答</b> —— 企业的\"AI 大脑\"，一问即答👉 <a hre",
+            "from=feishu_home_nav\">立即访问</a> 或在飞书搜索「aily」</p><p><b>5. 飞书 aily 专业版</b> —— 复杂任务的专业伙伴，创作可视化，更强更可控👉 <a href=\"https://aily.",
+            "</li><li>在 AI 能力快速迭代、产业深度融合的背景下，本次挑战赛旨在助力参赛者完成从创意构想到项目落地的全流程实践，打造可运行、可验证的 AI 实战成果，让 AI 切实解决真实问题、创造可持续的产业价值",
+            "</li></ul><hr/><h2 seq=\"auto\" seq-level=\"auto\">参加本次大赛，你能获得什么？"
+          ],
+          "text_preview": "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b>：参赛收获、赛程安排、赛事支持</li><li><b>技术嘉宾分享（约 25min）</b>：《飞书 AI-friendly 分享》飞书技术专家@黄同学</li><li><b>资源与环境配置（10min）</b>：资源领取方式、开发环境配置、个人阶段成果小结/提交流程</li><li><b>Q&amp;A（5–10min）</b>：集中答疑 + 会后渠道说明</li></ol><p></p><h1 seq=\"auto\" seq-level=\"auto\">飞书：<b>字节跳动旗下 AI 工作平台</b></h1><hr/><p><b>飞书是 AI 时代先进生产力平台</b><blockquote><p><b>飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。</..."
+        },
+        {
+          "chunk_id": "Eq0ywVPwdirCLakfBeucCwKWnoh#chunk_1_f393702e8088",
+          "chunk_type": "paragraph",
+          "chunk_order": 1,
+          "parent_chunk_id": "Eq0ywVPwdirCLakfBeucCwKWnoh#parent_c21aa3900278",
+          "doc_type": "doc",
+          "content_tokens": 4554,
+          "source_locator": "doc:chunk:1",
+          "toc_path": [
+            "doc"
+          ],
+          "positions": {
+            "heading": "",
+            "source_type": "doc",
+            "source_locator": "doc:chunk:1",
+            "chunk_order": 1
+          },
+          "keywords": [
+            "飞书",
+            "ai",
+            "校园挑战赛-线上开赛仪式",
+            "<title>飞书",
+            "校园挑战赛-线上开赛仪式<",
+            "title><h1>开赛仪式流程总览<",
+            "h1><ol><li><b>飞书介绍",
+            "6–8min",
+            "b>",
+            "飞书是什么？飞书",
+            "相关产品介绍<",
+            "li><li><b>赛事介绍"
+          ],
+          "questions": [
+            "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？",
+            "以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇</p></callout><p>🧠AI 原生体验，飞书已就绪</p><p><b>1. 飞书知识问答</b> —— 企业的\"AI 大脑\"，一问即答👉 <a hre",
+            "from=feishu_home_nav\">立即访问</a> 或在飞书搜索「aily」</p><p><b>5. 飞书 aily 专业版</b> —— 复杂任务的专业伙伴，创作可视化，更强更可控👉 <a href=\"https://aily.",
+            "</li><li>在 AI 能力快速迭代、产业深度融合的背景下，本次挑战赛旨在助力参赛者完成从创意构想到项目落地的全流程实践，打造可运行、可验证的 AI 实战成果，让 AI 切实解决真实问题、创造可持续的产业价值",
+            "</li></ul><hr/><h2 seq=\"auto\" seq-level=\"auto\">参加本次大赛，你能获得什么？"
+          ],
+          "text_preview": "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b>：参赛收获、赛程安排、赛事支持</li><li><b>技术嘉宾分享（约 25min）</b>：《飞书 AI-friendly 分享》飞书技术专家@黄同学</li><li><b>资源与环境配置（10min）</b>：资源领取方式、开发环境配置、个人阶段成果小结/提交流程</li><li><b>Q&amp;A（5–10min）</b>：集中答疑 + 会后渠道说明</li></ol><p></p><h1 seq=\"auto\" seq-level=\"auto\">飞书：<b>字节跳动旗下 AI 工作平台</b></h1><hr/><p><b>飞书是 AI 时代先进生产力平台</b><blockquote><p><b>飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。</..."
+        }
+      ]
+    }
+  ],
+  "trigger_plan": {
+    "trigger_id": "meeting.soon:b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+    "event": {
+      "event_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+      "calendar_event_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+      "meeting_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+      "project_id": "meetflow",
+      "summary": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+      "description": "",
+      "start_time": "1777456800",
+      "end_time": "1777460400",
+      "participants": [
+        {
+          "attendee_id": "resource_7034860021963931649",
+          "display_name": "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)",
+          "attendee_type": "resource",
+          "rsvp_status": "accept",
+          "is_optional": false,
+          "is_organizer": false
+        }
+      ],
+      "attendees": [
+        {
+          "attendee_id": "resource_7034860021963931649",
+          "display_name": "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)",
+          "attendee_type": "resource",
+          "rsvp_status": "accept",
+          "is_optional": false,
+          "is_organizer": false
+        }
+      ],
+      "related_resources": [
+        {
+          "resource_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+          "resource_type": "feishu_document",
+          "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+          "content": "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b>：参赛收获、赛程安排、赛事支持</li><li><b>技术嘉宾分享（约 25min）</b>：《飞书 AI-friendly 分享》飞书技术专家@黄同学</li><li><b>资源与环境配置（10min）</b>：资源领取方式、开发环境配置、个人阶段成果小结/提交流程</li><li><b>Q&amp;A（5–10min）</b>：集中答疑 + 会后渠道说明</li></ol><p></p><h1 seq=\"auto\" seq-level=\"auto\">飞书：<b>字节跳动旗下 AI 工作平台</b></h1><hr/><p><b>飞书是 AI 时代先进生产力平台</b><blockquote><p><b>飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。</b></p><p><b>从互联网、高科技、消费零售，到制造、金融、医疗健康等，各行各业先进企业都在选择飞书，与飞书共创行业最佳实践。先进团队，先用飞书。</b></p></blockquote><p></p></p><hr/><synced_reference src-block-id=\"LYvud97assbkLGbyzMWc21Aznuc\" src-token=\"J8xydMIWzo8Sbnx7y4BcorQenAd\"></synced_reference><h1>🚀 飞书，让每个人都拥有自己的 AI 智能伙伴</h1><callout emoji=\"💭\"><p>在 AI 时代，我们正在重新定义「办公」。以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇</p></callout><p>🧠AI 原生体验，飞书已就绪</p><p><b>1. 飞书知识问答</b> —— 企业的\"AI 大脑\"，一问即答👉 <a href=\"https://bytedance.larkoffice.com/wiki/XCcvwSFP8iwhbTkv8bbcnlqRnfd\">了解详情</a></p><p><b>2. 飞书智能会议纪要 全新升级</b> —— 纪要图文并茂，图表画龙点睛👉 <a href=\"https://bytedance.larkoffice.com/wiki/TBY3w8bGgigKUmkFJh7cmYNjnag\">了解详情</a></p><p><b>3. 多维表格 · AI 系统搭建</b> —— 懂业务、会执行、能落地，为每个想法搭好一套系统👉 <a href=\"https://larkcommunity.feishu.cn/wiki/QdcrwTZdti8ywskiJSvcOUgynmg\">了解详情</a></p><hr/><p>🛠️ 飞书开发套件 —— 从\"用 AI\"到\"造 AI\"</p><p>飞书开发套件正式发布！包含三大核心产品，总览请看 👉 <a href=\"https://bytedance.larkoffice.com/wiki/BNqYwTfvXiE6IQkVYiVcrXMDn2S\">飞书开发套件详情</a></p><p><b>4. 飞书 aily</b> —— 每个人的智能伙伴，好上手、超能干、更放心👉 <a href=\"https://aily.feishu.cn/universal/landing?from=feishu_home_nav\">立即访问</a> 或在飞书搜索「aily」</p><p><b>5. 飞书 aily 专业版</b> —— 复杂任务的专业伙伴，创作可视化，更强更可控👉 <a href=\"https://aily.feishu.cn/\">立即访问</a></p><p><b>6. 飞书妙搭</b> —— 懂开发的智能伙伴，业务系统\"当天想、当天用\"👉 <a href=\"https://miaoda.feishu.cn/\">立即访问</a> 或在 aily 专业版中点击「开发应用」</p><hr/><p>💻 工程师最爱 · OpenClaw 插件</p><p><b>7. OpenClaw 飞书官方插件</b> —— 工程师首选，一键安装、免配置、全功能📘 <a href=\"https://bytedance.larkoffice.com/docx/MFK7dDFLFoVlOGxWCv5cTXKmnMh?from=from_copylink\">插件使用指南</a> ｜ 🐙 <a href=\"http://github.com/larksuite/openclaw-lark\">GitHub 开源</a> ｜ 🚀 <a href=\"https://openclaw.feishu.cn/\">一键部署</a></p><hr/><p>🌍 全球化团队专属</p><p><b>8. AnyGen × Lark</b> —— 全球化办公无缝衔接👉 <a href=\"https://www.anygen.io/home\">非中国区用户点击访问</a></p><hr/><callout emoji=\"⭐\"><p>✨ <b>同学们，这就是你们即将使用的平台。不只是\"工具\"，更是你们在 AI 时代的创造力舞台——开赛见真章！</b> </p></callout><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"Lh03beMqZo9aiqxOj91cU6Sjnge\"/><hr/><h1 seq=\"auto\" seq-level=\"auto\">「飞书 AI 校园挑战赛」-赛事介绍</h1><ul><li>飞书打造的 AI 实战挑战赛，面向全国高校学生开放，立足真实 AI 办公业务场景，搭建实战平台。</li><li>大赛聚焦 AI 的场景化应用落地，设置多元赛道：既深耕飞书生态内的办公协同、业务提效实践，也鼓励面向全域场景的 AI 创新探索。</li><li>在 AI 能力快速迭代、产业深度融合的背景下，本次挑战赛旨在助力参赛者完成从创意构想到项目落地的全流程实践，打造可运行、可验证的 AI 实战成果，让 AI 切实解决真实问题、创造可持续的产业价值。</li></ul><hr/><h2 seq=\"auto\" seq-level=\"auto\">参加本次大赛，你能获得什么？<p>同学：<ul><li>优秀选手可获得校招实习 / 校招正式 Offer 机会</li><li>赛事全程提供免费开发资源（火山方舟 Coding 豪华套餐 + 飞书 API 无限调用额度）</li><li>获奖可瓜分 8 万元总现金奖池，赢取字节 AI 全家桶会员 （一等奖可获得 2 万元现金；字节 Al 全家桶涵盖火山引擎 ArkClaw、即梦 AI、剪映、扣子、飞书 AI、即创，全场景 智能能力一站集齐）</li></ul></p></h2><hr/><h2 seq=\"auto\" seq-level=\"auto\">赛事整体的安排是什么样的？</h2><ul><li><b>飞书 AI 校园挑战赛时间： 4 月 22 日 -5 月 14 日</b></li></ul><readonly-block type=\"isv\"></readonly-block><p>*以上时间为预计时间，若有调整，项目组会及时与同学们在飞书赛事（初赛）总群同步。</p><hr/><h2 seq=\"auto\" seq-level=\"auto\">你需要做什么 &amp; 我们为你提供什么支持</h2><h3>你需要做到：<ul><li>全情投入，把赛事当作<b>真实项目实践</b>，不敷衍、不应付。</li><li>主动学习、动手实践，高标准完成课题开发。</li><li>积极参与群内讨论、直播分享、个人阶段成果小结填写，充分展示自己的能力。</li></ul></h3><h3>我们为你提供：<ul><li>技术专家全程担任项目观察员，群内实时答疑、初赛进度观察、复赛中期验收</li><li>专业 HR 全程陪伴：为同学提供字节跳动 &amp; 飞书校招投递咨询，覆盖<b>投递/流程答疑、关键节点提醒</b>与常见问题解答</li></ul></h3><h3>重要提醒：请勿中途退赛<ul><li>中途退赛会影响团队进度与整体项目产出。</li><li>请提前规划好未来 1 个月的时间，保证充足精力投入。</li><li>无特殊情况随意退赛，将<b>无法参与后续飞书任何赛事 / 训练营类项目</b>。</li></ul></h3><hr/><h1 seq=\"auto\" seq-level=\"auto\">飞书技术嘉宾主题分享——《飞书 AI-friendly 分享》（嘉宾：黄梦轩）</h1><p>在进入实战赛道之前，我们先用一段 <b>技术嘉宾分享</b>，帮助大家建立对“飞书为什么是 AI-friendly”的整体认知：</p><ul><li>AI 时代做一个真正有价值的应用，不只是“多一个能回答问题的入口”，更关键是 <b>能调用平台能力、参与协作、形成闭环</b>。</li><li>在飞书的协作与业务场景里，哪些能力最适合与 Agent / MCP / 工具调用结合？</li><li>从“想法”到“可运行 demo”，如何更高效地推进？</li></ul><p><b>嘉宾介绍｜黄梦轩</b></p><ul><li>飞书研发工程师（Lark App-Core Services）</li><li>大三开始在飞书实习，校招加入飞书至今约 6 年</li><li>当前主要负责：飞书面向 AI 的开放性与友好能力建设（包含飞书 MCP / CLI 等方向的实践）</li></ul><p><b>嘉宾 PPT（演示入口）</b></p><ul><li>嘉宾 PPT： https://bytedance.larkoffice.com/wiki/SuPrw0FRhi1Ctmkh2IUcA1fxnQc</li></ul><p></p><hr/><h1 seq=\"auto\" seq-level=\"auto\">赛事资源 &amp; 开发环境配置</h1><table><colgroup><col/><col/><col/></colgroup><tbody><tr><td><p><b>我们提供哪些</b><b>开发资源/</b><b>统一</b><b>环境</b><b>？</b></p></td><td><p><b>需要同学侧做什么？</b></p></td><td><p><b>相关文档链接</b></p></td></tr><tr><td><p><b>大模型 Token</b><b> </b></p><blockquote><p>版本：Doubao 1.6</p><p>额度：单人 TPM 1w</p></blockquote></td><td><p>1、自助认领 EP</p><p>2、输入 EP、模型 ID（Doubao 1.6）以及 API Key 后，完成 Trae IDE 模型配置（当天内完成）。</p><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"KXIlb0ct7o65mJxDChXcKmXCnad\"/></td><td><p><b><em>认领入口：</em></b><b><em><cite doc-id=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" file-type=\"sheets\" title=\"EP自助认领—for Trae Idea配置\" token=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" type=\"doc\"></cite></em></b></p><p><cite doc-id=\"KlW9dIlyzo17ccxl26Gc9TGsnig\" file-type=\"docx\" title=\"Trae IDE 模型配置指南\" token=\"KlW9dIlyzo17ccxl26Gc9TGsnig\" type=\"doc\"></cite></p><p></p></td></tr><tr><td rowspan=\"2\"><p><b>丰富</b><b>的飞书 AI 资源：</b></p><p>1、飞书 API 调用额度（不限）</p><p></p><p>2、飞书妙搭（AI Coding 工具）</p><blockquote><p>官网链接：<a href=\"http://miaoda.feishu.cn\">miaoda.feishu.cn</a></p><p>介绍文档：<cite doc-id=\"HDpQwwP91i9xvjk9apkciZ9Sn0d\" file-type=\"docx\" title=\"欢迎使用「飞书妙搭」\" token=\"VvrtdIgI3oCcWcxCAPpcAcRPnKd\" type=\"doc\"></cite></p></blockquote><p>3、飞书 OpenClaw 一键部署</p><blockquote><p>官网链接：<a href=\"http://openclaw.feishu.cn\">openclaw.feishu.cn</a></p><p>介绍文档：<cite doc-id=\"YSWlw0JzwigpYOk4ujFcJF9qnfe\" file-type=\"docx\" title=\"飞书｜全网最简单的 OpenClaw 真一键部署来了！｜限时免费，含高级玩法\" token=\"HR0odwYU7oHwwgxBFjvc5H5xnab\" type=\"doc\"></cite></p></blockquote><p></p></td><td rowspan=\"2\"><p>加入飞书商业版租户后即可免费享用；各团队根据情况自由取需。</p><p>过程中如果额度不够，可联系项目组同学。</p><p></p></td><td rowspan=\"2\"><p></p></td></tr><tr></tr><tr><td><p><b>GitHub 代码仓库</b></p><p></p></td><td><p>1、各组为一个单位，创建自己的 GitHub 代码仓库（当天内完成）。</p><p>2、<b>Github 的项目可见性需要设置成public。</b></p><p>3、将仓库链接填写到信息收集问卷中。</p><blockquote><p>问卷链接🔗：https://bytedance.larkoffice.com/share/base/form/shrcnzEu4HIkSVRpcU1EF0ZH8JC</p></blockquote><p></p></td><td><p></p><p></p></td></tr><tr><td><p><b>个人阶段成果小结</b></p><p></p></td><td><p><b>1</b><b>、</b><b>创建个人阶段成果小结</b></p><ul><li>使用「个人阶段成果小结模板」创建个人阶段成果小结链接（记得开外部阅读权限）</li><li>命名格式：<code>姓名-个人阶段成果小结</code></li><li>把个人阶段成果小结链接填写到信息收集问卷中。 </li></ul><blockquote><p>问卷链接🔗：https://bytedance.larkoffice.com/share/base/form/shrcnzEu4HIkSVRpcU1EF0ZH8JC</p></blockquote><p><b>2、填写时间</b></p><ul><li>需要大家正式开营后，每三天完成一次个人阶段成果小结内容填写。</li><li>提交时间：当天 12 点前完成</li></ul><p><b>3</b><b>、</b><b>填写方式</b></p><ul><li>在对应时间周期的子标题下，更新当周内容，总计五期</li><li>请务必认真、完整填写</li></ul><p></p></td><td><p><cite doc-id=\"ZD3xwFgoYiZJD0kYSU4cn4OCnEe\" file-type=\"docx\" title=\"🚀飞书AI校园大赛-个人周报模版\" token=\"F9BFd6jbeomt0yxvxJdc1eEGnFg\" type=\"doc\"></cite></p><p></p><p></p></td></tr></tbody></table><hr/><h1 seq=\"auto\" seq-level=\"auto\">常见问题答疑：</h1><p><b>问题 1：</b><b>大赛最终的</b><b>校招</b><b>实习/</b><b>校招正式</b><b>offer 机会是怎么评估的？</b></p><p>回答：这个问题确实是大家比较关心提及次数较多的，先给大家吃个定心丸：Offer 机会<b>不与决赛排名强绑定</b>。而是综合评估大家在整个赛事过程中的表现、最终作品成果，每周提交的<cite doc-id=\"ZD3xwFgoYiZJD0kYSU4cn4OCnEe\" file-type=\"docx\" title=\"🚀飞书AI校园大赛-个人阶段成果小结模版\" token=\"F9BFd6jbeomt0yxvxJdc1eEGnFg\" type=\"doc\"></cite>，结合赛事过程中由飞书专家成员组成的-观察员的综合评价，只要足够优秀，就能获得实习/校招正式offer  机会～</p><p></p><p><b>问题 2</b><b> ：如果有实习机会，会是产品岗位还是技术岗位呀？</b></p><p>回答：本次大赛全程会有观察员跟进大家的表现并提供指导。后续若获得实习机会，具体岗位方向（技术/产品/设计等），我们会结合你在赛事中的<b>实际表现、个人优势与对应岗位需求</b>综合确定，目前暂无法提前锁定。建议大家先在赛事里全力投入、充分展示自己就好～如果自己有明确的职位方向诉求，也可以在过程中与观察员、跟进的HR 同学进行随时的反馈，我们将为同学做好信息登记。</p><p></p><p><b>问题 3：请问决赛的时间有确定吗，会改动吗？</b></p><p>回答：决赛时间目前定在 5 月 14 日（星期四），形式是线上路演。如果后续有任何特殊情况需要调整，我们一定会第一时间提前在赛事群里通知大家，绝对给足大家准备时间，不会临时搞突袭，大家放心；</p><p></p><ul><li>大家可以把问题发在群聊/聊天区，我们选取部分问题进行线上答疑</li><li>若还有问题因为时间问题无法回答大家，也欢迎你联系赛事跟进工作人员（即初赛通知邮件里的HR 同学），我们将尽快线上回复大家</li></ul><p></p><h1 seq=\"auto\" seq-level=\"auto\">抽奖环节</h1><p>🎁 开赛福利抽奖来啦！</p><p>本次我们为同学们准备了三款超实用的字节文创周边，快把好运刷起来！</p><p>请直播间的同学们，在评论区统一刷出我们的赛事名称（需要确保文字无误，否则将视为无效弹幕，顺位至第二位截图的同学）：飞书 AI 校园挑战赛</p><p>稍后我会倒数3个数，数到1的时候，主持人会现场随机截屏抽奖，中奖的同学记得第一时间联系赛事工作人员<cite type=\"user\" user-id=\"ou_7db220c3a676ba59415fabff4af3d558\"></cite>核验身份，并把邮寄信息发给 <cite type=\"user\" user-id=\"ou_7db220c3a676ba59415fabff4af3d558\"></cite>，奖品会统一采购寄送到你手上！</p><table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><p><b>抽奖数量</b></p></td><td><p><b>礼品名称</b></p></td><td><p><b>礼品图</b></p></td><td><p><b>礼品亮点</b></p></td></tr><tr><td><p>1份</p><p></p></td><td><p>抖音文创 OTM 系列带电脑隔层轻量双肩包</p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"ZYrFbxjNJo6PxJxL4W9cOoWQn2f\"/><p></p><p></p></td><td><p>内置电脑隔层，大容量超能装，上课 / 实习 / 通勤一包搞定</p><p></p></td></tr><tr><td><p>1 份</p></td><td><p>抖音文创「OTM」系列-自带插头自带线充电宝</p><p></p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"HBfYb2yyVoo0XBx8YZGcsKeLn0B\"/><p></p></td><td><p>自带插头与充电线，即插即充，便携实用</p></td></tr><tr><td><p>1 份</p></td><td><p>汽水音乐 复古磁带造型充电宝（自带双线快充移动电源）</p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"SiJbbmKCMoT0N7xvoDWck2uXnqc\"/><p></p></td><td><p>复古磁带造型，自带双线快充，颜值与实用性兼备</p></td></tr></tbody></table><p></p>",
+          "source_url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+          "source_meta": {
+            "document_id": "Ak9dd3uUbozl3SxdhvncFEZenOf",
+            "revision_id": 1310,
+            "doc_format": "xml",
+            "detail": "simple",
+            "scope": "full",
+            "content_length": 9230,
+            "content_excerpt": "飞书 AI 校园挑战赛-线上开赛仪式 开赛仪式流程总览 飞书介绍（6–8min） ：飞书是什么？飞书 AI 相关产品介绍 赛事介绍（6–8min） ：参赛收获、赛程安排、赛事支持 技术嘉宾分享（约 25min） ：《飞书 AI-friendly 分享》飞书技术专家@黄同学 资源与环境配置（10min） ：资源领取方式、开发环境配置、个人阶段成果小结/提交流程 Q&A（5–10min） ：集中答疑 + 会后渠道说明 飞书： 字节跳动旗下 AI 工作平台 飞书是 AI 时代先进生产力平台 飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。 从互联网、高科技、消费零售，到制造、金融、医疗健康等，各行各业先进企业都在选择飞书，与飞书共创行业最佳实践。先进团队，先用飞书。 🚀 飞书，让每个人都拥有自己的 AI 智能伙伴 在 AI 时代，我们正在重新定义「办公」。以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇 🧠AI 原生体验，飞书已就绪 1. 飞书知识问答 —— 企业的\"AI 大脑..."
+          },
+          "updated_at": "1310"
+        }
+      ],
+      "attachments": [
+        {
+          "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+          "url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+          "resource_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+          "resource_type": "feishu_document",
+          "updated_at": "1310"
+        }
+      ],
+      "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c&originalTime=0&startTime=1777456800"
+    },
+    "agent_input": {
+      "trigger_type": "schedule",
+      "event_type": "meeting.soon",
+      "payload": {
+        "event_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+        "calendar_event_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+        "meeting_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+        "project_id": "meetflow",
+        "summary": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+        "description": "",
+        "start_time": "1777456800",
+        "end_time": "1777460400",
+        "participants": [
+          {
+            "attendee_id": "resource_7034860021963931649",
+            "display_name": "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)",
+            "attendee_type": "resource",
+            "rsvp_status": "accept",
+            "is_optional": false,
+            "is_organizer": false
+          }
+        ],
+        "attendees": [
+          {
+            "attendee_id": "resource_7034860021963931649",
+            "display_name": "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)",
+            "attendee_type": "resource",
+            "rsvp_status": "accept",
+            "is_optional": false,
+            "is_organizer": false
+          }
+        ],
+        "related_resources": [
+          {
+            "resource_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+            "resource_type": "feishu_document",
+            "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+            "content": "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b>：参赛收获、赛程安排、赛事支持</li><li><b>技术嘉宾分享（约 25min）</b>：《飞书 AI-friendly 分享》飞书技术专家@黄同学</li><li><b>资源与环境配置（10min）</b>：资源领取方式、开发环境配置、个人阶段成果小结/提交流程</li><li><b>Q&amp;A（5–10min）</b>：集中答疑 + 会后渠道说明</li></ol><p></p><h1 seq=\"auto\" seq-level=\"auto\">飞书：<b>字节跳动旗下 AI 工作平台</b></h1><hr/><p><b>飞书是 AI 时代先进生产力平台</b><blockquote><p><b>飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。</b></p><p><b>从互联网、高科技、消费零售，到制造、金融、医疗健康等，各行各业先进企业都在选择飞书，与飞书共创行业最佳实践。先进团队，先用飞书。</b></p></blockquote><p></p></p><hr/><synced_reference src-block-id=\"LYvud97assbkLGbyzMWc21Aznuc\" src-token=\"J8xydMIWzo8Sbnx7y4BcorQenAd\"></synced_reference><h1>🚀 飞书，让每个人都拥有自己的 AI 智能伙伴</h1><callout emoji=\"💭\"><p>在 AI 时代，我们正在重新定义「办公」。以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇</p></callout><p>🧠AI 原生体验，飞书已就绪</p><p><b>1. 飞书知识问答</b> —— 企业的\"AI 大脑\"，一问即答👉 <a href=\"https://bytedance.larkoffice.com/wiki/XCcvwSFP8iwhbTkv8bbcnlqRnfd\">了解详情</a></p><p><b>2. 飞书智能会议纪要 全新升级</b> —— 纪要图文并茂，图表画龙点睛👉 <a href=\"https://bytedance.larkoffice.com/wiki/TBY3w8bGgigKUmkFJh7cmYNjnag\">了解详情</a></p><p><b>3. 多维表格 · AI 系统搭建</b> —— 懂业务、会执行、能落地，为每个想法搭好一套系统👉 <a href=\"https://larkcommunity.feishu.cn/wiki/QdcrwTZdti8ywskiJSvcOUgynmg\">了解详情</a></p><hr/><p>🛠️ 飞书开发套件 —— 从\"用 AI\"到\"造 AI\"</p><p>飞书开发套件正式发布！包含三大核心产品，总览请看 👉 <a href=\"https://bytedance.larkoffice.com/wiki/BNqYwTfvXiE6IQkVYiVcrXMDn2S\">飞书开发套件详情</a></p><p><b>4. 飞书 aily</b> —— 每个人的智能伙伴，好上手、超能干、更放心👉 <a href=\"https://aily.feishu.cn/universal/landing?from=feishu_home_nav\">立即访问</a> 或在飞书搜索「aily」</p><p><b>5. 飞书 aily 专业版</b> —— 复杂任务的专业伙伴，创作可视化，更强更可控👉 <a href=\"https://aily.feishu.cn/\">立即访问</a></p><p><b>6. 飞书妙搭</b> —— 懂开发的智能伙伴，业务系统\"当天想、当天用\"👉 <a href=\"https://miaoda.feishu.cn/\">立即访问</a> 或在 aily 专业版中点击「开发应用」</p><hr/><p>💻 工程师最爱 · OpenClaw 插件</p><p><b>7. OpenClaw 飞书官方插件</b> —— 工程师首选，一键安装、免配置、全功能📘 <a href=\"https://bytedance.larkoffice.com/docx/MFK7dDFLFoVlOGxWCv5cTXKmnMh?from=from_copylink\">插件使用指南</a> ｜ 🐙 <a href=\"http://github.com/larksuite/openclaw-lark\">GitHub 开源</a> ｜ 🚀 <a href=\"https://openclaw.feishu.cn/\">一键部署</a></p><hr/><p>🌍 全球化团队专属</p><p><b>8. AnyGen × Lark</b> —— 全球化办公无缝衔接👉 <a href=\"https://www.anygen.io/home\">非中国区用户点击访问</a></p><hr/><callout emoji=\"⭐\"><p>✨ <b>同学们，这就是你们即将使用的平台。不只是\"工具\"，更是你们在 AI 时代的创造力舞台——开赛见真章！</b> </p></callout><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"Lh03beMqZo9aiqxOj91cU6Sjnge\"/><hr/><h1 seq=\"auto\" seq-level=\"auto\">「飞书 AI 校园挑战赛」-赛事介绍</h1><ul><li>飞书打造的 AI 实战挑战赛，面向全国高校学生开放，立足真实 AI 办公业务场景，搭建实战平台。</li><li>大赛聚焦 AI 的场景化应用落地，设置多元赛道：既深耕飞书生态内的办公协同、业务提效实践，也鼓励面向全域场景的 AI 创新探索。</li><li>在 AI 能力快速迭代、产业深度融合的背景下，本次挑战赛旨在助力参赛者完成从创意构想到项目落地的全流程实践，打造可运行、可验证的 AI 实战成果，让 AI 切实解决真实问题、创造可持续的产业价值。</li></ul><hr/><h2 seq=\"auto\" seq-level=\"auto\">参加本次大赛，你能获得什么？<p>同学：<ul><li>优秀选手可获得校招实习 / 校招正式 Offer 机会</li><li>赛事全程提供免费开发资源（火山方舟 Coding 豪华套餐 + 飞书 API 无限调用额度）</li><li>获奖可瓜分 8 万元总现金奖池，赢取字节 AI 全家桶会员 （一等奖可获得 2 万元现金；字节 Al 全家桶涵盖火山引擎 ArkClaw、即梦 AI、剪映、扣子、飞书 AI、即创，全场景 智能能力一站集齐）</li></ul></p></h2><hr/><h2 seq=\"auto\" seq-level=\"auto\">赛事整体的安排是什么样的？</h2><ul><li><b>飞书 AI 校园挑战赛时间： 4 月 22 日 -5 月 14 日</b></li></ul><readonly-block type=\"isv\"></readonly-block><p>*以上时间为预计时间，若有调整，项目组会及时与同学们在飞书赛事（初赛）总群同步。</p><hr/><h2 seq=\"auto\" seq-level=\"auto\">你需要做什么 &amp; 我们为你提供什么支持</h2><h3>你需要做到：<ul><li>全情投入，把赛事当作<b>真实项目实践</b>，不敷衍、不应付。</li><li>主动学习、动手实践，高标准完成课题开发。</li><li>积极参与群内讨论、直播分享、个人阶段成果小结填写，充分展示自己的能力。</li></ul></h3><h3>我们为你提供：<ul><li>技术专家全程担任项目观察员，群内实时答疑、初赛进度观察、复赛中期验收</li><li>专业 HR 全程陪伴：为同学提供字节跳动 &amp; 飞书校招投递咨询，覆盖<b>投递/流程答疑、关键节点提醒</b>与常见问题解答</li></ul></h3><h3>重要提醒：请勿中途退赛<ul><li>中途退赛会影响团队进度与整体项目产出。</li><li>请提前规划好未来 1 个月的时间，保证充足精力投入。</li><li>无特殊情况随意退赛，将<b>无法参与后续飞书任何赛事 / 训练营类项目</b>。</li></ul></h3><hr/><h1 seq=\"auto\" seq-level=\"auto\">飞书技术嘉宾主题分享——《飞书 AI-friendly 分享》（嘉宾：黄梦轩）</h1><p>在进入实战赛道之前，我们先用一段 <b>技术嘉宾分享</b>，帮助大家建立对“飞书为什么是 AI-friendly”的整体认知：</p><ul><li>AI 时代做一个真正有价值的应用，不只是“多一个能回答问题的入口”，更关键是 <b>能调用平台能力、参与协作、形成闭环</b>。</li><li>在飞书的协作与业务场景里，哪些能力最适合与 Agent / MCP / 工具调用结合？</li><li>从“想法”到“可运行 demo”，如何更高效地推进？</li></ul><p><b>嘉宾介绍｜黄梦轩</b></p><ul><li>飞书研发工程师（Lark App-Core Services）</li><li>大三开始在飞书实习，校招加入飞书至今约 6 年</li><li>当前主要负责：飞书面向 AI 的开放性与友好能力建设（包含飞书 MCP / CLI 等方向的实践）</li></ul><p><b>嘉宾 PPT（演示入口）</b></p><ul><li>嘉宾 PPT： https://bytedance.larkoffice.com/wiki/SuPrw0FRhi1Ctmkh2IUcA1fxnQc</li></ul><p></p><hr/><h1 seq=\"auto\" seq-level=\"auto\">赛事资源 &amp; 开发环境配置</h1><table><colgroup><col/><col/><col/></colgroup><tbody><tr><td><p><b>我们提供哪些</b><b>开发资源/</b><b>统一</b><b>环境</b><b>？</b></p></td><td><p><b>需要同学侧做什么？</b></p></td><td><p><b>相关文档链接</b></p></td></tr><tr><td><p><b>大模型 Token</b><b> </b></p><blockquote><p>版本：Doubao 1.6</p><p>额度：单人 TPM 1w</p></blockquote></td><td><p>1、自助认领 EP</p><p>2、输入 EP、模型 ID（Doubao 1.6）以及 API Key 后，完成 Trae IDE 模型配置（当天内完成）。</p><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"KXIlb0ct7o65mJxDChXcKmXCnad\"/></td><td><p><b><em>认领入口：</em></b><b><em><cite doc-id=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" file-type=\"sheets\" title=\"EP自助认领—for Trae Idea配置\" token=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" type=\"doc\"></cite></em></b></p><p><cite doc-id=\"KlW9dIlyzo17ccxl26Gc9TGsnig\" file-type=\"docx\" title=\"Trae IDE 模型配置指南\" token=\"KlW9dIlyzo17ccxl26Gc9TGsnig\" type=\"doc\"></cite></p><p></p></td></tr><tr><td rowspan=\"2\"><p><b>丰富</b><b>的飞书 AI 资源：</b></p><p>1、飞书 API 调用额度（不限）</p><p></p><p>2、飞书妙搭（AI Coding 工具）</p><blockquote><p>官网链接：<a href=\"http://miaoda.feishu.cn\">miaoda.feishu.cn</a></p><p>介绍文档：<cite doc-id=\"HDpQwwP91i9xvjk9apkciZ9Sn0d\" file-type=\"docx\" title=\"欢迎使用「飞书妙搭」\" token=\"VvrtdIgI3oCcWcxCAPpcAcRPnKd\" type=\"doc\"></cite></p></blockquote><p>3、飞书 OpenClaw 一键部署</p><blockquote><p>官网链接：<a href=\"http://openclaw.feishu.cn\">openclaw.feishu.cn</a></p><p>介绍文档：<cite doc-id=\"YSWlw0JzwigpYOk4ujFcJF9qnfe\" file-type=\"docx\" title=\"飞书｜全网最简单的 OpenClaw 真一键部署来了！｜限时免费，含高级玩法\" token=\"HR0odwYU7oHwwgxBFjvc5H5xnab\" type=\"doc\"></cite></p></blockquote><p></p></td><td rowspan=\"2\"><p>加入飞书商业版租户后即可免费享用；各团队根据情况自由取需。</p><p>过程中如果额度不够，可联系项目组同学。</p><p></p></td><td rowspan=\"2\"><p></p></td></tr><tr></tr><tr><td><p><b>GitHub 代码仓库</b></p><p></p></td><td><p>1、各组为一个单位，创建自己的 GitHub 代码仓库（当天内完成）。</p><p>2、<b>Github 的项目可见性需要设置成public。</b></p><p>3、将仓库链接填写到信息收集问卷中。</p><blockquote><p>问卷链接🔗：https://bytedance.larkoffice.com/share/base/form/shrcnzEu4HIkSVRpcU1EF0ZH8JC</p></blockquote><p></p></td><td><p></p><p></p></td></tr><tr><td><p><b>个人阶段成果小结</b></p><p></p></td><td><p><b>1</b><b>、</b><b>创建个人阶段成果小结</b></p><ul><li>使用「个人阶段成果小结模板」创建个人阶段成果小结链接（记得开外部阅读权限）</li><li>命名格式：<code>姓名-个人阶段成果小结</code></li><li>把个人阶段成果小结链接填写到信息收集问卷中。 </li></ul><blockquote><p>问卷链接🔗：https://bytedance.larkoffice.com/share/base/form/shrcnzEu4HIkSVRpcU1EF0ZH8JC</p></blockquote><p><b>2、填写时间</b></p><ul><li>需要大家正式开营后，每三天完成一次个人阶段成果小结内容填写。</li><li>提交时间：当天 12 点前完成</li></ul><p><b>3</b><b>、</b><b>填写方式</b></p><ul><li>在对应时间周期的子标题下，更新当周内容，总计五期</li><li>请务必认真、完整填写</li></ul><p></p></td><td><p><cite doc-id=\"ZD3xwFgoYiZJD0kYSU4cn4OCnEe\" file-type=\"docx\" title=\"🚀飞书AI校园大赛-个人周报模版\" token=\"F9BFd6jbeomt0yxvxJdc1eEGnFg\" type=\"doc\"></cite></p><p></p><p></p></td></tr></tbody></table><hr/><h1 seq=\"auto\" seq-level=\"auto\">常见问题答疑：</h1><p><b>问题 1：</b><b>大赛最终的</b><b>校招</b><b>实习/</b><b>校招正式</b><b>offer 机会是怎么评估的？</b></p><p>回答：这个问题确实是大家比较关心提及次数较多的，先给大家吃个定心丸：Offer 机会<b>不与决赛排名强绑定</b>。而是综合评估大家在整个赛事过程中的表现、最终作品成果，每周提交的<cite doc-id=\"ZD3xwFgoYiZJD0kYSU4cn4OCnEe\" file-type=\"docx\" title=\"🚀飞书AI校园大赛-个人阶段成果小结模版\" token=\"F9BFd6jbeomt0yxvxJdc1eEGnFg\" type=\"doc\"></cite>，结合赛事过程中由飞书专家成员组成的-观察员的综合评价，只要足够优秀，就能获得实习/校招正式offer  机会～</p><p></p><p><b>问题 2</b><b> ：如果有实习机会，会是产品岗位还是技术岗位呀？</b></p><p>回答：本次大赛全程会有观察员跟进大家的表现并提供指导。后续若获得实习机会，具体岗位方向（技术/产品/设计等），我们会结合你在赛事中的<b>实际表现、个人优势与对应岗位需求</b>综合确定，目前暂无法提前锁定。建议大家先在赛事里全力投入、充分展示自己就好～如果自己有明确的职位方向诉求，也可以在过程中与观察员、跟进的HR 同学进行随时的反馈，我们将为同学做好信息登记。</p><p></p><p><b>问题 3：请问决赛的时间有确定吗，会改动吗？</b></p><p>回答：决赛时间目前定在 5 月 14 日（星期四），形式是线上路演。如果后续有任何特殊情况需要调整，我们一定会第一时间提前在赛事群里通知大家，绝对给足大家准备时间，不会临时搞突袭，大家放心；</p><p></p><ul><li>大家可以把问题发在群聊/聊天区，我们选取部分问题进行线上答疑</li><li>若还有问题因为时间问题无法回答大家，也欢迎你联系赛事跟进工作人员（即初赛通知邮件里的HR 同学），我们将尽快线上回复大家</li></ul><p></p><h1 seq=\"auto\" seq-level=\"auto\">抽奖环节</h1><p>🎁 开赛福利抽奖来啦！</p><p>本次我们为同学们准备了三款超实用的字节文创周边，快把好运刷起来！</p><p>请直播间的同学们，在评论区统一刷出我们的赛事名称（需要确保文字无误，否则将视为无效弹幕，顺位至第二位截图的同学）：飞书 AI 校园挑战赛</p><p>稍后我会倒数3个数，数到1的时候，主持人会现场随机截屏抽奖，中奖的同学记得第一时间联系赛事工作人员<cite type=\"user\" user-id=\"ou_7db220c3a676ba59415fabff4af3d558\"></cite>核验身份，并把邮寄信息发给 <cite type=\"user\" user-id=\"ou_7db220c3a676ba59415fabff4af3d558\"></cite>，奖品会统一采购寄送到你手上！</p><table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><p><b>抽奖数量</b></p></td><td><p><b>礼品名称</b></p></td><td><p><b>礼品图</b></p></td><td><p><b>礼品亮点</b></p></td></tr><tr><td><p>1份</p><p></p></td><td><p>抖音文创 OTM 系列带电脑隔层轻量双肩包</p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"ZYrFbxjNJo6PxJxL4W9cOoWQn2f\"/><p></p><p></p></td><td><p>内置电脑隔层，大容量超能装，上课 / 实习 / 通勤一包搞定</p><p></p></td></tr><tr><td><p>1 份</p></td><td><p>抖音文创「OTM」系列-自带插头自带线充电宝</p><p></p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"HBfYb2yyVoo0XBx8YZGcsKeLn0B\"/><p></p></td><td><p>自带插头与充电线，即插即充，便携实用</p></td></tr><tr><td><p>1 份</p></td><td><p>汽水音乐 复古磁带造型充电宝（自带双线快充移动电源）</p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"SiJbbmKCMoT0N7xvoDWck2uXnqc\"/><p></p></td><td><p>复古磁带造型，自带双线快充，颜值与实用性兼备</p></td></tr></tbody></table><p></p>",
+            "source_url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+            "source_meta": {
+              "document_id": "Ak9dd3uUbozl3SxdhvncFEZenOf",
+              "revision_id": 1310,
+              "doc_format": "xml",
+              "detail": "simple",
+              "scope": "full",
+              "content_length": 9230,
+              "content_excerpt": "飞书 AI 校园挑战赛-线上开赛仪式 开赛仪式流程总览 飞书介绍（6–8min） ：飞书是什么？飞书 AI 相关产品介绍 赛事介绍（6–8min） ：参赛收获、赛程安排、赛事支持 技术嘉宾分享（约 25min） ：《飞书 AI-friendly 分享》飞书技术专家@黄同学 资源与环境配置（10min） ：资源领取方式、开发环境配置、个人阶段成果小结/提交流程 Q&A（5–10min） ：集中答疑 + 会后渠道说明 飞书： 字节跳动旗下 AI 工作平台 飞书是 AI 时代先进生产力平台 飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。 从互联网、高科技、消费零售，到制造、金融、医疗健康等，各行各业先进企业都在选择飞书，与飞书共创行业最佳实践。先进团队，先用飞书。 🚀 飞书，让每个人都拥有自己的 AI 智能伙伴 在 AI 时代，我们正在重新定义「办公」。以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇 🧠AI 原生体验，飞书已就绪 1. 飞书知识问答 —— 企业的\"AI 大脑..."
+            },
+            "updated_at": "1310"
+          }
+        ],
+        "attachments": [
+          {
+            "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+            "url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+            "resource_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+            "resource_type": "feishu_document",
+            "updated_at": "1310"
+          }
+        ],
+        "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c&originalTime=0&startTime=1777456800",
+        "workflow_type": "pre_meeting_brief",
+        "idempotency_key": "pre_meeting_brief:b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0"
+      },
+      "actor": "",
+      "source": "pre_meeting_live_test",
+      "event_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+      "trace_id": "ef7936994aba",
+      "created_at": 1777454507
+    },
+    "idempotency_key": "pre_meeting_brief:b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+    "due_in_seconds": 0,
+    "reason": "会议进入会前触发窗口，准备生成会前背景卡。"
+  },
+  "pre_meeting_artifacts": {
+    "workflow_input": {
+      "meeting_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+      "calendar_event_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+      "project_id": "meetflow",
+      "meeting_title": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+      "meeting_description": "",
+      "start_time": "1777456800",
+      "end_time": "1777460400",
+      "timezone": "",
+      "organizer": "",
+      "participants": [
+        {
+          "attendee_id": "resource_7034860021963931649",
+          "display_name": "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)",
+          "attendee_type": "resource",
+          "rsvp_status": "accept",
+          "is_optional": false,
+          "is_organizer": false
+        }
+      ],
+      "attachments": [
+        {
+          "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+          "url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+          "resource_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+          "resource_type": "feishu_document",
+          "updated_at": "1310"
+        }
+      ],
+      "related_resources": [
+        {
+          "resource_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+          "resource_type": "feishu_document",
+          "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+          "content": "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b>：参赛收获、赛程安排、赛事支持</li><li><b>技术嘉宾分享（约 25min）</b>：《飞书 AI-friendly 分享》飞书技术专家@黄同学</li><li><b>资源与环境配置（10min）</b>：资源领取方式、开发环境配置、个人阶段成果小结/提交流程</li><li><b>Q&amp;A（5–10min）</b>：集中答疑 + 会后渠道说明</li></ol><p></p><h1 seq=\"auto\" seq-level=\"auto\">飞书：<b>字节跳动旗下 AI 工作平台</b></h1><hr/><p><b>飞书是 AI 时代先进生产力平台</b><blockquote><p><b>飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。</b></p><p><b>从互联网、高科技、消费零售，到制造、金融、医疗健康等，各行各业先进企业都在选择飞书，与飞书共创行业最佳实践。先进团队，先用飞书。</b></p></blockquote><p></p></p><hr/><synced_reference src-block-id=\"LYvud97assbkLGbyzMWc21Aznuc\" src-token=\"J8xydMIWzo8Sbnx7y4BcorQenAd\"></synced_reference><h1>🚀 飞书，让每个人都拥有自己的 AI 智能伙伴</h1><callout emoji=\"💭\"><p>在 AI 时代，我们正在重新定义「办公」。以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇</p></callout><p>🧠AI 原生体验，飞书已就绪</p><p><b>1. 飞书知识问答</b> —— 企业的\"AI 大脑\"，一问即答👉 <a href=\"https://bytedance.larkoffice.com/wiki/XCcvwSFP8iwhbTkv8bbcnlqRnfd\">了解详情</a></p><p><b>2. 飞书智能会议纪要 全新升级</b> —— 纪要图文并茂，图表画龙点睛👉 <a href=\"https://bytedance.larkoffice.com/wiki/TBY3w8bGgigKUmkFJh7cmYNjnag\">了解详情</a></p><p><b>3. 多维表格 · AI 系统搭建</b> —— 懂业务、会执行、能落地，为每个想法搭好一套系统👉 <a href=\"https://larkcommunity.feishu.cn/wiki/QdcrwTZdti8ywskiJSvcOUgynmg\">了解详情</a></p><hr/><p>🛠️ 飞书开发套件 —— 从\"用 AI\"到\"造 AI\"</p><p>飞书开发套件正式发布！包含三大核心产品，总览请看 👉 <a href=\"https://bytedance.larkoffice.com/wiki/BNqYwTfvXiE6IQkVYiVcrXMDn2S\">飞书开发套件详情</a></p><p><b>4. 飞书 aily</b> —— 每个人的智能伙伴，好上手、超能干、更放心👉 <a href=\"https://aily.feishu.cn/universal/landing?from=feishu_home_nav\">立即访问</a> 或在飞书搜索「aily」</p><p><b>5. 飞书 aily 专业版</b> —— 复杂任务的专业伙伴，创作可视化，更强更可控👉 <a href=\"https://aily.feishu.cn/\">立即访问</a></p><p><b>6. 飞书妙搭</b> —— 懂开发的智能伙伴，业务系统\"当天想、当天用\"👉 <a href=\"https://miaoda.feishu.cn/\">立即访问</a> 或在 aily 专业版中点击「开发应用」</p><hr/><p>💻 工程师最爱 · OpenClaw 插件</p><p><b>7. OpenClaw 飞书官方插件</b> —— 工程师首选，一键安装、免配置、全功能📘 <a href=\"https://bytedance.larkoffice.com/docx/MFK7dDFLFoVlOGxWCv5cTXKmnMh?from=from_copylink\">插件使用指南</a> ｜ 🐙 <a href=\"http://github.com/larksuite/openclaw-lark\">GitHub 开源</a> ｜ 🚀 <a href=\"https://openclaw.feishu.cn/\">一键部署</a></p><hr/><p>🌍 全球化团队专属</p><p><b>8. AnyGen × Lark</b> —— 全球化办公无缝衔接👉 <a href=\"https://www.anygen.io/home\">非中国区用户点击访问</a></p><hr/><callout emoji=\"⭐\"><p>✨ <b>同学们，这就是你们即将使用的平台。不只是\"工具\"，更是你们在 AI 时代的创造力舞台——开赛见真章！</b> </p></callout><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"Lh03beMqZo9aiqxOj91cU6Sjnge\"/><hr/><h1 seq=\"auto\" seq-level=\"auto\">「飞书 AI 校园挑战赛」-赛事介绍</h1><ul><li>飞书打造的 AI 实战挑战赛，面向全国高校学生开放，立足真实 AI 办公业务场景，搭建实战平台。</li><li>大赛聚焦 AI 的场景化应用落地，设置多元赛道：既深耕飞书生态内的办公协同、业务提效实践，也鼓励面向全域场景的 AI 创新探索。</li><li>在 AI 能力快速迭代、产业深度融合的背景下，本次挑战赛旨在助力参赛者完成从创意构想到项目落地的全流程实践，打造可运行、可验证的 AI 实战成果，让 AI 切实解决真实问题、创造可持续的产业价值。</li></ul><hr/><h2 seq=\"auto\" seq-level=\"auto\">参加本次大赛，你能获得什么？<p>同学：<ul><li>优秀选手可获得校招实习 / 校招正式 Offer 机会</li><li>赛事全程提供免费开发资源（火山方舟 Coding 豪华套餐 + 飞书 API 无限调用额度）</li><li>获奖可瓜分 8 万元总现金奖池，赢取字节 AI 全家桶会员 （一等奖可获得 2 万元现金；字节 Al 全家桶涵盖火山引擎 ArkClaw、即梦 AI、剪映、扣子、飞书 AI、即创，全场景 智能能力一站集齐）</li></ul></p></h2><hr/><h2 seq=\"auto\" seq-level=\"auto\">赛事整体的安排是什么样的？</h2><ul><li><b>飞书 AI 校园挑战赛时间： 4 月 22 日 -5 月 14 日</b></li></ul><readonly-block type=\"isv\"></readonly-block><p>*以上时间为预计时间，若有调整，项目组会及时与同学们在飞书赛事（初赛）总群同步。</p><hr/><h2 seq=\"auto\" seq-level=\"auto\">你需要做什么 &amp; 我们为你提供什么支持</h2><h3>你需要做到：<ul><li>全情投入，把赛事当作<b>真实项目实践</b>，不敷衍、不应付。</li><li>主动学习、动手实践，高标准完成课题开发。</li><li>积极参与群内讨论、直播分享、个人阶段成果小结填写，充分展示自己的能力。</li></ul></h3><h3>我们为你提供：<ul><li>技术专家全程担任项目观察员，群内实时答疑、初赛进度观察、复赛中期验收</li><li>专业 HR 全程陪伴：为同学提供字节跳动 &amp; 飞书校招投递咨询，覆盖<b>投递/流程答疑、关键节点提醒</b>与常见问题解答</li></ul></h3><h3>重要提醒：请勿中途退赛<ul><li>中途退赛会影响团队进度与整体项目产出。</li><li>请提前规划好未来 1 个月的时间，保证充足精力投入。</li><li>无特殊情况随意退赛，将<b>无法参与后续飞书任何赛事 / 训练营类项目</b>。</li></ul></h3><hr/><h1 seq=\"auto\" seq-level=\"auto\">飞书技术嘉宾主题分享——《飞书 AI-friendly 分享》（嘉宾：黄梦轩）</h1><p>在进入实战赛道之前，我们先用一段 <b>技术嘉宾分享</b>，帮助大家建立对“飞书为什么是 AI-friendly”的整体认知：</p><ul><li>AI 时代做一个真正有价值的应用，不只是“多一个能回答问题的入口”，更关键是 <b>能调用平台能力、参与协作、形成闭环</b>。</li><li>在飞书的协作与业务场景里，哪些能力最适合与 Agent / MCP / 工具调用结合？</li><li>从“想法”到“可运行 demo”，如何更高效地推进？</li></ul><p><b>嘉宾介绍｜黄梦轩</b></p><ul><li>飞书研发工程师（Lark App-Core Services）</li><li>大三开始在飞书实习，校招加入飞书至今约 6 年</li><li>当前主要负责：飞书面向 AI 的开放性与友好能力建设（包含飞书 MCP / CLI 等方向的实践）</li></ul><p><b>嘉宾 PPT（演示入口）</b></p><ul><li>嘉宾 PPT： https://bytedance.larkoffice.com/wiki/SuPrw0FRhi1Ctmkh2IUcA1fxnQc</li></ul><p></p><hr/><h1 seq=\"auto\" seq-level=\"auto\">赛事资源 &amp; 开发环境配置</h1><table><colgroup><col/><col/><col/></colgroup><tbody><tr><td><p><b>我们提供哪些</b><b>开发资源/</b><b>统一</b><b>环境</b><b>？</b></p></td><td><p><b>需要同学侧做什么？</b></p></td><td><p><b>相关文档链接</b></p></td></tr><tr><td><p><b>大模型 Token</b><b> </b></p><blockquote><p>版本：Doubao 1.6</p><p>额度：单人 TPM 1w</p></blockquote></td><td><p>1、自助认领 EP</p><p>2、输入 EP、模型 ID（Doubao 1.6）以及 API Key 后，完成 Trae IDE 模型配置（当天内完成）。</p><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"KXIlb0ct7o65mJxDChXcKmXCnad\"/></td><td><p><b><em>认领入口：</em></b><b><em><cite doc-id=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" file-type=\"sheets\" title=\"EP自助认领—for Trae Idea配置\" token=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" type=\"doc\"></cite></em></b></p><p><cite doc-id=\"KlW9dIlyzo17ccxl26Gc9TGsnig\" file-type=\"docx\" title=\"Trae IDE 模型配置指南\" token=\"KlW9dIlyzo17ccxl26Gc9TGsnig\" type=\"doc\"></cite></p><p></p></td></tr><tr><td rowspan=\"2\"><p><b>丰富</b><b>的飞书 AI 资源：</b></p><p>1、飞书 API 调用额度（不限）</p><p></p><p>2、飞书妙搭（AI Coding 工具）</p><blockquote><p>官网链接：<a href=\"http://miaoda.feishu.cn\">miaoda.feishu.cn</a></p><p>介绍文档：<cite doc-id=\"HDpQwwP91i9xvjk9apkciZ9Sn0d\" file-type=\"docx\" title=\"欢迎使用「飞书妙搭」\" token=\"VvrtdIgI3oCcWcxCAPpcAcRPnKd\" type=\"doc\"></cite></p></blockquote><p>3、飞书 OpenClaw 一键部署</p><blockquote><p>官网链接：<a href=\"http://openclaw.feishu.cn\">openclaw.feishu.cn</a></p><p>介绍文档：<cite doc-id=\"YSWlw0JzwigpYOk4ujFcJF9qnfe\" file-type=\"docx\" title=\"飞书｜全网最简单的 OpenClaw 真一键部署来了！｜限时免费，含高级玩法\" token=\"HR0odwYU7oHwwgxBFjvc5H5xnab\" type=\"doc\"></cite></p></blockquote><p></p></td><td rowspan=\"2\"><p>加入飞书商业版租户后即可免费享用；各团队根据情况自由取需。</p><p>过程中如果额度不够，可联系项目组同学。</p><p></p></td><td rowspan=\"2\"><p></p></td></tr><tr></tr><tr><td><p><b>GitHub 代码仓库</b></p><p></p></td><td><p>1、各组为一个单位，创建自己的 GitHub 代码仓库（当天内完成）。</p><p>2、<b>Github 的项目可见性需要设置成public。</b></p><p>3、将仓库链接填写到信息收集问卷中。</p><blockquote><p>问卷链接🔗：https://bytedance.larkoffice.com/share/base/form/shrcnzEu4HIkSVRpcU1EF0ZH8JC</p></blockquote><p></p></td><td><p></p><p></p></td></tr><tr><td><p><b>个人阶段成果小结</b></p><p></p></td><td><p><b>1</b><b>、</b><b>创建个人阶段成果小结</b></p><ul><li>使用「个人阶段成果小结模板」创建个人阶段成果小结链接（记得开外部阅读权限）</li><li>命名格式：<code>姓名-个人阶段成果小结</code></li><li>把个人阶段成果小结链接填写到信息收集问卷中。 </li></ul><blockquote><p>问卷链接🔗：https://bytedance.larkoffice.com/share/base/form/shrcnzEu4HIkSVRpcU1EF0ZH8JC</p></blockquote><p><b>2、填写时间</b></p><ul><li>需要大家正式开营后，每三天完成一次个人阶段成果小结内容填写。</li><li>提交时间：当天 12 点前完成</li></ul><p><b>3</b><b>、</b><b>填写方式</b></p><ul><li>在对应时间周期的子标题下，更新当周内容，总计五期</li><li>请务必认真、完整填写</li></ul><p></p></td><td><p><cite doc-id=\"ZD3xwFgoYiZJD0kYSU4cn4OCnEe\" file-type=\"docx\" title=\"🚀飞书AI校园大赛-个人周报模版\" token=\"F9BFd6jbeomt0yxvxJdc1eEGnFg\" type=\"doc\"></cite></p><p></p><p></p></td></tr></tbody></table><hr/><h1 seq=\"auto\" seq-level=\"auto\">常见问题答疑：</h1><p><b>问题 1：</b><b>大赛最终的</b><b>校招</b><b>实习/</b><b>校招正式</b><b>offer 机会是怎么评估的？</b></p><p>回答：这个问题确实是大家比较关心提及次数较多的，先给大家吃个定心丸：Offer 机会<b>不与决赛排名强绑定</b>。而是综合评估大家在整个赛事过程中的表现、最终作品成果，每周提交的<cite doc-id=\"ZD3xwFgoYiZJD0kYSU4cn4OCnEe\" file-type=\"docx\" title=\"🚀飞书AI校园大赛-个人阶段成果小结模版\" token=\"F9BFd6jbeomt0yxvxJdc1eEGnFg\" type=\"doc\"></cite>，结合赛事过程中由飞书专家成员组成的-观察员的综合评价，只要足够优秀，就能获得实习/校招正式offer  机会～</p><p></p><p><b>问题 2</b><b> ：如果有实习机会，会是产品岗位还是技术岗位呀？</b></p><p>回答：本次大赛全程会有观察员跟进大家的表现并提供指导。后续若获得实习机会，具体岗位方向（技术/产品/设计等），我们会结合你在赛事中的<b>实际表现、个人优势与对应岗位需求</b>综合确定，目前暂无法提前锁定。建议大家先在赛事里全力投入、充分展示自己就好～如果自己有明确的职位方向诉求，也可以在过程中与观察员、跟进的HR 同学进行随时的反馈，我们将为同学做好信息登记。</p><p></p><p><b>问题 3：请问决赛的时间有确定吗，会改动吗？</b></p><p>回答：决赛时间目前定在 5 月 14 日（星期四），形式是线上路演。如果后续有任何特殊情况需要调整，我们一定会第一时间提前在赛事群里通知大家，绝对给足大家准备时间，不会临时搞突袭，大家放心；</p><p></p><ul><li>大家可以把问题发在群聊/聊天区，我们选取部分问题进行线上答疑</li><li>若还有问题因为时间问题无法回答大家，也欢迎你联系赛事跟进工作人员（即初赛通知邮件里的HR 同学），我们将尽快线上回复大家</li></ul><p></p><h1 seq=\"auto\" seq-level=\"auto\">抽奖环节</h1><p>🎁 开赛福利抽奖来啦！</p><p>本次我们为同学们准备了三款超实用的字节文创周边，快把好运刷起来！</p><p>请直播间的同学们，在评论区统一刷出我们的赛事名称（需要确保文字无误，否则将视为无效弹幕，顺位至第二位截图的同学）：飞书 AI 校园挑战赛</p><p>稍后我会倒数3个数，数到1的时候，主持人会现场随机截屏抽奖，中奖的同学记得第一时间联系赛事工作人员<cite type=\"user\" user-id=\"ou_7db220c3a676ba59415fabff4af3d558\"></cite>核验身份，并把邮寄信息发给 <cite type=\"user\" user-id=\"ou_7db220c3a676ba59415fabff4af3d558\"></cite>，奖品会统一采购寄送到你手上！</p><table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><p><b>抽奖数量</b></p></td><td><p><b>礼品名称</b></p></td><td><p><b>礼品图</b></p></td><td><p><b>礼品亮点</b></p></td></tr><tr><td><p>1份</p><p></p></td><td><p>抖音文创 OTM 系列带电脑隔层轻量双肩包</p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"ZYrFbxjNJo6PxJxL4W9cOoWQn2f\"/><p></p><p></p></td><td><p>内置电脑隔层，大容量超能装，上课 / 实习 / 通勤一包搞定</p><p></p></td></tr><tr><td><p>1 份</p></td><td><p>抖音文创「OTM」系列-自带插头自带线充电宝</p><p></p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"HBfYb2yyVoo0XBx8YZGcsKeLn0B\"/><p></p></td><td><p>自带插头与充电线，即插即充，便携实用</p></td></tr><tr><td><p>1 份</p></td><td><p>汽水音乐 复古磁带造型充电宝（自带双线快充移动电源）</p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"SiJbbmKCMoT0N7xvoDWck2uXnqc\"/><p></p></td><td><p>复古磁带造型，自带双线快充，颜值与实用性兼备</p></td></tr></tbody></table><p></p>",
+          "source_url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+          "source_meta": {
+            "document_id": "Ak9dd3uUbozl3SxdhvncFEZenOf",
+            "revision_id": 1310,
+            "doc_format": "xml",
+            "detail": "simple",
+            "scope": "full",
+            "content_length": 9230,
+            "content_excerpt": "飞书 AI 校园挑战赛-线上开赛仪式 开赛仪式流程总览 飞书介绍（6–8min） ：飞书是什么？飞书 AI 相关产品介绍 赛事介绍（6–8min） ：参赛收获、赛程安排、赛事支持 技术嘉宾分享（约 25min） ：《飞书 AI-friendly 分享》飞书技术专家@黄同学 资源与环境配置（10min） ：资源领取方式、开发环境配置、个人阶段成果小结/提交流程 Q&A（5–10min） ：集中答疑 + 会后渠道说明 飞书： 字节跳动旗下 AI 工作平台 飞书是 AI 时代先进生产力平台 飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。 从互联网、高科技、消费零售，到制造、金融、医疗健康等，各行各业先进企业都在选择飞书，与飞书共创行业最佳实践。先进团队，先用飞书。 🚀 飞书，让每个人都拥有自己的 AI 智能伙伴 在 AI 时代，我们正在重新定义「办公」。以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇 🧠AI 原生体验，飞书已就绪 1. 飞书知识问答 —— 企业的\"AI 大脑..."
+          },
+          "updated_at": "1310"
+        }
+      ],
+      "memory_snapshot": {
+        "project_id": "meetflow",
+        "summary": "这是 T2.12 demo 写入的项目记忆。",
+        "last_focus": "构建 Agent Runtime 的上下文层。"
+      },
+      "raw_payload": {
+        "event_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+        "calendar_event_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+        "meeting_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+        "project_id": "meetflow",
+        "summary": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+        "description": "",
+        "start_time": "1777456800",
+        "end_time": "1777460400",
+        "participants": [
+          {
+            "attendee_id": "resource_7034860021963931649",
+            "display_name": "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)",
+            "attendee_type": "resource",
+            "rsvp_status": "accept",
+            "is_optional": false,
+            "is_organizer": false
+          }
+        ],
+        "attendees": [
+          {
+            "attendee_id": "resource_7034860021963931649",
+            "display_name": "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)",
+            "attendee_type": "resource",
+            "rsvp_status": "accept",
+            "is_optional": false,
+            "is_organizer": false
+          }
+        ],
+        "related_resources": [
+          {
+            "resource_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+            "resource_type": "feishu_document",
+            "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+            "content": "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b>：参赛收获、赛程安排、赛事支持</li><li><b>技术嘉宾分享（约 25min）</b>：《飞书 AI-friendly 分享》飞书技术专家@黄同学</li><li><b>资源与环境配置（10min）</b>：资源领取方式、开发环境配置、个人阶段成果小结/提交流程</li><li><b>Q&amp;A（5–10min）</b>：集中答疑 + 会后渠道说明</li></ol><p></p><h1 seq=\"auto\" seq-level=\"auto\">飞书：<b>字节跳动旗下 AI 工作平台</b></h1><hr/><p><b>飞书是 AI 时代先进生产力平台</b><blockquote><p><b>飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。</b></p><p><b>从互联网、高科技、消费零售，到制造、金融、医疗健康等，各行各业先进企业都在选择飞书，与飞书共创行业最佳实践。先进团队，先用飞书。</b></p></blockquote><p></p></p><hr/><synced_reference src-block-id=\"LYvud97assbkLGbyzMWc21Aznuc\" src-token=\"J8xydMIWzo8Sbnx7y4BcorQenAd\"></synced_reference><h1>🚀 飞书，让每个人都拥有自己的 AI 智能伙伴</h1><callout emoji=\"💭\"><p>在 AI 时代，我们正在重新定义「办公」。以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇</p></callout><p>🧠AI 原生体验，飞书已就绪</p><p><b>1. 飞书知识问答</b> —— 企业的\"AI 大脑\"，一问即答👉 <a href=\"https://bytedance.larkoffice.com/wiki/XCcvwSFP8iwhbTkv8bbcnlqRnfd\">了解详情</a></p><p><b>2. 飞书智能会议纪要 全新升级</b> —— 纪要图文并茂，图表画龙点睛👉 <a href=\"https://bytedance.larkoffice.com/wiki/TBY3w8bGgigKUmkFJh7cmYNjnag\">了解详情</a></p><p><b>3. 多维表格 · AI 系统搭建</b> —— 懂业务、会执行、能落地，为每个想法搭好一套系统👉 <a href=\"https://larkcommunity.feishu.cn/wiki/QdcrwTZdti8ywskiJSvcOUgynmg\">了解详情</a></p><hr/><p>🛠️ 飞书开发套件 —— 从\"用 AI\"到\"造 AI\"</p><p>飞书开发套件正式发布！包含三大核心产品，总览请看 👉 <a href=\"https://bytedance.larkoffice.com/wiki/BNqYwTfvXiE6IQkVYiVcrXMDn2S\">飞书开发套件详情</a></p><p><b>4. 飞书 aily</b> —— 每个人的智能伙伴，好上手、超能干、更放心👉 <a href=\"https://aily.feishu.cn/universal/landing?from=feishu_home_nav\">立即访问</a> 或在飞书搜索「aily」</p><p><b>5. 飞书 aily 专业版</b> —— 复杂任务的专业伙伴，创作可视化，更强更可控👉 <a href=\"https://aily.feishu.cn/\">立即访问</a></p><p><b>6. 飞书妙搭</b> —— 懂开发的智能伙伴，业务系统\"当天想、当天用\"👉 <a href=\"https://miaoda.feishu.cn/\">立即访问</a> 或在 aily 专业版中点击「开发应用」</p><hr/><p>💻 工程师最爱 · OpenClaw 插件</p><p><b>7. OpenClaw 飞书官方插件</b> —— 工程师首选，一键安装、免配置、全功能📘 <a href=\"https://bytedance.larkoffice.com/docx/MFK7dDFLFoVlOGxWCv5cTXKmnMh?from=from_copylink\">插件使用指南</a> ｜ 🐙 <a href=\"http://github.com/larksuite/openclaw-lark\">GitHub 开源</a> ｜ 🚀 <a href=\"https://openclaw.feishu.cn/\">一键部署</a></p><hr/><p>🌍 全球化团队专属</p><p><b>8. AnyGen × Lark</b> —— 全球化办公无缝衔接👉 <a href=\"https://www.anygen.io/home\">非中国区用户点击访问</a></p><hr/><callout emoji=\"⭐\"><p>✨ <b>同学们，这就是你们即将使用的平台。不只是\"工具\"，更是你们在 AI 时代的创造力舞台——开赛见真章！</b> </p></callout><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"Lh03beMqZo9aiqxOj91cU6Sjnge\"/><hr/><h1 seq=\"auto\" seq-level=\"auto\">「飞书 AI 校园挑战赛」-赛事介绍</h1><ul><li>飞书打造的 AI 实战挑战赛，面向全国高校学生开放，立足真实 AI 办公业务场景，搭建实战平台。</li><li>大赛聚焦 AI 的场景化应用落地，设置多元赛道：既深耕飞书生态内的办公协同、业务提效实践，也鼓励面向全域场景的 AI 创新探索。</li><li>在 AI 能力快速迭代、产业深度融合的背景下，本次挑战赛旨在助力参赛者完成从创意构想到项目落地的全流程实践，打造可运行、可验证的 AI 实战成果，让 AI 切实解决真实问题、创造可持续的产业价值。</li></ul><hr/><h2 seq=\"auto\" seq-level=\"auto\">参加本次大赛，你能获得什么？<p>同学：<ul><li>优秀选手可获得校招实习 / 校招正式 Offer 机会</li><li>赛事全程提供免费开发资源（火山方舟 Coding 豪华套餐 + 飞书 API 无限调用额度）</li><li>获奖可瓜分 8 万元总现金奖池，赢取字节 AI 全家桶会员 （一等奖可获得 2 万元现金；字节 Al 全家桶涵盖火山引擎 ArkClaw、即梦 AI、剪映、扣子、飞书 AI、即创，全场景 智能能力一站集齐）</li></ul></p></h2><hr/><h2 seq=\"auto\" seq-level=\"auto\">赛事整体的安排是什么样的？</h2><ul><li><b>飞书 AI 校园挑战赛时间： 4 月 22 日 -5 月 14 日</b></li></ul><readonly-block type=\"isv\"></readonly-block><p>*以上时间为预计时间，若有调整，项目组会及时与同学们在飞书赛事（初赛）总群同步。</p><hr/><h2 seq=\"auto\" seq-level=\"auto\">你需要做什么 &amp; 我们为你提供什么支持</h2><h3>你需要做到：<ul><li>全情投入，把赛事当作<b>真实项目实践</b>，不敷衍、不应付。</li><li>主动学习、动手实践，高标准完成课题开发。</li><li>积极参与群内讨论、直播分享、个人阶段成果小结填写，充分展示自己的能力。</li></ul></h3><h3>我们为你提供：<ul><li>技术专家全程担任项目观察员，群内实时答疑、初赛进度观察、复赛中期验收</li><li>专业 HR 全程陪伴：为同学提供字节跳动 &amp; 飞书校招投递咨询，覆盖<b>投递/流程答疑、关键节点提醒</b>与常见问题解答</li></ul></h3><h3>重要提醒：请勿中途退赛<ul><li>中途退赛会影响团队进度与整体项目产出。</li><li>请提前规划好未来 1 个月的时间，保证充足精力投入。</li><li>无特殊情况随意退赛，将<b>无法参与后续飞书任何赛事 / 训练营类项目</b>。</li></ul></h3><hr/><h1 seq=\"auto\" seq-level=\"auto\">飞书技术嘉宾主题分享——《飞书 AI-friendly 分享》（嘉宾：黄梦轩）</h1><p>在进入实战赛道之前，我们先用一段 <b>技术嘉宾分享</b>，帮助大家建立对“飞书为什么是 AI-friendly”的整体认知：</p><ul><li>AI 时代做一个真正有价值的应用，不只是“多一个能回答问题的入口”，更关键是 <b>能调用平台能力、参与协作、形成闭环</b>。</li><li>在飞书的协作与业务场景里，哪些能力最适合与 Agent / MCP / 工具调用结合？</li><li>从“想法”到“可运行 demo”，如何更高效地推进？</li></ul><p><b>嘉宾介绍｜黄梦轩</b></p><ul><li>飞书研发工程师（Lark App-Core Services）</li><li>大三开始在飞书实习，校招加入飞书至今约 6 年</li><li>当前主要负责：飞书面向 AI 的开放性与友好能力建设（包含飞书 MCP / CLI 等方向的实践）</li></ul><p><b>嘉宾 PPT（演示入口）</b></p><ul><li>嘉宾 PPT： https://bytedance.larkoffice.com/wiki/SuPrw0FRhi1Ctmkh2IUcA1fxnQc</li></ul><p></p><hr/><h1 seq=\"auto\" seq-level=\"auto\">赛事资源 &amp; 开发环境配置</h1><table><colgroup><col/><col/><col/></colgroup><tbody><tr><td><p><b>我们提供哪些</b><b>开发资源/</b><b>统一</b><b>环境</b><b>？</b></p></td><td><p><b>需要同学侧做什么？</b></p></td><td><p><b>相关文档链接</b></p></td></tr><tr><td><p><b>大模型 Token</b><b> </b></p><blockquote><p>版本：Doubao 1.6</p><p>额度：单人 TPM 1w</p></blockquote></td><td><p>1、自助认领 EP</p><p>2、输入 EP、模型 ID（Doubao 1.6）以及 API Key 后，完成 Trae IDE 模型配置（当天内完成）。</p><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"KXIlb0ct7o65mJxDChXcKmXCnad\"/></td><td><p><b><em>认领入口：</em></b><b><em><cite doc-id=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" file-type=\"sheets\" title=\"EP自助认领—for Trae Idea配置\" token=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" type=\"doc\"></cite></em></b></p><p><cite doc-id=\"KlW9dIlyzo17ccxl26Gc9TGsnig\" file-type=\"docx\" title=\"Trae IDE 模型配置指南\" token=\"KlW9dIlyzo17ccxl26Gc9TGsnig\" type=\"doc\"></cite></p><p></p></td></tr><tr><td rowspan=\"2\"><p><b>丰富</b><b>的飞书 AI 资源：</b></p><p>1、飞书 API 调用额度（不限）</p><p></p><p>2、飞书妙搭（AI Coding 工具）</p><blockquote><p>官网链接：<a href=\"http://miaoda.feishu.cn\">miaoda.feishu.cn</a></p><p>介绍文档：<cite doc-id=\"HDpQwwP91i9xvjk9apkciZ9Sn0d\" file-type=\"docx\" title=\"欢迎使用「飞书妙搭」\" token=\"VvrtdIgI3oCcWcxCAPpcAcRPnKd\" type=\"doc\"></cite></p></blockquote><p>3、飞书 OpenClaw 一键部署</p><blockquote><p>官网链接：<a href=\"http://openclaw.feishu.cn\">openclaw.feishu.cn</a></p><p>介绍文档：<cite doc-id=\"YSWlw0JzwigpYOk4ujFcJF9qnfe\" file-type=\"docx\" title=\"飞书｜全网最简单的 OpenClaw 真一键部署来了！｜限时免费，含高级玩法\" token=\"HR0odwYU7oHwwgxBFjvc5H5xnab\" type=\"doc\"></cite></p></blockquote><p></p></td><td rowspan=\"2\"><p>加入飞书商业版租户后即可免费享用；各团队根据情况自由取需。</p><p>过程中如果额度不够，可联系项目组同学。</p><p></p></td><td rowspan=\"2\"><p></p></td></tr><tr></tr><tr><td><p><b>GitHub 代码仓库</b></p><p></p></td><td><p>1、各组为一个单位，创建自己的 GitHub 代码仓库（当天内完成）。</p><p>2、<b>Github 的项目可见性需要设置成public。</b></p><p>3、将仓库链接填写到信息收集问卷中。</p><blockquote><p>问卷链接🔗：https://bytedance.larkoffice.com/share/base/form/shrcnzEu4HIkSVRpcU1EF0ZH8JC</p></blockquote><p></p></td><td><p></p><p></p></td></tr><tr><td><p><b>个人阶段成果小结</b></p><p></p></td><td><p><b>1</b><b>、</b><b>创建个人阶段成果小结</b></p><ul><li>使用「个人阶段成果小结模板」创建个人阶段成果小结链接（记得开外部阅读权限）</li><li>命名格式：<code>姓名-个人阶段成果小结</code></li><li>把个人阶段成果小结链接填写到信息收集问卷中。 </li></ul><blockquote><p>问卷链接🔗：https://bytedance.larkoffice.com/share/base/form/shrcnzEu4HIkSVRpcU1EF0ZH8JC</p></blockquote><p><b>2、填写时间</b></p><ul><li>需要大家正式开营后，每三天完成一次个人阶段成果小结内容填写。</li><li>提交时间：当天 12 点前完成</li></ul><p><b>3</b><b>、</b><b>填写方式</b></p><ul><li>在对应时间周期的子标题下，更新当周内容，总计五期</li><li>请务必认真、完整填写</li></ul><p></p></td><td><p><cite doc-id=\"ZD3xwFgoYiZJD0kYSU4cn4OCnEe\" file-type=\"docx\" title=\"🚀飞书AI校园大赛-个人周报模版\" token=\"F9BFd6jbeomt0yxvxJdc1eEGnFg\" type=\"doc\"></cite></p><p></p><p></p></td></tr></tbody></table><hr/><h1 seq=\"auto\" seq-level=\"auto\">常见问题答疑：</h1><p><b>问题 1：</b><b>大赛最终的</b><b>校招</b><b>实习/</b><b>校招正式</b><b>offer 机会是怎么评估的？</b></p><p>回答：这个问题确实是大家比较关心提及次数较多的，先给大家吃个定心丸：Offer 机会<b>不与决赛排名强绑定</b>。而是综合评估大家在整个赛事过程中的表现、最终作品成果，每周提交的<cite doc-id=\"ZD3xwFgoYiZJD0kYSU4cn4OCnEe\" file-type=\"docx\" title=\"🚀飞书AI校园大赛-个人阶段成果小结模版\" token=\"F9BFd6jbeomt0yxvxJdc1eEGnFg\" type=\"doc\"></cite>，结合赛事过程中由飞书专家成员组成的-观察员的综合评价，只要足够优秀，就能获得实习/校招正式offer  机会～</p><p></p><p><b>问题 2</b><b> ：如果有实习机会，会是产品岗位还是技术岗位呀？</b></p><p>回答：本次大赛全程会有观察员跟进大家的表现并提供指导。后续若获得实习机会，具体岗位方向（技术/产品/设计等），我们会结合你在赛事中的<b>实际表现、个人优势与对应岗位需求</b>综合确定，目前暂无法提前锁定。建议大家先在赛事里全力投入、充分展示自己就好～如果自己有明确的职位方向诉求，也可以在过程中与观察员、跟进的HR 同学进行随时的反馈，我们将为同学做好信息登记。</p><p></p><p><b>问题 3：请问决赛的时间有确定吗，会改动吗？</b></p><p>回答：决赛时间目前定在 5 月 14 日（星期四），形式是线上路演。如果后续有任何特殊情况需要调整，我们一定会第一时间提前在赛事群里通知大家，绝对给足大家准备时间，不会临时搞突袭，大家放心；</p><p></p><ul><li>大家可以把问题发在群聊/聊天区，我们选取部分问题进行线上答疑</li><li>若还有问题因为时间问题无法回答大家，也欢迎你联系赛事跟进工作人员（即初赛通知邮件里的HR 同学），我们将尽快线上回复大家</li></ul><p></p><h1 seq=\"auto\" seq-level=\"auto\">抽奖环节</h1><p>🎁 开赛福利抽奖来啦！</p><p>本次我们为同学们准备了三款超实用的字节文创周边，快把好运刷起来！</p><p>请直播间的同学们，在评论区统一刷出我们的赛事名称（需要确保文字无误，否则将视为无效弹幕，顺位至第二位截图的同学）：飞书 AI 校园挑战赛</p><p>稍后我会倒数3个数，数到1的时候，主持人会现场随机截屏抽奖，中奖的同学记得第一时间联系赛事工作人员<cite type=\"user\" user-id=\"ou_7db220c3a676ba59415fabff4af3d558\"></cite>核验身份，并把邮寄信息发给 <cite type=\"user\" user-id=\"ou_7db220c3a676ba59415fabff4af3d558\"></cite>，奖品会统一采购寄送到你手上！</p><table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><p><b>抽奖数量</b></p></td><td><p><b>礼品名称</b></p></td><td><p><b>礼品图</b></p></td><td><p><b>礼品亮点</b></p></td></tr><tr><td><p>1份</p><p></p></td><td><p>抖音文创 OTM 系列带电脑隔层轻量双肩包</p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"ZYrFbxjNJo6PxJxL4W9cOoWQn2f\"/><p></p><p></p></td><td><p>内置电脑隔层，大容量超能装，上课 / 实习 / 通勤一包搞定</p><p></p></td></tr><tr><td><p>1 份</p></td><td><p>抖音文创「OTM」系列-自带插头自带线充电宝</p><p></p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"HBfYb2yyVoo0XBx8YZGcsKeLn0B\"/><p></p></td><td><p>自带插头与充电线，即插即充，便携实用</p></td></tr><tr><td><p>1 份</p></td><td><p>汽水音乐 复古磁带造型充电宝（自带双线快充移动电源）</p></td><td><img name=\"image.png\" mime=\"image/png\" scale=\"1.000000\" src=\"SiJbbmKCMoT0N7xvoDWck2uXnqc\"/><p></p></td><td><p>复古磁带造型，自带双线快充，颜值与实用性兼备</p></td></tr></tbody></table><p></p>",
+            "source_url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+            "source_meta": {
+              "document_id": "Ak9dd3uUbozl3SxdhvncFEZenOf",
+              "revision_id": 1310,
+              "doc_format": "xml",
+              "detail": "simple",
+              "scope": "full",
+              "content_length": 9230,
+              "content_excerpt": "飞书 AI 校园挑战赛-线上开赛仪式 开赛仪式流程总览 飞书介绍（6–8min） ：飞书是什么？飞书 AI 相关产品介绍 赛事介绍（6–8min） ：参赛收获、赛程安排、赛事支持 技术嘉宾分享（约 25min） ：《飞书 AI-friendly 分享》飞书技术专家@黄同学 资源与环境配置（10min） ：资源领取方式、开发环境配置、个人阶段成果小结/提交流程 Q&A（5–10min） ：集中答疑 + 会后渠道说明 飞书： 字节跳动旗下 AI 工作平台 飞书是 AI 时代先进生产力平台 飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。 从互联网、高科技、消费零售，到制造、金融、医疗健康等，各行各业先进企业都在选择飞书，与飞书共创行业最佳实践。先进团队，先用飞书。 🚀 飞书，让每个人都拥有自己的 AI 智能伙伴 在 AI 时代，我们正在重新定义「办公」。以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇 🧠AI 原生体验，飞书已就绪 1. 飞书知识问答 —— 企业的\"AI 大脑..."
+            },
+            "updated_at": "1310"
+          }
+        ],
+        "attachments": [
+          {
+            "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+            "url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+            "resource_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+            "resource_type": "feishu_document",
+            "updated_at": "1310"
+          }
+        ],
+        "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c&originalTime=0&startTime=1777456800",
+        "workflow_type": "pre_meeting_brief",
+        "idempotency_key": "pre_meeting_brief:b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0"
+      }
+    },
+    "topic_signal": {
+      "topic": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+      "candidate_projects": [
+        {
+          "project_id": "meetflow",
+          "name": "meetflow",
+          "score": 0.1,
+          "matched_signals": [
+            "project_id:meetflow"
+          ],
+          "source": "memory"
+        }
+      ],
+      "business_entities": [
+        "飞书",
+        "AI",
+        "校园竞赛-主题分享直播-产品专场",
+        "校园挑战赛-线上开赛仪式"
+      ],
+      "attendee_signals": [
+        "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)"
+      ],
+      "confidence": 0.9099999999999999,
+      "missing_context": [],
+      "query_hints": [
+        "飞书 AI 校园竞赛-主题分享直播-产品专场",
+        "meetflow",
+        "飞书",
+        "AI",
+        "校园竞赛-主题分享直播-产品专场",
+        "校园挑战赛-线上开赛仪式",
+        "飞书 AI 校园挑战赛-线上开赛仪式"
+      ],
+      "needs_confirmation": false,
+      "reason": "候选项目 meetflow 命中 project_id:meetflow；识别到实体 飞书, AI, 校园竞赛-主题分享直播-产品专场, 校园挑战赛-线上开赛仪式"
+    },
+    "retrieval_query": {
+      "meeting_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+      "calendar_event_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+      "project_id": "meetflow",
+      "meeting_title": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+      "meeting_description": "",
+      "entities": [
+        "飞书",
+        "AI",
+        "校园竞赛-主题分享直播-产品专场",
+        "校园挑战赛-线上开赛仪式"
+      ],
+      "attendee_names": [
+        "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)"
+      ],
+      "attachment_titles": [
+        "飞书 AI 校园挑战赛-线上开赛仪式"
+      ],
+      "related_resource_titles": [
+        "飞书 AI 校园挑战赛-线上开赛仪式"
+      ],
+      "resource_types": [
+        "doc",
+        "sheet",
+        "minute",
+        "task"
+      ],
+      "time_window": "recent_90_days",
+      "search_queries": [
+        "飞书 AI 校园竞赛-主题分享直播-产品专场",
+        "meetflow",
+        "飞书",
+        "AI",
+        "校园竞赛-主题分享直播-产品专场",
+        "校园挑战赛-线上开赛仪式",
+        "飞书 AI 校园挑战赛-线上开赛仪式",
+        "飞书 AI 校园竞赛-主题分享直播-产品专场 校园挑战赛-线上开赛仪式",
+        "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)"
+      ],
+      "confidence": 0.95,
+      "missing_context": [],
+      "extra": {
+        "identified_topic": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+        "topic_signal": {
+          "topic": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+          "candidate_projects": [
+            {
+              "project_id": "meetflow",
+              "name": "meetflow",
+              "score": 0.1,
+              "matched_signals": [
+                "project_id:meetflow"
+              ],
+              "source": "memory"
+            }
+          ],
+          "business_entities": [
+            "飞书",
+            "AI",
+            "校园竞赛-主题分享直播-产品专场",
+            "校园挑战赛-线上开赛仪式"
+          ],
+          "attendee_signals": [
+            "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)"
+          ],
+          "confidence": 0.9099999999999999,
+          "missing_context": [],
+          "query_hints": [
+            "飞书 AI 校园竞赛-主题分享直播-产品专场",
+            "meetflow",
+            "飞书",
+            "AI",
+            "校园竞赛-主题分享直播-产品专场",
+            "校园挑战赛-线上开赛仪式",
+            "飞书 AI 校园挑战赛-线上开赛仪式"
+          ],
+          "needs_confirmation": false,
+          "reason": "候选项目 meetflow 命中 project_id:meetflow；识别到实体 飞书, AI, 校园竞赛-主题分享直播-产品专场, 校园挑战赛-线上开赛仪式"
+        },
+        "start_time": "1777456800",
+        "end_time": "1777460400",
+        "timezone": "",
+        "organizer": ""
+      }
+    },
+    "retrieval_result": {
+      "query": {
+        "meeting_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+        "calendar_event_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+        "project_id": "meetflow",
+        "meeting_title": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+        "meeting_description": "",
+        "entities": [
+          "飞书",
+          "AI",
+          "校园竞赛-主题分享直播-产品专场",
+          "校园挑战赛-线上开赛仪式"
+        ],
+        "attendee_names": [
+          "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)"
+        ],
+        "attachment_titles": [
+          "飞书 AI 校园挑战赛-线上开赛仪式"
+        ],
+        "related_resource_titles": [
+          "飞书 AI 校园挑战赛-线上开赛仪式"
+        ],
+        "resource_types": [
+          "doc",
+          "sheet",
+          "minute",
+          "task"
+        ],
+        "time_window": "recent_90_days",
+        "search_queries": [
+          "飞书 AI 校园竞赛-主题分享直播-产品专场",
+          "meetflow",
+          "飞书",
+          "AI",
+          "校园竞赛-主题分享直播-产品专场",
+          "校园挑战赛-线上开赛仪式",
+          "飞书 AI 校园挑战赛-线上开赛仪式",
+          "飞书 AI 校园竞赛-主题分享直播-产品专场 校园挑战赛-线上开赛仪式",
+          "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)"
+        ],
+        "confidence": 0.95,
+        "missing_context": [],
+        "extra": {
+          "identified_topic": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+          "topic_signal": {
+            "topic": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+            "candidate_projects": [
+              {
+                "project_id": "meetflow",
+                "name": "meetflow",
+                "score": 0.1,
+                "matched_signals": [
+                  "project_id:meetflow"
+                ],
+                "source": "memory"
+              }
+            ],
+            "business_entities": [
+              "飞书",
+              "AI",
+              "校园竞赛-主题分享直播-产品专场",
+              "校园挑战赛-线上开赛仪式"
+            ],
+            "attendee_signals": [
+              "F39-08🎦[应急会议室](14) Shenzhen Bay I&T Center B(深圳湾创新科技中心B座)"
+            ],
+            "confidence": 0.9099999999999999,
+            "missing_context": [],
+            "query_hints": [
+              "飞书 AI 校园竞赛-主题分享直播-产品专场",
+              "meetflow",
+              "飞书",
+              "AI",
+              "校园竞赛-主题分享直播-产品专场",
+              "校园挑战赛-线上开赛仪式",
+              "飞书 AI 校园挑战赛-线上开赛仪式"
+            ],
+            "needs_confirmation": false,
+            "reason": "候选项目 meetflow 命中 project_id:meetflow；识别到实体 飞书, AI, 校园竞赛-主题分享直播-产品专场, 校园挑战赛-线上开赛仪式"
+          },
+          "start_time": "1777456800",
+          "end_time": "1777460400",
+          "timezone": "",
+          "organizer": ""
+        }
+      },
+      "resources": [
+        {
+          "resource_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+          "resource_type": "doc",
+          "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+          "summary": "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b>：参赛收获、赛程安排、赛事支持</li><li><b>技术嘉宾分享（约 25min）</b>：《飞书 AI-friendly 分享》飞书技术专家@黄同学</li><li><b>资源与环境配置（10min）</b>：资源领取方式、开发",
+          "source_url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+          "updated_at": "1310",
+          "score": 0.99,
+          "reasons": [
+            "命中检索词:飞书",
+            "命中检索词:AI",
+            "命中检索词:校园挑战赛-线上开赛仪式",
+            "命中检索词:飞书 AI 校园挑战赛-线上开赛仪式",
+            "命中实体:飞书",
+            "命中实体:AI",
+            "命中实体:校园挑战赛-线上开赛仪式",
+            "命中附件标题:飞书 AI 校园挑战赛-线上开赛仪式",
+            "资源类型匹配:doc",
+            "资源更新时间较近",
+            "包含来源链接"
+          ],
+          "source_locator": "",
+          "metadata": {
+            "candidate_source": "payload.related_resources",
+            "document_id": "Ak9dd3uUbozl3SxdhvncFEZenOf",
+            "revision_id": 1310,
+            "doc_format": "xml",
+            "detail": "simple",
+            "scope": "full",
+            "content_length": 9230,
+            "content_excerpt": "飞书 AI 校园挑战赛-线上开赛仪式 开赛仪式流程总览 飞书介绍（6–8min） ：飞书是什么？飞书 AI 相关产品介绍 赛事介绍（6–8min） ：参赛收获、赛程安排、赛事支持 技术嘉宾分享（约 25min） ：《飞书 AI-friendly 分享》飞书技术专家@黄同学 资源与环境配置（10min） ：资源领取方式、开发环境配置、个人阶段成果小结/提交流程 Q&A（5–10min） ：集中答疑 + 会后渠道说明 飞书： 字节跳动旗下 AI 工作平台 飞书是 AI 时代先进生产力平台 飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。 从互联网、高科技、消费零售，到制造、金融、医疗健康等，各行各业先进企业都在选择飞书，与飞书共创行业最佳实践。先进团队，先用飞书。 🚀 飞书，让每个人都拥有自己的 AI 智能伙伴 在 AI 时代，我们正在重新定义「办公」。以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇 🧠AI 原生体验，飞书已就绪 1. 飞书知识问答 —— 企业的\"AI 大脑..."
+          }
+        }
+      ],
+      "omitted_count": 0,
+      "low_confidence": false,
+      "reason": "召回 1 条资源，按关键词、元数据和更新时间排序。"
+    },
+    "meeting_brief": {
+      "meeting_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+      "calendar_event_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+      "project_id": "meetflow",
+      "topic": "飞书 AI 校园竞赛-主题分享直播-产品专场",
+      "summary": "围绕 飞书 AI 校园竞赛-主题分享直播-产品专场，已召回 1 条相关资料。会前待读资料：飞书 AI 校园挑战赛-线上开赛仪式。",
+      "last_decisions": [],
+      "current_questions": [],
+      "must_read_resources": [
+        {
+          "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+          "content": "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b>：参赛收获、赛程安排、赛事支持</li><li><b>技术嘉宾分享（约 25min）</b>：《飞书 AI-friendly 分享》飞书技术专家@黄同学</li><li><b>资源与环境配置（10min）</b>：资源领取方式、开发\n召回原因：命中检索词:飞书；命中检索词:AI；命中检索词:校园挑战赛-线上开赛仪式",
+          "evidence_refs": [
+            {
+              "source_type": "doc",
+              "source_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+              "source_url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+              "snippet": "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b>：参赛收获、赛程安排、赛事支持</li><li><b>技术嘉宾分享（约 25min）</b>：《飞书 AI-friendly 分享》飞书技术专家@黄同学</li><li><b>资源与环境配置（10min）</b>：资源领取方式、开发",
+              "updated_at": "1310"
+            }
+          ],
+          "confidence": 0.99,
+          "status": "high_confidence"
+        }
+      ],
+      "risks": [],
+      "possible_related_resources": [],
+      "evidence_refs": [
+        {
+          "source_type": "doc",
+          "source_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+          "source_url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+          "snippet": "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b>：参赛收获、赛程安排、赛事支持</li><li><b>技术嘉宾分享（约 25min）</b>：《飞书 AI-friendly 分享》飞书技术专家@黄同学</li><li><b>资源与环境配置（10min）</b>：资源领取方式、开发",
+          "updated_at": "1310"
+        }
+      ],
+      "confidence": 0.95,
+      "needs_confirmation": false,
+      "status": "draft"
+    },
+    "card_payload": {
+      "title": "MeetFlow 会前背景卡：飞书 AI 校园竞赛-主题分享直播-产品专场",
+      "summary": "围绕 飞书 AI 校园竞赛-主题分享直播-产品专场，已召回 1 条相关资料。会前待读资料：飞书 AI 校园挑战赛-线上开赛仪式。",
+      "facts": [
+        {
+          "label": "会议主题",
+          "value": "飞书 AI 校园竞赛-主题分享直播-产品专场"
+        },
+        {
+          "label": "背景摘要",
+          "value": "围绕 飞书 AI 校园竞赛-主题分享直播-产品专场，已召回 1 条相关资料。会前待读资料：飞书 AI 校园挑战赛-线上开赛仪式。"
+        },
+        {
+          "label": "置信度",
+          "value": "0.95"
+        },
+        {
+          "label": "待读资料",
+          "value": "飞书 AI 校园挑战赛-线上开赛仪式"
+        }
+      ],
+      "sections": [
+        {
+          "key": "last_decisions",
+          "title": "上次结论",
+          "empty": "暂无明确结论",
+          "items": []
+        },
+        {
+          "key": "current_questions",
+          "title": "当前问题",
+          "empty": "暂无待确认问题",
+          "items": []
+        },
+        {
+          "key": "risks",
+          "title": "风险点",
+          "empty": "暂无显著风险",
+          "items": []
+        },
+        {
+          "key": "must_read_resources",
+          "title": "待读资料",
+          "empty": "暂无必读资料",
+          "items": [
+            {
+              "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+              "content": "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b>：参赛收获、赛程安排、赛事支持</li><li><b>技术嘉宾分享（约 25min）</b>：《飞书 AI-friendly 分享》飞书技术专家@黄同学</li><li><b>资源与环境配置（10min）</b>：资源领取方式、开发\n召回原因：命中检索词:飞书；命中检索词:AI；命中检索词:校园挑战赛-线上开赛仪式",
+              "ref_id": "Eq0ywVPwdirCLakfBeucCwKWnoh"
+            }
+          ]
+        },
+        {
+          "key": "possible_related_resources",
+          "title": "可能相关资料",
+          "empty": "暂无候选资料",
+          "items": []
+        }
+      ],
+      "card": {
+        "config": {
+          "wide_screen_mode": true
+        },
+        "header": {
+          "template": "green",
+          "title": {
+            "tag": "plain_text",
+            "content": "MeetFlow 会前背景卡：飞书 AI 校园竞赛-主题分享直播-产品专场"
+          }
+        },
+        "elements": [
+          {
+            "tag": "markdown",
+            "content": "**主题**：飞书 AI 校园竞赛-主题分享直播-产品专场\n**状态**：可参考  |  **置信度**：0.95\n**背景摘要**：围绕 飞书 AI 校园竞赛-主题分享直播-产品专场，已召回 1 条相关资料。会前待读资料：飞书 AI 校园挑战赛-线上开赛仪式。"
+          },
+          {
+            "tag": "hr"
+          },
+          {
+            "tag": "div",
+            "text": {
+              "tag": "lark_md",
+              "content": "**待读资料**\n1. 飞书 AI 校园挑战赛-线上开赛仪式：<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b>：参赛收获、赛程安排、赛事支持</li><li><b>技术嘉宾分享（约 25min）</b>：《飞书 AI-friendly 分享》飞书技术专家@黄同学</li><li><b>资源与环境配置（10min）</b>：资源领取方式、开发\n召回原因：命中检索词:飞书；命中检索词:AI；命中检索词:校园挑战赛-线上开赛仪式 `Eq0ywVPwdirCLakfBeucCwKWnoh`"
+            }
+          },
+          {
+            "tag": "hr"
+          },
+          {
+            "tag": "markdown",
+            "content": "**证据引用**\n- `Eq0ywVPwdirCLakfBeucCwKWnoh` doc：<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书"
+          }
+        ]
+      },
+      "source_meeting_id": "b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0",
+      "idempotency_key": "pre_meeting_brief:b9c6ca7b-c1dd-4f1a-b995-edf71f3faa7c_0"
+    },
+    "stage_plan": [
+      "prepare_context",
+      "build_retrieval_query",
+      "agent_loop_collect_evidence",
+      "validate_meeting_brief",
+      "render_card_payload",
+      "send_or_save"
+    ]
+  },
+  "tool_results": [
+    {
+      "tool_name": "knowledge.search",
+      "status": "success",
+      "content": "工具 knowledge.search 执行成功。\n结构化数据 JSON：\n{\n  \"query\": \"MeetFlow M3 会前知识卡片\",\n  \"hits\": [\n    {\n      \"ref_id\": \"kref_7c4d5148301e66f3\",\n      \"chunk_id\": \"D067w8sC4iYsjjk7nnAcMEXqnwb#chunk_1_3bdc5fd45f83\",\n      \"document_id\": \"D067w8sC4iYsjjk7nnAcMEXqnwb\",\n      \"source_type\": \"doc\",\n      \"title\": \"李健文-个人阶段小结\",\n      \"snippet\": \"<title>李健文-个人阶段小结</title><h1>第一周期（4.23-4.25）</h1><h3>一、核心产出 （必填）</h3><p><em>本周期你交付的最满意的一项成果是什么？</em></p><blockquote><p><...\",\n      \"reason\": \"混合命中 final_score:0.370；向量召回:0.47；命中查询词:meetflow；包含回链定位；包含来源链接；关键词召回:0.23；命中查询词:meetflow；包含回链定位；包含来源链接\",\n      \"score\": 0.37,\n      \"vector_similarity\": 0.465,\n      \"term_similarity\": 0.227,\n      \"rerank_score\": 0.0,\n      \"final_score\": 0.37,\n      \"source_url\": \"https://jcneyh7qlo8i.feishu.cn/wiki/D067w8sC4iYsjjk7nnAcMEXqnwb\",\n      \"source_locator\": \"doc:chunk:1\",\n      \"parent_chunk_id\": \"D067w8sC4iYsjjk7nnAcMEXqnwb#parent_92e5dc10cf8f\",\n      \"toc_path\": [\n        \"doc\"\n      ],\n      \"updated_at\": \"510\",\n      \"metadata\": {\n        \"document_id\": \"HjZ7dtVXao5Decxc6f5czWYUn81\",\n        \"revision_id\": 510,\n        \"doc_format\": \"xml\",\n        \"detail\": \"simple\",\n        \"scope\": \"full\",\n        \"content_length\": 5...",
+      "data": {
+        "query": "MeetFlow M3 会前知识卡片",
+        "hits": [
+          {
+            "ref_id": "kref_7c4d5148301e66f3",
+            "chunk_id": "D067w8sC4iYsjjk7nnAcMEXqnwb#chunk_1_3bdc5fd45f83",
+            "document_id": "D067w8sC4iYsjjk7nnAcMEXqnwb",
+            "source_type": "doc",
+            "title": "李健文-个人阶段小结",
+            "snippet": "<title>李健文-个人阶段小结</title><h1>第一周期（4.23-4.25）</h1><h3>一、核心产出 （必填）</h3><p><em>本周期你交付的最满意的一项成果是什么？</em></p><blockquote><p><...",
+            "reason": "混合命中 final_score:0.370；向量召回:0.47；命中查询词:meetflow；包含回链定位；包含来源链接；关键词召回:0.23；命中查询词:meetflow；包含回链定位；包含来源链接",
+            "score": 0.37,
+            "vector_similarity": 0.465,
+            "term_similarity": 0.227,
+            "rerank_score": 0.0,
+            "final_score": 0.37,
+            "source_url": "https://jcneyh7qlo8i.feishu.cn/wiki/D067w8sC4iYsjjk7nnAcMEXqnwb",
+            "source_locator": "doc:chunk:1",
+            "parent_chunk_id": "D067w8sC4iYsjjk7nnAcMEXqnwb#parent_92e5dc10cf8f",
+            "toc_path": [
+              "doc"
+            ],
+            "updated_at": "510",
+            "metadata": {
+              "document_id": "HjZ7dtVXao5Decxc6f5czWYUn81",
+              "revision_id": 510,
+              "doc_format": "xml",
+              "detail": "simple",
+              "scope": "full",
+              "content_length": 5808,
+              "content_excerpt": "李健文-个人阶段小结 第一周期（4.23-4.25） 一、核心产出 （必填） 本周期你交付的最满意的一项成果是什么？ 可以是一个功能、一段代码、一个工作流、一篇踩坑记录……不限形式 飞书客户端的搭建。能够通过飞书api获取到用户的日程、文档等信息。 二、量化指标 （必填） 例如：不同的 AI 使用场景、代码提交约几次、处理数据量多少、响应速度提升多少、被Star/Fork次数、接口调用次数等。 代码提交约9次，新增代码约7000行。 三、过程复盘与沉淀（必填） 这周主要搞定了哪些具体环节？用了什么方法或工具辅助？ 例如：AI 帮你做了哪些事情（跟 AI 分工）、用工具生成了接口初版代码，自己改了边界逻辑；用脚本跑了数据清洗；画了架构图；写了测试用例；设计并实现了AI工作流/插件/自动化……等等 通过描述AI的角色、项目背景等，引导AI生成了项目的 prd 文档、项目的 架构 文档，项目的 开发任务 文档。 已经构造好了项目的代码结构，实现了飞书客户端，能够获取到用户的相关信息。 过程中有没有遇到什么特别不顺、卡住很久的情况？后来是怎么破局的？ 例如：生成的内容格式总是不对、输出的结果不...",
+              "embedding_provider": "sentence-transformers",
+              "embedding_model": "BAAI/bge-small-zh-v1.5",
+              "embedding_dimensions": 512,
+              "embedding_fingerprint": "sentence-transformers:BAAI/bge-small-zh-v1.5:512",
+              "knowledge_namespace": "sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce",
+              "vector_collection_name": "meetflow_knowledge_chunks_137933ce",
+              "title": "李健文-个人阶段小结",
+              "source_url": "https://jcneyh7qlo8i.feishu.cn/wiki/D067w8sC4iYsjjk7nnAcMEXqnwb",
+              "source_type": "doc",
+              "heading": "",
+              "positions": {
+                "heading": "",
+                "source_type": "doc",
+                "source_locator": "doc:chunk:1",
+                "chunk_order": 1
+              },
+              "toc_path": [
+                "doc"
+              ],
+              "keywords": [
+                "李健文-个人阶段小结",
+                "<title>李健文-个人阶段小结<",
+                "title><h1>第一周期",
+                "4.23-4.25",
+                "h1><h3>一、核心产出",
+                "必填",
+                "h3><p><em>本周期你交付的最满意的一项成果是什么？<",
+                "em><",
+                "p><blockquote><p><em>可以是一个功能、一段代码、一个工作流、一篇踩坑记录……不限形式<",
+                "p><",
+                "blockquote><p><",
+                "p><p>飞书客户端的搭建。能够通过飞书api获取到用户的日程、文档等信息。<"
+              ],
+              "questions": [
+                "<title>李健文-个人阶段小结</title><h1>第一周期（4.23-4.25）</h1><h3>一、核心产出 （必填）</h3><p><em>本周期你交付的最满意的一项成果是什么？",
+                "</p><p></p><h3>三、过程复盘与沉淀（必填）</h3><ol><li>这周主要搞定了哪些具体环节？",
+                "用了什么方法或工具辅助？",
+                "</p><p></p><ol><li>过程中有没有遇到什么特别不顺、卡住很久的情况？",
+                "后来是怎么破局的？"
+              ],
+              "doc_type": "doc",
+              "parent_chunk_id": "D067w8sC4iYsjjk7nnAcMEXqnwb#parent_92e5dc10cf8f"
+            }
+          },
+          {
+            "ref_id": "kref_63b20f7a78d63631",
+            "chunk_id": "Eq0ywVPwdirCLakfBeucCwKWnoh#chunk_1_f393702e8088",
+            "document_id": "Eq0ywVPwdirCLakfBeucCwKWnoh",
+            "source_type": "doc",
+            "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+            "snippet": "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b...",
+            "reason": "混合命中 final_score:0.320；向量召回:0.39；命中查询词:meetflow；包含回链定位；包含来源链接；关键词召回:0.23；命中查询词:meetflow；包含回链定位；包含来源链接",
+            "score": 0.32,
+            "vector_similarity": 0.387,
+            "term_similarity": 0.227,
+            "rerank_score": 0.0,
+            "final_score": 0.32,
+            "source_url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+            "source_locator": "doc:chunk:1",
+            "parent_chunk_id": "Eq0ywVPwdirCLakfBeucCwKWnoh#parent_c21aa3900278",
+            "toc_path": [
+              "doc"
+            ],
+            "updated_at": "1310",
+            "metadata": {
+              "document_id": "Ak9dd3uUbozl3SxdhvncFEZenOf",
+              "revision_id": 1310,
+              "doc_format": "xml",
+              "detail": "simple",
+              "scope": "full",
+              "content_length": 9230,
+              "content_excerpt": "飞书 AI 校园挑战赛-线上开赛仪式 开赛仪式流程总览 飞书介绍（6–8min） ：飞书是什么？飞书 AI 相关产品介绍 赛事介绍（6–8min） ：参赛收获、赛程安排、赛事支持 技术嘉宾分享（约 25min） ：《飞书 AI-friendly 分享》飞书技术专家@黄同学 资源与环境配置（10min） ：资源领取方式、开发环境配置、个人阶段成果小结/提交流程 Q&A（5–10min） ：集中答疑 + 会后渠道说明 飞书： 字节跳动旗下 AI 工作平台 飞书是 AI 时代先进生产力平台 飞书是字节跳动旗下 AI 工作平台，提供一站式协同办公、组织管理、业务提效工具和深入企业场景的 AI 能力，让 AI 真能用、真落地。 从互联网、高科技、消费零售，到制造、金融、医疗健康等，各行各业先进企业都在选择飞书，与飞书共创行业最佳实践。先进团队，先用飞书。 🚀 飞书，让每个人都拥有自己的 AI 智能伙伴 在 AI 时代，我们正在重新定义「办公」。以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇 🧠AI 原生体验，飞书已就绪 1. 飞书知识问答 —— 企业的\"AI 大脑...",
+              "embedding_provider": "sentence-transformers",
+              "embedding_model": "BAAI/bge-small-zh-v1.5",
+              "embedding_dimensions": 512,
+              "embedding_fingerprint": "sentence-transformers:BAAI/bge-small-zh-v1.5:512",
+              "knowledge_namespace": "sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce",
+              "vector_collection_name": "meetflow_knowledge_chunks_137933ce",
+              "title": "飞书 AI 校园挑战赛-线上开赛仪式",
+              "source_url": "https://bytedance.larkoffice.com/wiki/Eq0ywVPwdirCLakfBeucCwKWnoh",
+              "source_type": "doc",
+              "heading": "",
+              "positions": {
+                "heading": "",
+                "source_type": "doc",
+                "source_locator": "doc:chunk:1",
+                "chunk_order": 1
+              },
+              "toc_path": [
+                "doc"
+              ],
+              "keywords": [
+                "飞书",
+                "ai",
+                "校园挑战赛-线上开赛仪式",
+                "<title>飞书",
+                "校园挑战赛-线上开赛仪式<",
+                "title><h1>开赛仪式流程总览<",
+                "h1><ol><li><b>飞书介绍",
+                "6–8min",
+                "b>",
+                "飞书是什么？飞书",
+                "相关产品介绍<",
+                "li><li><b>赛事介绍"
+              ],
+              "questions": [
+                "<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？",
+                "以下是飞书最新释放的 AI 能力，也是这次挑战赛你们可以尽情探索的\"武器库\"👇</p></callout><p>🧠AI 原生体验，飞书已就绪</p><p><b>1. 飞书知识问答</b> —— 企业的\"AI 大脑\"，一问即答👉 <a hre",
+                "from=feishu_home_nav\">立即访问</a> 或在飞书搜索「aily」</p><p><b>5. 飞书 aily 专业版</b> —— 复杂任务的专业伙伴，创作可视化，更强更可控👉 <a href=\"https://aily.",
+                "</li><li>在 AI 能力快速迭代、产业深度融合的背景下，本次挑战赛旨在助力参赛者完成从创意构想到项目落地的全流程实践，打造可运行、可验证的 AI 实战成果，让 AI 切实解决真实问题、创造可持续的产业价值",
+                "</li></ul><hr/><h2 seq=\"auto\" seq-level=\"auto\">参加本次大赛，你能获得什么？"
+              ],
+              "doc_type": "doc",
+              "parent_chunk_id": "Eq0ywVPwdirCLakfBeucCwKWnoh#parent_c21aa3900278"
+            }
+          }
+        ],
+        "omitted_count": 0,
+        "token_budget": 600,
+        "used_tokens": 409,
+        "knowledge_namespace": "sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce",
+        "vector_collection_name": "meetflow_knowledge_chunks_137933ce",
+        "embedding_provider": "sentence-transformers",
+        "embedding_model": "BAAI/bge-small-zh-v1.5",
+        "embedding_dimensions": 512,
+        "low_confidence": false,
+        "reason": "混合检索候选 2 条；向量命中 2 条；关键词命中 2 条；最终返回 2 条；已过滤 embedding 不兼容文档 0 个、缺少指纹旧文档 5 个；namespace=sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce；collection=meetflow_knowledge_chunks_137933ce"
+      },
+      "error_message": ""
+    }
+  ],
+  "agent_result": {
+    "trace_id": "ef7936994aba",
+    "workflow_type": "pre_meeting_brief",
+    "status": "success",
+    "summary": "scripted_debug 最终回复：工具 knowledge.search 执行成功。\n结构化数据 JSON：\n{\n  \"query\": \"MeetFlow M3 会前知识卡片\",\n  \"hits\": [\n    {\n      \"re",
+    "final_answer": "scripted_debug 最终回复：工具 knowledge.search 执行成功。\n结构化数据 JSON：\n{\n  \"query\": \"MeetFlow M3 会前知识卡片\",\n  \"hits\": [\n    {\n      \"ref_id\": \"kref_7c4d5148301e66f3\",\n      \"chunk_id\": \"D067w8sC4iYsjjk7nnAcMEXqnwb#chunk_1_3bdc5fd45f83\",\n      \"document_id\": \"D067w8sC4iYsjjk7nnAcMEXqnwb\",\n      \"source_type\": \"doc\",\n      \"title\": \"李健文-个人阶段小结\",\n      \"snippet\": \"<title>李健文-个人阶段小结</title><h1>第一周期（4.23-4.25）</h1><h3>一、核心产出 （必填）</h3><p><em>本周期你交付的最满意的一项成果是什么？</em></p><blockquote><p><...\",\n      \"reason\": \"混合命中 final_score:0.370；向量召回:0.47；命中查询词:meetflow；包含回链定位；包含来源链接；关键词召回:0.23；命中查询词:meetflow；包含回链定位；包含来源链接\",\n      \"score\": 0.37,\n      \"vector_similarity\": 0.465,\n      \"term_similarity\": 0.227,\n      \"rerank_score\": 0.0,\n      \"final_score\": 0.37,\n      \"source_url\": \"https://jcneyh7qlo8i.feishu.cn/wiki/D067w8sC4iYsjjk7nnAcMEXqnwb\",\n      \"source_locator\": \"doc:chunk:1\",\n      \"parent_chunk_id\": \"D067w8sC4iYsjjk7nnAcMEXqnwb#parent_92e5dc10cf8f\",\n      \"toc_path\": [\n        \"doc\"\n      ],\n      \"updated_at\": \"510\",\n      \"metadata\": {\n        \"document_id\": \"HjZ7dtVXao5Decxc6f5czWYUn81\",\n        \"revision_id\": 510,\n        \"doc_format\": \"xml\",\n        \"detail\": \"simple\",\n        \"scope\": \"full\",\n        \"content_length\": 5808,\n        \"content_excerpt\": \"李健文-个人阶段小结 第一周期（4.23-4.25） 一、核心产出 （必填） 本周期你交付的最满意的一项成果是什么？ 可以是一个功能、一段代码、一个工作流、一篇踩坑记录……不限形式 飞书客户端的搭建。能够通过飞书api获取到用户的日程、文档等信息。 二、量化指标 （必填） 例如：不同的 AI 使用场景、代码提交约几次、处理数据量多少、响应速度提升多少、被Star/Fork次数、接口调用次数等。 代码提交约9次，新增代码约7000行。 三、过程复盘与沉淀（必填） 这周主要搞定了哪些具体环节？用了什么方法或工具辅助？ 例如：AI 帮你做了哪些事情（跟 AI 分工）、用工具生成了接口初版代码，自己改了边界逻辑；用脚本跑了数据清洗；画了架构图；写了测试用例；设计并实现了AI工作流/插件/自动化……等等 通过描述AI的角色、项目背景等，引导AI生成了项目的 prd 文档、项目的 架构 文档，项目的 开发任务 文档。 已经构造好了项目的代码结构，实现了飞书客户端，能够获取到用户的相关信息。 过程中有没有遇到什么特别不顺、卡住很久的情况？后来是怎么破局的？ 例如：生成的内容格式总是不对、输出的结果不...\",\n        \"embedding_provider\": \"sentence-transformers\",\n        \"embedding_model\": \"BAAI/bge-small-zh-v1.5\",\n        \"embedding_dimensions\": 512,\n        \"embedding_fingerprint\": \"sentence-transformers:BAAI/bge-small-zh-v1.5:512\",\n        \"knowledge_namespace\": \"sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce\",\n        \"vector_collection_name\": \"meetflow_knowledge_chunks_137933ce\",\n        \"title\": \"李健文-个人阶段小结\",\n        \"source_url\": \"https://jcneyh7qlo8i.feishu.cn/wiki/D067w8sC4iYsjjk7nnAcMEXqnwb\",\n        \"source_type\": \"doc\",\n        \"heading\": \"\",\n        \"positions\": {\n          \"heading\": \"\",\n          \"source_type\": \"doc\",\n          \"source_locator\": \"doc:chunk:1\",\n          \"chunk_order\": 1\n        },\n        \"toc_path\": [\n          \"doc\"\n        ],\n        \"keywords\": [\n          \"李健文-个人阶段小结\",\n          \"<title>李健文-个人阶段小结<\",\n          \"title><h1>第一周期\",\n          \"4.23-4.25\",\n          \"h1><h3>一、核心产出\",\n          \"必填\",\n          \"h3><p><em>本周期你交付的最满意的一项成果是什么？<\",\n          \"em><\",\n          \"p><blockquote><p><em>可以是一个功能、一段代码、一个工作流、一篇踩坑记录……不限形式<\",\n          \"p><\",\n          \"blockquote><p><\",\n          \"p><p>飞书客户端的搭建。能够通过飞书api获取到用户的日程、文档等信息。<\"\n        ],\n        \"questions\": [\n          \"<title>李健文-个人阶段小结</title><h1>第一周期（4.23-4.25）</h1><h3>一、核心产出 （必填）</h3><p><em>本周期你交付的最满意的一项成果是什么？\",\n          \"</p><p></p><h3>三、过程复盘与沉淀（必填）</h3><ol><li>这周主要搞定了哪些具体环节？\",\n          \"用了什么方法或工具辅助？\",\n          \"</p><p></p><ol><li>过程中有没有遇到什么特别不顺、卡住很久的情况？\",\n          \"后来是怎么破局的？\"\n        ],\n        \"doc_type\": \"doc\",\n        \"parent_chunk_id\": \"D067w8sC4iYsjjk7nnAcMEXqnwb#parent_92e5dc10cf8f\"\n      }\n    },\n    {\n      \"ref_id\": \"kref_63b20f7a78d63631\",\n      \"chunk_id\": \"Eq0ywVPwdirCLakfBeucCwKWnoh#chunk_1_f393702e8088\",\n      \"document_id\": \"Eq0ywVPwdirCLakfBeucCwKWnoh\",\n      \"source_type\": \"doc\",\n      \"title\": \"飞书 AI 校园挑战赛-线上开赛仪式\",\n      \"snippet\": \"<title>飞书 AI 校园挑战赛-线上开赛仪式</title><h1>开赛仪式流程总览</h1><ol><li><b>飞书介绍（6–8min）</b>：飞书是什么？飞书 AI 相关产品介绍</li><li><b>赛事介绍（6–8min）</b...\",\n      \"reason\": \"混合命中 final_score:0.320；向量召回:0.39；命中查询词:meetflow；包含回链定位；包含来源链接；关键词召回:0.23；命中查询词:meetflow；包含回链定位；包含来源链接\",\n      \"score\": 0.32,\n      \"vector_similarity\": 0.387,\n      \"term_similarity\": 0.227,\n      \"rerank_score\": 0.0,\n      \"final_score\": 0.\n...（工具结果已截断）"
+  }
+}

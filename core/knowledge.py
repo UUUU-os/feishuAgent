@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import html
+from html.parser import HTMLParser
 import json
 import os
 import re
@@ -29,6 +31,8 @@ DEFAULT_FRESHNESS_WEIGHT = 0.05
 DEFAULT_SIMILARITY_THRESHOLD = 0.20
 DEFAULT_RERANKER_TOP_K = 32
 DEFAULT_RERANKER_WEIGHT = 0.25
+DOC_CHILD_CHUNK_TARGET_TOKENS = 420
+DOC_CHILD_CHUNK_MAX_TOKENS = 680
 
 
 @dataclass(slots=True)
@@ -82,6 +86,28 @@ class KnowledgeIndexResult(BaseModel):
     status: str = "indexed"
     skipped: bool = False
     reason: str = ""
+
+
+@dataclass(slots=True)
+class IndexJob(BaseModel):
+    """知识索引刷新任务。
+
+    T3.10 先落地本地队列表结构和手动刷新入口；飞书事件订阅后续只需要
+    把资源变化写入这个模型，后台 worker 再负责拉取最新内容并重建索引。
+    """
+
+    job_id: str
+    resource_id: str
+    resource_type: str
+    reason: str = "manual"
+    status: str = "pending"
+    source_url: str = ""
+    payload: dict[str, Any] = field(default_factory=dict)
+    chunk_count: int = 0
+    content_tokens: int = 0
+    last_error: str = ""
+    created_at: int = 0
+    updated_at: int = 0
 
 
 class OpenAICompatibleEmbeddingFunction:
@@ -495,6 +521,26 @@ class KnowledgeIndexStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_document_id ON knowledge_chunks(document_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_doc_type ON knowledge_chunks(doc_type)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_documents_source_type ON knowledge_documents(source_type)")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS index_jobs (
+                    job_id TEXT PRIMARY KEY,
+                    resource_id TEXT NOT NULL,
+                    resource_type TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    source_url TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    chunk_count INTEGER NOT NULL,
+                    content_tokens INTEGER NOT NULL,
+                    last_error TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_index_jobs_status ON index_jobs(status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_index_jobs_resource_id ON index_jobs(resource_id)")
             conn.commit()
         self.logger.info("知识索引存储初始化完成 db_path=%s", self.db_path)
 
@@ -656,6 +702,174 @@ class KnowledgeIndexStore:
             data["metadata"] = json.loads(data.pop("metadata_json") or "{}")
             chunks.append(data)
         return chunks
+
+    def enqueue_index_job(
+        self,
+        resource_id: str,
+        resource_type: str,
+        reason: str = "manual",
+        source_url: str = "",
+        payload: dict[str, Any] | None = None,
+    ) -> IndexJob:
+        """写入一条索引刷新任务，供手动刷新、定时校验或事件订阅复用。"""
+
+        self.initialize()
+        now = int(time.time())
+        job_id = stable_index_job_id(resource_id=resource_id, resource_type=resource_type, reason=reason, source_url=source_url)
+        job = IndexJob(
+            job_id=job_id,
+            resource_id=resource_id,
+            resource_type=normalize_source_type(resource_type),
+            reason=reason,
+            status="pending",
+            source_url=source_url,
+            payload=dict(payload or {}),
+            created_at=now,
+            updated_at=now,
+        )
+        self._save_index_job(job)
+        return job
+
+    def refresh_resource(
+        self,
+        resource: Resource | RetrievedResource,
+        reason: str = "manual",
+        force: bool = True,
+    ) -> dict[str, Any]:
+        """手动执行资源刷新任务，并记录任务状态、chunk 数和失败原因。"""
+
+        resource_id = resource.resource_id
+        resource_type = normalize_source_type(resource.resource_type)
+        source_url = resource.source_url
+        job = self.enqueue_index_job(
+            resource_id=resource_id,
+            resource_type=resource_type,
+            reason=reason,
+            source_url=source_url,
+            payload={"title": resource.title, "updated_at": resource.updated_at},
+        )
+        self._update_index_job_status(job.job_id, status="running")
+        try:
+            index_result = self.index_resource(resource, force=force)
+        except Exception as error:  # noqa: BLE001 - 刷新任务必须把失败原因落库。
+            self._update_index_job_status(job.job_id, status="failed", last_error=str(error))
+            raise
+        content_tokens = sum(chunk.content_tokens for chunk in index_result.chunks)
+        self._update_index_job_status(
+            job.job_id,
+            status="succeeded" if not index_result.skipped else "skipped",
+            chunk_count=index_result.document.chunk_count,
+            content_tokens=content_tokens,
+        )
+        return {
+            "job": self.get_index_job(job.job_id),
+            "index_result": index_result.to_dict(),
+        }
+
+    def enqueue_recent_document_refresh_jobs(self, limit: int = 20) -> list[IndexJob]:
+        """为最近被索引或引用过的文档创建定时校验任务。"""
+
+        self.initialize()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT document_id, source_type, source_url, title, updated_at
+                FROM knowledge_documents
+                ORDER BY last_indexed_at DESC
+                LIMIT ?
+                """,
+                (max(1, int(limit or 20)),),
+            ).fetchall()
+        jobs: list[IndexJob] = []
+        for row in rows:
+            jobs.append(
+                self.enqueue_index_job(
+                    resource_id=str(row["document_id"]),
+                    resource_type=str(row["source_type"]),
+                    reason="scheduled",
+                    source_url=str(row["source_url"] or ""),
+                    payload={"title": str(row["title"] or ""), "updated_at": str(row["updated_at"] or "")},
+                )
+            )
+        return jobs
+
+    def list_index_jobs(self, status: str = "", limit: int = 20) -> list[dict[str, Any]]:
+        """读取索引刷新任务列表。"""
+
+        self.initialize()
+        sql = "SELECT * FROM index_jobs"
+        params: list[Any] = []
+        if status:
+            sql += " WHERE status = ?"
+            params.append(status)
+        sql += " ORDER BY updated_at DESC LIMIT ?"
+        params.append(max(1, int(limit or 20)))
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(sql, params).fetchall()
+        return [index_job_row_to_dict(row) for row in rows]
+
+    def get_index_job(self, job_id: str) -> dict[str, Any] | None:
+        """按 job_id 读取索引刷新任务。"""
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM index_jobs WHERE job_id = ?", (job_id,)).fetchone()
+        return index_job_row_to_dict(row) if row else None
+
+    def _save_index_job(self, job: IndexJob) -> None:
+        """保存索引任务。"""
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO index_jobs (
+                    job_id, resource_id, resource_type, reason, status, source_url,
+                    payload_json, chunk_count, content_tokens, last_error, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    job.job_id,
+                    job.resource_id,
+                    job.resource_type,
+                    job.reason,
+                    job.status,
+                    job.source_url,
+                    json.dumps(job.payload, ensure_ascii=False),
+                    job.chunk_count,
+                    job.content_tokens,
+                    job.last_error,
+                    job.created_at,
+                    job.updated_at,
+                ),
+            )
+            conn.commit()
+
+    def _update_index_job_status(
+        self,
+        job_id: str,
+        status: str,
+        chunk_count: int = 0,
+        content_tokens: int = 0,
+        last_error: str = "",
+    ) -> None:
+        """更新索引任务状态。"""
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                UPDATE index_jobs
+                SET status = ?,
+                    chunk_count = COALESCE(NULLIF(?, 0), chunk_count),
+                    content_tokens = COALESCE(NULLIF(?, 0), content_tokens),
+                    last_error = ?,
+                    updated_at = ?
+                WHERE job_id = ?
+                """,
+                (status, chunk_count, content_tokens, last_error, int(time.time()), job_id),
+            )
+            conn.commit()
 
     def build_embedding_metadata(self) -> dict[str, Any]:
         """构造写入文档和 chunk 的 embedding 治理元数据。"""
@@ -1317,7 +1531,19 @@ def chunk_resource_text(
 
 
 def chunk_document_text(text: str) -> list[dict[str, Any]]:
-    """按标题、段落和列表切分文档文本。"""
+    """按飞书 DocxXML/HTML 结构切分文档文本。
+
+    飞书文档导出的 XML 往往是一整行 HTML-like 内容，如果继续按换行切分，
+    整篇文档会退化成一个超长 chunk。这里先解析标题、段落、列表、表格、
+    引用、图片和文档引用等结构块，再按标题路径与 token 预算合并成适合
+    embedding 的子 chunk。
+    """
+
+    if looks_like_feishu_xml(text):
+        blocks = parse_feishu_doc_blocks(text)
+        chunks = merge_doc_blocks_into_chunks(blocks)
+        if chunks:
+            return chunks
 
     lines = [line.strip() for line in text.replace("\r\n", "\n").split("\n")]
     chunks: list[dict[str, Any]] = []
@@ -1366,6 +1592,254 @@ def chunk_document_text(text: str) -> list[dict[str, Any]]:
             flush_buffer()
     flush_buffer()
     return chunks or [{"chunk_type": "paragraph", "text": text}]
+
+
+def looks_like_feishu_xml(text: str) -> bool:
+    """判断内容是否像飞书导出的 XML/HTML 片段。"""
+
+    return bool(re.search(r"</?(title|h[1-6]|p|ul|ol|li|table|tr|td|blockquote|callout|img|cite)\b", text or "", re.I))
+
+
+class FeishuDocBlockParser(HTMLParser):
+    """把飞书 DocxXML/HTML-like 内容解析成有标题归属的结构块。"""
+
+    BLOCK_TAGS = {"p", "li", "td", "th"}
+    INLINE_TEXT_TAGS = {"cite"}
+    STRUCTURAL_BREAK_TAGS = {"p", "ul", "ol", "li", "table", "tr", "td", "th", "blockquote", "callout", "hr"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.blocks: list[dict[str, Any]] = []
+        self.title = ""
+        self.heading_stack: list[tuple[int, str]] = []
+        self.heading_level = 0
+        self.heading_parts: list[str] = []
+        self.capture_tag = ""
+        self.capture_parts: list[str] = []
+        self.capture_depth = 0
+        self.capture_attrs: dict[str, str] = {}
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        """处理开始标签，块级标签会先结束不完整标题。"""
+
+        tag = tag.lower()
+        attr_map = {key: value or "" for key, value in attrs}
+        if self.heading_level and tag in self.STRUCTURAL_BREAK_TAGS:
+            self._finish_heading()
+
+        if tag == "title":
+            self._start_capture("title", attr_map)
+            return
+        heading_match = re.fullmatch(r"h([1-6])", tag)
+        if heading_match:
+            self._finish_capture()
+            self.heading_level = int(heading_match.group(1))
+            self.heading_parts = []
+            return
+        if tag in self.BLOCK_TAGS:
+            self._finish_capture()
+            self._start_capture(tag, attr_map)
+            return
+        if tag in self.INLINE_TEXT_TAGS and not self.capture_tag:
+            self._start_capture(tag, attr_map)
+            return
+        if tag == "img":
+            self._append_media_block(attr_map)
+            return
+        if self.capture_tag:
+            self.capture_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        """处理结束标签。"""
+
+        tag = tag.lower()
+        if tag == "title" and self.capture_tag == "title":
+            self.title = clean_doc_text(" ".join(self.capture_parts))
+            self._finish_capture(as_block=False)
+            return
+        if self.heading_level and tag == f"h{self.heading_level}":
+            self._finish_heading()
+            return
+        if self.capture_tag == tag:
+            self._finish_capture()
+            return
+        if self.capture_tag and self.capture_depth > 0:
+            self.capture_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        """收集标签内文本。"""
+
+        if self.heading_level:
+            self.heading_parts.append(data)
+        elif self.capture_tag:
+            self.capture_parts.append(data)
+
+    def close(self) -> None:
+        """解析结束时补齐未关闭标签。"""
+
+        super().close()
+        self._finish_heading()
+        self._finish_capture()
+
+    def _start_capture(self, tag: str, attrs: dict[str, str]) -> None:
+        self.capture_tag = tag
+        self.capture_parts = []
+        self.capture_depth = 0
+        self.capture_attrs = attrs
+
+    def _finish_capture(self, as_block: bool = True) -> None:
+        if not self.capture_tag:
+            return
+        tag = self.capture_tag
+        text = clean_doc_text(" ".join(self.capture_parts))
+        attrs = dict(self.capture_attrs)
+        self.capture_tag = ""
+        self.capture_parts = []
+        self.capture_depth = 0
+        self.capture_attrs = {}
+        if not as_block or not text:
+            return
+        chunk_type = "table" if tag in {"td", "th"} else "list_item" if tag == "li" else "paragraph"
+        if tag == "cite":
+            chunk_type = "reference"
+            title = attrs.get("title") or text
+            token = attrs.get("token") or attrs.get("doc-id") or ""
+            text = f"引用文档：{title}" + (f"（token: {token}）" if token else "")
+        self.blocks.append(self._build_block(chunk_type=chunk_type, text=text))
+
+    def _finish_heading(self) -> None:
+        if not self.heading_level:
+            return
+        heading = clean_doc_text(" ".join(self.heading_parts))
+        level = self.heading_level
+        self.heading_level = 0
+        self.heading_parts = []
+        if not heading:
+            return
+        self.heading_stack = [(item_level, item_text) for item_level, item_text in self.heading_stack if item_level < level]
+        self.heading_stack.append((level, heading))
+        self.blocks.append(self._build_block(chunk_type="heading", text=heading, heading=heading, heading_level=level))
+
+    def _append_media_block(self, attrs: dict[str, str]) -> None:
+        name = attrs.get("name") or attrs.get("alt") or "图片"
+        src = attrs.get("src") or ""
+        text = f"图片：{name}" + (f"（src: {src}）" if src else "")
+        self.blocks.append(self._build_block(chunk_type="image", text=text))
+
+    def _build_block(
+        self,
+        chunk_type: str,
+        text: str,
+        heading: str = "",
+        heading_level: int = 0,
+    ) -> dict[str, Any]:
+        toc_path = [item_text for _, item_text in self.heading_stack]
+        current_heading = heading or (toc_path[-1] if toc_path else self.title)
+        return {
+            "chunk_type": chunk_type,
+            "text": text,
+            "metadata": {
+                "heading": current_heading,
+                "heading_level": heading_level,
+                "toc_path": toc_path or ([self.title] if self.title else []),
+                "positions": {
+                    "heading": current_heading,
+                    "heading_level": heading_level,
+                    "block_type": chunk_type,
+                },
+            },
+        }
+
+
+def parse_feishu_doc_blocks(text: str) -> list[dict[str, Any]]:
+    """解析飞书 XML/HTML-like 文档，返回结构块。"""
+
+    parser = FeishuDocBlockParser()
+    parser.feed(text)
+    parser.close()
+    return parser.blocks
+
+
+def merge_doc_blocks_into_chunks(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """把飞书结构块合并成适合检索的子 chunk。"""
+
+    chunks: list[dict[str, Any]] = []
+    buffer: list[dict[str, Any]] = []
+    buffer_tokens = 0
+    current_group = ""
+
+    def flush_buffer() -> None:
+        nonlocal buffer, buffer_tokens
+        if not buffer:
+            return
+        text = "\n".join(str(item.get("text") or "").strip() for item in buffer if str(item.get("text") or "").strip())
+        if not text:
+            buffer = []
+            buffer_tokens = 0
+            return
+        first_meta = dict(buffer[0].get("metadata") or {})
+        last_meta = dict(buffer[-1].get("metadata") or {})
+        block_types = [str(item.get("chunk_type") or "paragraph") for item in buffer]
+        toc_path = list(last_meta.get("toc_path") or first_meta.get("toc_path") or [])
+        heading = str(last_meta.get("heading") or first_meta.get("heading") or "")
+        chunks.append(
+            {
+                "chunk_type": "section" if len(buffer) > 1 else block_types[0],
+                "text": text,
+                "metadata": {
+                    "heading": heading,
+                    "toc_path": toc_path,
+                    "block_types": block_types,
+                    "positions": {
+                        "heading": heading,
+                        "toc_path": toc_path,
+                        "block_types": block_types,
+                        "block_count": len(buffer),
+                    },
+                },
+            }
+        )
+        buffer = []
+        buffer_tokens = 0
+
+    def buffer_only_contains_headings() -> bool:
+        return bool(buffer) and all(str(item.get("chunk_type") or "") == "heading" for item in buffer)
+
+    for block in blocks:
+        block_text = str(block.get("text") or "").strip()
+        if not block_text:
+            continue
+        metadata = dict(block.get("metadata") or {})
+        toc_path = list(metadata.get("toc_path") or [])
+        group_key = "/".join(toc_path) or str(metadata.get("heading") or "doc")
+        block_tokens = estimate_text_tokens(block_text)
+        if block.get("chunk_type") == "heading":
+            if buffer and group_key != current_group and not buffer_only_contains_headings():
+                flush_buffer()
+            buffer.append(block)
+            buffer_tokens += block_tokens
+            current_group = group_key
+            continue
+        should_flush = bool(buffer) and (
+            group_key != current_group
+            or buffer_tokens + block_tokens > DOC_CHILD_CHUNK_MAX_TOKENS
+            or (buffer_tokens >= DOC_CHILD_CHUNK_TARGET_TOKENS and block_tokens > 80)
+        )
+        if should_flush:
+            flush_buffer()
+        buffer.append(block)
+        buffer_tokens += block_tokens
+        current_group = group_key
+    flush_buffer()
+    return chunks
+
+
+def clean_doc_text(text: str) -> str:
+    """清洗飞书块文本，保留人可读内容而不是 XML 标签。"""
+
+    clean = html.unescape(str(text or ""))
+    clean = re.sub(r"\s+", " ", clean)
+    return clean.strip()
 
 
 def chunk_sheet_text(text: str) -> list[dict[str, Any]]:
@@ -1504,10 +1978,6 @@ def build_chroma_metadata(document: KnowledgeDocument, chunk: KnowledgeChunk) ->
 def ensure_knowledge_chunk_schema(conn: sqlite3.Connection) -> None:
     """为旧版 SQLite 知识库补齐 T3.12 新增 chunk 字段。"""
 
-    existing_columns = {
-        str(row[1])
-        for row in conn.execute("PRAGMA table_info(knowledge_chunks)").fetchall()
-    }
     migrations = {
         "chunk_order": "ALTER TABLE knowledge_chunks ADD COLUMN chunk_order INTEGER NOT NULL DEFAULT 0",
         "parent_chunk_id": "ALTER TABLE knowledge_chunks ADD COLUMN parent_chunk_id TEXT NOT NULL DEFAULT ''",
@@ -1515,8 +1985,17 @@ def ensure_knowledge_chunk_schema(conn: sqlite3.Connection) -> None:
         "content_tokens": "ALTER TABLE knowledge_chunks ADD COLUMN content_tokens INTEGER NOT NULL DEFAULT 0",
     }
     for column, statement in migrations.items():
+        existing_columns = {
+            str(row[1])
+            for row in conn.execute("PRAGMA table_info(knowledge_chunks)").fetchall()
+        }
         if column not in existing_columns:
-            conn.execute(statement)
+            try:
+                conn.execute(statement)
+            except sqlite3.OperationalError as error:
+                # 兼容旧库在上次迁移中部分成功、部分失败的情况，保证初始化可重复执行。
+                if "duplicate column name" not in str(error).lower():
+                    raise
 
 
 def build_chunk_metadata(
@@ -1545,6 +2024,9 @@ def build_chunk_metadata(
 def build_toc_path(metadata: dict[str, Any], source_type: str) -> list[str]:
     """从标题、章节或表格位置生成轻量 TOC 路径。"""
 
+    existing_toc_path = metadata.get("toc_path")
+    if isinstance(existing_toc_path, list) and existing_toc_path:
+        return unique_strings([str(item) for item in existing_toc_path if str(item).strip()])
     if source_type == "sheet":
         positions = dict(metadata.get("positions") or {})
         return unique_strings(["sheet", str(positions.get("sheet") or "default")])
@@ -1567,6 +2049,10 @@ def attach_parent_chunks(document_id: str, source_type: str, chunks: list[Knowle
 
     parent_chunks: list[KnowledgeChunk] = []
     for group_index, (group_key, group_chunks) in enumerate(grouped.items(), start=1):
+        if len(group_chunks) == 1:
+            # 单个子 chunk 已经包含完整章节内容，不额外复制一份 parent_section。
+            # 只有同一章节被拆成多个子 chunk 时，才创建父级上下文用于 fetch 展开。
+            continue
         parent_text = "\n\n".join(item.text for item in group_chunks if item.text)
         parent_checksum = sha256_text(parent_text)
         parent_chunk_id = stable_parent_chunk_id(document_id, group_key, parent_checksum)
@@ -2342,6 +2828,21 @@ def stable_parent_chunk_id(document_id: str, group_key: str, checksum: str) -> s
 
     digest = hashlib.sha1(f"{document_id}:parent:{group_key}:{checksum}".encode("utf-8")).hexdigest()[:12]
     return f"{document_id}#parent_{digest}"
+
+
+def stable_index_job_id(resource_id: str, resource_type: str, reason: str, source_url: str = "") -> str:
+    """生成稳定索引任务 ID，让同一资源同类刷新任务可幂等覆盖。"""
+
+    digest = hashlib.sha1(f"{resource_type}:{resource_id}:{reason}:{source_url}".encode("utf-8")).hexdigest()[:12]
+    return f"index_job_{digest}"
+
+
+def index_job_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    """把 index_jobs SQLite 行转换成普通字典。"""
+
+    data = dict(row)
+    data["payload"] = json.loads(data.pop("payload_json") or "{}")
+    return data
 
 
 def sha256_text(text: str) -> str:

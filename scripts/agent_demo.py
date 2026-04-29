@@ -493,7 +493,42 @@ def extract_context_payload(user_content: str) -> dict[str, str]:
         for line in user_content.splitlines():
             if line.strip().startswith(marker):
                 payload[key] = line.split(":", 1)[1].strip()
+    runtime_context = extract_runtime_context_json(user_content)
+    if runtime_context:
+        event = runtime_context.get("event") if isinstance(runtime_context.get("event"), dict) else {}
+        event_payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        if not payload.get("meeting_id"):
+            payload["meeting_id"] = str(runtime_context.get("meeting_id") or event_payload.get("meeting_id") or "")
+        if not payload.get("project_id"):
+            payload["project_id"] = str(runtime_context.get("project_id") or event_payload.get("project_id") or "meetflow")
+        if not payload.get("query"):
+            query_parts = [
+                str(event_payload.get("summary") or ""),
+                str(event_payload.get("description") or ""),
+            ]
+            related_resources = runtime_context.get("related_resources")
+            if isinstance(related_resources, list):
+                query_parts.extend(
+                    str(item.get("title") or "")
+                    for item in related_resources
+                    if isinstance(item, dict)
+                )
+            payload["query"] = " ".join(part for part in query_parts if part).strip()
     return payload
+
+
+def extract_runtime_context_json(user_content: str) -> dict[str, object]:
+    """读取 Agent Loop user message 里的运行时上下文 JSON。"""
+
+    marker = "运行时上下文 JSON："
+    if marker not in user_content:
+        return {}
+    raw_json = user_content.split(marker, 1)[1].strip()
+    try:
+        parsed = json.loads(raw_json)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def print_section(title: str, data: dict[str, object]) -> None:

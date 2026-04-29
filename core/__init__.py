@@ -44,6 +44,7 @@ from .llm import (
     settings_from_config,
 )
 from .knowledge import (
+    IndexJob,
     KnowledgeChunk,
     KnowledgeChunkFetchResult,
     KnowledgeDocument,
@@ -100,6 +101,12 @@ from .pre_meeting import (
     render_pre_meeting_card_payload,
 )
 from cards import build_pre_meeting_card, build_pre_meeting_card_sections
+from .pre_meeting_trigger import (
+    PreMeetingTriggerPlan,
+    build_manual_pre_meeting_input,
+    build_pre_meeting_trigger_plan,
+    select_due_pre_meeting_events,
+)
 from .router import (
     RouteRule,
     WorkflowRouter,
@@ -149,6 +156,7 @@ __all__ = [
     "AgentRunResult",
     "AgentToolCall",
     "AgentToolResult",
+    "IndexJob",
     "CalendarAttendee",
     "CalendarEvent",
     "CalendarInfo",
@@ -179,6 +187,7 @@ __all__ = [
     "PreMeetingBriefArtifacts",
     "PreMeetingBriefInput",
     "PreMeetingCardPayload",
+    "PreMeetingTriggerPlan",
     "RetrievedResource",
     "RetrievalResult",
     "Resource",
@@ -223,10 +232,13 @@ __all__ = [
     "build_pre_meeting_card",
     "build_pre_meeting_card_sections",
     "build_pre_meeting_brief_input",
+    "build_manual_pre_meeting_input",
+    "build_pre_meeting_trigger_plan",
     "build_risk_scan_plan_draft",
     "build_retrieval_query",
     "identify_meeting_topic",
     "recall_related_resources",
+    "select_due_pre_meeting_events",
     "build_retrieval_query_draft",
     "chunk_document_text",
     "chunk_minute_text",
