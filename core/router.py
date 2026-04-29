@@ -135,6 +135,8 @@ def build_default_route_rules() -> list[RouteRule]:
             reason="会议即将开始，需要读取日历、关联文档和任务，生成会前背景卡。",
             required_tools=[
                 "calendar.list_events",
+                "knowledge.search",
+                "knowledge.fetch_chunk",
                 "docs.fetch_resource",
                 "minutes.fetch_resource",
                 "tasks.list_my_tasks",
@@ -180,6 +182,8 @@ def build_default_route_rules() -> list[RouteRule]:
 MANUAL_WORKFLOW_TOOLS: dict[str, list[str]] = {
     "pre_meeting_brief": [
         "calendar.list_events",
+        "knowledge.search",
+        "knowledge.fetch_chunk",
         "docs.fetch_resource",
         "minutes.fetch_resource",
         "tasks.list_my_tasks",
@@ -214,7 +218,13 @@ def build_idempotency_key(workflow_type: str, agent_input: AgentInput) -> str:
     """
 
     payload = agent_input.payload
-    stable_id = payload.get("idempotency_key") or _select_stable_id(workflow_type, agent_input)
+    explicit_key = str(payload.get("idempotency_key", "") or "").strip()
+    if explicit_key:
+        # 调度器或手动入口已经生成了完整幂等键时，路由层直接复用，
+        # 避免再次追加 `workflow_type:` 前缀，造成日志和审计里的键重复。
+        return explicit_key
+
+    stable_id = _select_stable_id(workflow_type, agent_input)
 
     if stable_id:
         return f"{workflow_type}:{stable_id}"

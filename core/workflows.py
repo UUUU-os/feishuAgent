@@ -7,6 +7,7 @@ from typing import Any
 from core.agent_loop import MeetFlowAgentLoop
 from core.llm import GenerationSettings
 from core.models import AgentDecision, AgentRunResult, WorkflowContext
+from core.pre_meeting import build_pre_meeting_brief_artifacts
 
 
 class WorkflowRunnerError(RuntimeError):
@@ -159,11 +160,19 @@ class PreMeetingBriefWorkflow(WorkflowRunner):
     """
 
     def prepare_context(self, context: WorkflowContext, decision: AgentDecision) -> None:
-        """构造会前检索计划草案，并写入上下文。"""
+        """构造会前工作流输入输出壳，并写入上下文。"""
 
         WorkflowRunner.prepare_context(self, context=context, decision=decision)
-        retrieval_query = build_retrieval_query_draft(context)
-        context.raw_context["retrieval_query_draft"] = retrieval_query
+        artifacts = build_pre_meeting_brief_artifacts(context)
+        artifacts_dict = artifacts.to_dict()
+        context.raw_context["pre_meeting_brief"] = artifacts_dict
+        context.raw_context["pre_meeting_stage_plan"] = artifacts_dict["stage_plan"]
+        context.raw_context["pre_meeting_input"] = artifacts_dict["workflow_input"]
+        context.raw_context["retrieval_query"] = artifacts_dict["retrieval_query"]
+        context.raw_context["retrieval_query_draft"] = artifacts_dict["retrieval_query"]
+        context.raw_context["retrieval_result"] = artifacts_dict["retrieval_result"]
+        context.raw_context["meeting_brief_draft"] = artifacts_dict["meeting_brief"]
+        context.raw_context["pre_meeting_card_payload"] = artifacts_dict["card_payload"]
 
     def build_workflow_goal(self, workflow_goal: str) -> str:
         """强化会前工作流的输出要求。"""
@@ -173,6 +182,7 @@ class PreMeetingBriefWorkflow(WorkflowRunner):
             f"{base_goal}\n\n"
             "会前工作流约束：\n"
             "- 先基于上下文判断是否需要调用工具补充证据。\n"
+            "- 优先调用 knowledge_search 获取压缩证据包，必要时再用 knowledge_fetch_chunk 展开指定 ref_id。\n"
             "- 生成结论时必须说明来源或指出证据不足。\n"
             "- 不要把未验证资料写成确定性事实。\n"
             "- 如果只拿到候选资料，请明确标记为“可能相关资料”。"
@@ -184,8 +194,15 @@ class PreMeetingBriefWorkflow(WorkflowRunner):
         base = WorkflowRunner.validate_output(self, result)
         warnings = list(base.warnings)
         errors = list(base.errors)
+        context_payload = result.payload.get("context", {}) if isinstance(result.payload, dict) else {}
+        raw_context = context_payload.get("raw_context", {}) if isinstance(context_payload, dict) else {}
+        pre_meeting_artifacts = raw_context.get("pre_meeting_brief", {}) if isinstance(raw_context, dict) else {}
         if result.status == "success" and not result.final_answer.strip():
             errors.append("会前工作流没有生成最终回答。")
+        if result.status == "success" and not pre_meeting_artifacts:
+            errors.append("会前工作流缺少 T3.1 输入输出结构。")
+        if result.status == "success" and pre_meeting_artifacts and not pre_meeting_artifacts.get("card_payload"):
+            errors.append("会前工作流缺少可供卡片渲染的 payload。")
         if result.status == "success" and result.loop_state and not result.loop_state.tool_results:
             warnings.append("本次会前工作流没有调用任何工具，可能缺少外部证据。")
         return WorkflowValidationResult(ok=not errors, warnings=warnings, errors=errors)
@@ -295,6 +312,8 @@ def build_default_workflow_runners() -> dict[str, WorkflowRunner]:
                 workflow_type="pre_meeting_brief",
                 allowed_tools=[
                     "calendar.list_events",
+                    "knowledge.search",
+                    "knowledge.fetch_chunk",
                     "docs.fetch_resource",
                     "minutes.fetch_resource",
                     "tasks.list_my_tasks",
@@ -369,50 +388,11 @@ def build_default_workflow_runners() -> dict[str, WorkflowRunner]:
 def build_retrieval_query_draft(context: WorkflowContext) -> dict[str, Any]:
     """根据会前上下文生成检索计划草案。
 
-    这里不执行真实 RAG 检索，只把 M3 需要的 query enrichment 输入准备出来。
+    这里保留旧函数名，兼容 T2.14 以来的 demo。T3.1 起内部已经统一使用
+    `RetrievalQuery` 模型，返回值仍转换成字典，方便审计和 JSON 落盘。
     """
 
-    event_payload = context.event.payload if context.event else {}
-    meeting_title = first_non_empty(
-        event_payload,
-        "summary",
-        "title",
-        "meeting_title",
-        "calendar_summary",
-    )
-    attachment_titles = [
-        str(item.get("title") or item.get("name") or item.get("url") or "")
-        for item in event_payload.get("attachments", [])
-        if isinstance(item, dict)
-    ]
-    participant_names = [
-        str(item.get("display_name") or item.get("name") or item.get("email") or "")
-        for item in context.participants
-        if isinstance(item, dict)
-    ]
-    candidate_queries = [
-        value
-        for value in [
-            meeting_title,
-            context.project_id,
-            " ".join(attachment_titles),
-            " ".join(participant_names[:5]),
-        ]
-        if value
-    ]
-    return {
-        "meeting_id": context.meeting_id,
-        "calendar_event_id": context.calendar_event_id,
-        "project_id": context.project_id,
-        "meeting_title": meeting_title,
-        "participant_names": participant_names,
-        "attachment_titles": attachment_titles,
-        "resource_types": ["doc", "sheet", "minute", "task"],
-        "time_window": "recent_90_days",
-        "search_queries": candidate_queries,
-        "confidence": 0.4 if not meeting_title else 0.7,
-        "missing_context": [] if meeting_title else ["meeting_title"],
-    }
+    return build_pre_meeting_brief_artifacts(context).retrieval_query.to_dict()
 
 
 def build_post_meeting_plan_draft(context: WorkflowContext) -> dict[str, Any]:

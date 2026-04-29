@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import re
 import time
@@ -26,6 +27,18 @@ class FeishuAPIError(RuntimeError):
 
 class FeishuAuthError(FeishuAPIError):
     """飞书鉴权异常。"""
+
+
+def normalize_feishu_message_uuid(idempotency_key: str) -> str:
+    """把内部幂等键转换成飞书 IM 接口可接受的 uuid。
+
+    MeetFlow 内部幂等键为了可读性会包含冒号、业务前缀和较长会议 ID；
+    飞书消息接口的 `uuid` 字段更适合短的字母数字串。这里用稳定 hash
+    保留去重语义，同时避免把内部键原样交给外部接口导致字段校验失败。
+    """
+
+    digest = hashlib.sha1(str(idempotency_key or "").encode("utf-8")).hexdigest()
+    return f"mf_{digest[:24]}"
 
 
 @dataclass(slots=True)
@@ -1478,7 +1491,7 @@ class FeishuClient:
             "content": json.dumps(content, ensure_ascii=False),
         }
         if idempotency_key:
-            payload["uuid"] = idempotency_key
+            payload["uuid"] = normalize_feishu_message_uuid(idempotency_key)
 
         # 注意：receive_id_type 是飞书消息接口的 query 参数，
         # 不是 body 字段；如果漏传，接口会返回 field validation failed。
