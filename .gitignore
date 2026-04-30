@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+
+config/settings.local.json
+config/llm_providers.local.json
+storage/*.sqlite
+storage/*.db
+storage/*.jsonl
+storage/knowledge/
+storage/projects/*.json
+storage/tmp/
