@@ -225,6 +225,9 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
 - 当前实现边界：
   - T3.4 先完成本地清洗、切片、索引状态和增量跳过；T3.6 已在此基础上接入 ChromaDB 向量索引
   - `embedding_ref` 在 T3.6 后会写入 `chroma:{collection}:{chunk_id}`，SQLite 仍保存权威元数据和回链信息
+  - `knowledge.sqlite` 是 MeetFlow 的知识库主存储，不只是 ChromaDB 的重复备份：它负责保存文档和 chunk 的业务事实、完整正文、来源链接、结构化位置、父子 chunk、checksum、索引状态、增量刷新依据和 `embedding_ref`
+  - ChromaDB 是可替换的向量索引层，负责 embedding 生成和语义召回；检索命中后仍需要通过 `chunk_id` 回到 `knowledge.sqlite` 展开完整证据、来源 URL、TOC 路径和父级上下文
+  - chunk 文本在两边都保存是有意分层：ChromaDB 需要文本构建向量索引，`knowledge.sqlite` 需要文本服务关键词召回、审计回链、`knowledge.fetch_chunk` 证据展开、增量重建和未来 SQLite FTS5/BM25
   - 当前清洗输入是已读取到的 `Resource` / `RetrievedResource`，真实飞书资源读取仍沿用 M2 的 adapter 和后续 T3.6 工具链
   - 飞书文档导出内容如果是一整行 XML/HTML 字符串，会优先走结构化解析；普通 Markdown/纯文本仍保留换行切分兜底
 - 当前验证方式：
@@ -334,6 +337,7 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
 - 当前实现边界：
   - 当前 T3.6 已使用 ChromaDB 作为持久化向量数据库，向量库默认路径为 `storage/knowledge/chroma`
   - SQLite 仍是权威元数据存储；ChromaDB 只负责向量召回，避免只保存 embedding 后无法审计和回链
+  - 检索链路采用“ChromaDB 返回候选 `chunk_id`，SQLite 回表补齐业务证据”的结构；这使得后续替换向量库、增加 BM25、增加 RRF 或重建 embedding collection 时，不需要重写文档/chunk 主数据
   - 当前 embedding 必须是真实模型；开发阶段默认配置为 `sentence-transformers` + `BAAI/bge-small-zh-v1.5`，测试/生产阶段可通过配置切换为 OpenAI-compatible `text-embedding-3-small`
   - 为避免不同 embedding 模型或维度冲突，Chroma collection 名会包含 `model + dimensions` 的短 hash
   - `knowledge.search` 返回的是 evidence pack，不返回全文；全文展开必须显式调用 `knowledge.fetch_chunk`
@@ -571,13 +575,13 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
 ### T3.13 实现可配置混合检索和可解释分数
 
 - 优先级：`P1`
-- 来源：RAGFlow 使用关键词召回、向量召回、metadata filter、权重融合和阈值过滤
+- 来源：RAGFlow 使用关键词召回、向量召回、metadata filter、RRF/权重融合和阈值过滤
 - 目标：把当前 ChromaDB 向量召回升级为可解释的混合检索链路
 - 设计补充：
   - `knowledge.search` 内部区分 `top_k` 和 `top_n`：前者控制候选召回量，后者控制 evidence pack 返回量
-  - 增加默认 `similarity_threshold`、`keyword_weight`、`vector_weight`
+  - 增加默认 `similarity_threshold`、`keyword_weight`、`vector_weight`，并支持 `fusion_strategy=rrf|weighted` 与 `rrf_k`
   - 支持 metadata filters：`project_id`、`meeting_id`、`source_type`、`owner`、`updated_after`、`permission_scope`
-  - `KnowledgeSearchHit` 返回 `vector_similarity`、`term_similarity`、`final_score` 和命中原因
+  - `KnowledgeSearchHit` 返回 `vector_similarity`、`term_similarity`、`bm25_score`、`vector_rank`、`keyword_rank`、`rrf_score`、`final_score` 和命中原因
   - 当显式指定 `document_id` 或 `source_url` 时，可以放宽相似度阈值，但必须在原因中说明
 - 验收标准：
   - 检索结果能说明来自向量命中、关键词命中还是 metadata 过滤
@@ -588,22 +592,80 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
 
 - 已更新文件：
   - `core/knowledge.py`
+  - `core/agent.py`
+  - `config/loader.py`
+  - `config/__init__.py`
+  - `config/settings.example.json`
+  - `config/README.md`
+  - `scripts/knowledge_tools_demo.py`
   - `docs/tasks/m3-pre-meeting.md`
 - 已实现的核心能力：
   - `knowledge.search` 内部区分 `top_k` 和 `top_n`：`top_k` 控制候选召回量，`top_n` 控制最终进入 evidence pack 的片段数
-  - `KnowledgeSearchHit` 新增 `vector_similarity`、`term_similarity` 和 `final_score`，保留旧 `score` 字段作为兼容别名
-  - 新增关键词召回路径：即使 ChromaDB 或 embedding 服务暂不可用，也可以基于 SQLite 权威元数据和 chunk 文本做关键词回退
-  - 新增 `merge_hybrid_hits()`：融合向量命中和关键词命中，并按 `vector_weight`、`keyword_weight`、默认 freshness 权重生成最终分数
+  - `KnowledgeIndexStore.initialize()` 新增 SQLite FTS5 表 `knowledge_chunks_fts(chunk_id UNINDEXED, document_id UNINDEXED, title, text, keywords, tokenize='unicode61')`
+  - `index_resource()` 写入 `knowledge_chunks` 后会同步刷新 FTS 表：先按 `document_id` 删除旧 FTS 记录，再插入当前文档的可检索子 chunk
+  - `parent_section` 不进入 FTS/BM25 精准召回，只保留给 `knowledge.fetch_chunk` 做父级上下文展开，避免长父 chunk 因包含词更多而压过具体子 chunk
+  - 新增 `_build_bm25_hits()`：通过 `knowledge_chunks_fts MATCH ? ORDER BY bm25(knowledge_chunks_fts)` 做 BM25 关键词召回，再回表 JOIN `knowledge_chunks` / `knowledge_documents` 补齐标题、URL、metadata、权限、更新时间和证据定位
+  - SQLite 不支持 FTS5 或 FTS 表不可用时，`_build_bm25_hits()` 会自动回退到旧 `_build_keyword_hits()` 扫描路径，保证向量失败时仍有关键词兜底
+  - `KnowledgeSearchHit` 新增 `bm25_score`、`vector_rank`、`keyword_rank`、`rrf_score`，并保留 `vector_similarity`、`term_similarity`、`final_score` 和旧 `score` 兼容字段
+  - 新增 `merge_hybrid_hits_rrf()`：按 `rrf_score = Σ 1 / (rrf_k + rank_i)` 融合 ChromaDB dense vector 排名和 SQLite BM25 排名，默认 `rrf_k=60`
+  - 保留旧 `merge_hybrid_hits()` 加权融合逻辑作为 `fusion_strategy="weighted"` 调试选项；默认配置切到 `fusion_strategy="rrf"`
   - 新增 `similarity_threshold`：低于最终分数阈值的结果不会进入高置信 evidence pack
+  - 新增 `KnowledgeSearchSettings` 配置段，`config/settings.example.json` 默认 `knowledge_search.fusion_strategy="rrf"`、`knowledge_search.rrf_k=60`，并支持 `MEETFLOW_KNOWLEDGE_FUSION_STRATEGY` / `MEETFLOW_KNOWLEDGE_RRF_K` 环境变量覆盖
   - 新增显式 metadata filter：`filter_project_id`、`filter_meeting_id`、`document_id`、`source_url`、`owner_id`、`updated_after`、`permission_scope`
   - 当显式指定 `document_id` 或 `source_url` 时，检索会放宽相似度阈值，并在 `reason` 中写明“显式资源过滤放宽阈值”
-  - `knowledge.search` 工具 schema 已暴露 `top_n`、`similarity_threshold`、`vector_weight`、`keyword_weight` 和上述 metadata filter 参数
+  - `knowledge.search` 工具 schema 已暴露 `top_n`、`similarity_threshold`、`vector_weight`、`keyword_weight`、`fusion_strategy`、`rrf_k` 和上述 metadata filter 参数
 - 当前实现边界：
   - 现有 `project_id` / `meeting_id` 仍用于检索增强和 query term 提取，不默认作为硬过滤，避免破坏旧 demo；需要硬过滤时使用 `filter_project_id` / `filter_meeting_id`
+  - BM25 使用 `knowledge.sqlite` 中的 chunk 正文和 metadata 派生关键词，不依赖 ChromaDB 内部 `chroma.sqlite3` 或 fulltext 表；ChromaDB 仍只作为可替换的 dense vector 索引层
+  - RRF 默认只使用检索器内排名做融合，不直接比较向量相似度和 BM25 原始分数；`term_similarity` 只是 BM25 rank 的解释性归一化分
   - freshness 目前只作为轻量辅助分，不单独暴露为字段；后续 T3.14/T3.15 或评估审计需要时可扩展
+
+#### BM25/RRF 设计沉淀
+
+本次 M3 检索升级的稳定架构口径：
+
+```text
+knowledge.sqlite 负责业务主数据、chunk 正文、FTS5/BM25 关键词索引和证据回表
+ChromaDB 负责 dense vector 语义向量召回
+RRF 负责融合向量排名和 BM25 排名
+reranker 是 RRF 之后的可选二阶段精排
+```
+
+BM25 的数据库与表：
+
+- 数据库文件：`storage/knowledge/knowledge.sqlite`
+- 主数据表：`knowledge_documents`、`knowledge_chunks`
+- FTS5 虚拟表：`knowledge_chunks_fts(chunk_id, document_id, title, text, keywords)`
+- FTS5 影子表：`knowledge_chunks_fts_config`、`knowledge_chunks_fts_content`、`knowledge_chunks_fts_data`、`knowledge_chunks_fts_docsize`、`knowledge_chunks_fts_idx`
+
+BM25 的运行过程：
+
+1. `KnowledgeIndexStore.initialize()` 创建 `knowledge_chunks_fts`。
+2. `index_resource()` 写入 `knowledge_chunks` 后，同步删除并重建该 `document_id` 的 FTS 记录。
+3. `_sync_fts_chunks()` 只写入可检索子 chunk，跳过 `parent_section`。
+4. `_build_bm25_hits()` 使用 `knowledge_chunks_fts MATCH ?` 和 `bm25(knowledge_chunks_fts)` 排名。
+5. BM25 命中后回表 JOIN `knowledge_chunks` / `knowledge_documents`，补齐标题、正文、URL、metadata、权限、更新时间和证据定位。
+6. 如果 FTS5 不可用，自动回退到 `_build_keyword_hits()`。
+
+RRF 的运行过程：
+
+1. `_build_hits_from_vector_ids()` 生成向量候选，并写入 `vector_rank`。
+2. `_build_bm25_hits()` 生成关键词候选，并写入 `keyword_rank`、`bm25_score`。
+3. `merge_hybrid_hits_rrf()` 按 `rrf_score = Σ 1 / (rrf_k + rank_i)` 融合排名，默认 `rrf_k=60`。
+4. 同一个 chunk 如果同时被向量和 BM25 排到靠前位置，RRF 分会自然升高；如果只被一个检索器命中，也仍可进入候选集。
+5. RRF 之后再进入 `apply_optional_reranker()`；关闭 reranker 时，RRF 排序就是 evidence pack 的最终排序基础。
+
+这套设计避免直接比较向量相似度和 BM25 原始分数，解释时只需要说明“每个检索器内部排第几，以及 RRF 如何按名次融合”。
+
 - 当前验证方式：
-  - 已通过 `python3 -m py_compile core/knowledge.py core/pre_meeting.py scripts/knowledge_tools_demo.py` 验证语法正确
-  - 已用临时 SQLite 构造 `knowledge_documents` / `knowledge_chunks`，验证关键词回退、metadata filter、`term_similarity`、`final_score` 和原因解释可正常返回
+  - 已通过 `python3 -m py_compile config/*.py core/knowledge.py core/agent.py scripts/knowledge_tools_demo.py` 验证语法正确
+  - 首次在沙箱内运行 `python3 scripts/knowledge_tools_demo.py` 因无法访问 HuggingFace 下载 `BAAI/bge-small-zh-v1.5` 失败；提权允许网络后重跑成功
+  - 已通过 `python3 scripts/knowledge_tools_demo.py` 验证 `knowledge.search` 返回 `BM25 命中 3 条；融合策略 rrf；rrf_k=60`，hit 中包含 `bm25_score`、`vector_rank`、`keyword_rank`、`rrf_score`，且 `knowledge.fetch_chunk` 仍可按 `ref_id` 展开父级上下文
+  - 2026-04-30 收口验证发现：在无网络沙箱中直接运行 `python3 scripts/knowledge_tools_demo.py` 时，`sentence-transformers` 会尝试访问 HuggingFace HEAD 接口并失败；如果模型已缓存，可用 `HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 python3 scripts/knowledge_tools_demo.py` 离线复现成功
+  - 已通过 `sqlite3 storage/knowledge/knowledge_tools_demo.sqlite "SELECT count(*) FROM knowledge_chunks_fts;"` 验证 FTS 表有 7 条可检索子 chunk
+  - 已通过 `sqlite3 storage/knowledge/knowledge_tools_demo.sqlite "SELECT count(*) FROM knowledge_chunks_fts f JOIN knowledge_chunks c ON c.chunk_id=f.chunk_id WHERE c.chunk_type='parent_section';"` 验证 `parent_section` 未进入 BM25 索引，结果为 0
+  - 已通过 `sqlite3 storage/knowledge/knowledge_tools_demo.sqlite "SELECT f.chunk_id, bm25(knowledge_chunks_fts) FROM knowledge_chunks_fts f WHERE knowledge_chunks_fts MATCH '\"风险\"' ORDER BY bm25(knowledge_chunks_fts) LIMIT 3;"` 验证 BM25 能按关键词召回正确 chunk
+  - 已通过本地 monkeypatch `_fts_index_exists=False` 调用 `_build_bm25_hits()`，验证 FTS5 不可用时返回 `关键词回退 3 knowledge_tool_doc#chunk_5_ac05eff05b3e`
 
 ### T3.14 接入可选 reranker 阶段
 
@@ -736,11 +798,12 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - 可通过 `--doc` / `--minute` 传入真实飞书文档或妙记，脚本会先读取资源，再调用 `KnowledgeIndexStore.index_resource(..., force=True)` 按当前 embedding 指纹重建索引
   - 将真实会议和已索引资源转换为 `meeting.soon` 触发 payload，再进入 `WorkflowRouter -> PreMeetingBriefWorkflow -> Agent Loop`
   - `--llm-provider scripted_debug` 可先稳定验证真实飞书 + 真实知识索引链路；切到 `settings/default/其他 provider` 时可验证真实 LLM
-  - 每次运行会在 `storage/reports/m3/` 生成 Markdown 与 JSON 报告，展示会议输入、检索 query、资源 chunk、工具命中结果和卡片 payload 草案
+  - 默认不再生成 `storage/reports/m3/` 报告文件；需要排查会议输入、检索 query、资源 chunk、工具命中结果和卡片 payload 草案时，可显式传 `--write-report`
   - 报告会把“可检索子 chunk”和“父级上下文 chunk”分开展示，避免把 parent_section 误读为重复检索片段
   - `scripted_debug` 会优先解析 Agent Loop 消息中的“运行时上下文 JSON”，并用真实会议标题、会议描述和相关资料标题构造 `knowledge.search` query，避免真实联调时继续使用固定的 MeetFlow 调试查询词
   - 默认复用 `updated_at + checksum + embedding_fingerprint` 均未变化的既有索引；只有传 `--force-index` 时才强制重建，减少真实联调时反复下载 embedding 模型和重写向量库的外部不稳定性
   - 人工联调同一会议需要重复发送时，可传 `--idempotency-suffix` 为本次运行生成新的业务幂等键；该方式不清理本地幂等记录，也不绕过 `AgentPolicy`
+  - `--write-report` 会按需写入 Markdown 与 JSON 可观察性报告；不传该参数时，脚本只打印运行摘要和 Agent 结果，避免真实联调后继续堆积 `reports/m3` 文件
 - 推荐命令：
   - `python3 scripts/pre_meeting_live_test.py --identity user --lookahead-hours 24 --doc '<你的飞书文档 URL>'`
   - `python3 scripts/pre_meeting_live_test.py --identity user --event-id '<真实 event_id>' --doc '<文档 URL>' --minute '<妙记 URL>'`
@@ -749,7 +812,7 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
 - 当前验证方式：
   - 已通过 `python3 -m py_compile scripts/pre_meeting_live_test.py` 验证语法正确
   - 已通过 `python3 scripts/pre_meeting_live_test.py --help` 验证 CLI 参数可正常解析
-  - 已确认 `--report-dir` 参数可用于输出 M3 链路可观察性报告
+  - 已确认 `--write-report` 未开启时不会输出 M3 链路可观察性报告，`--report-dir` 仅在显式开启报告时生效
   - 已通过 `python3 -m py_compile scripts/agent_demo.py scripts/pre_meeting_live_test.py` 验证真实联调脚本和 scripted_debug 上下文解析语法正确
   - 已用真实会议 `飞书 AI 校园竞赛-主题分享直播-产品专场` 和真实文档 `飞书 AI 校园挑战赛-线上开赛仪式` 完成只读联调，报告输出到 `storage/reports/m3/pre_meeting_live_ff39cd17f654.md` 与 `storage/reports/m3/pre_meeting_live_ff39cd17f654.json`
   - 早期联调 `pre_meeting_live_ff39cd17f654` 确认链路状态为 `success`，但暴露出飞书 XML 文档被切成 1 个子 chunk + 1 个重复 parent chunk 的问题
@@ -762,3 +825,28 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - 已更新 `adapters/feishu_client.py`：新增 `normalize_feishu_message_uuid()`，把内部幂等键稳定映射为 `mf_<sha1>` 短 uuid 后再传给飞书 IM 接口，避免把包含冒号和长业务 ID 的内部键原样传给外部接口
   - 当前真实写入发送尚未完成最终成功确认：修复 uuid 后，因环境外部执行审批额度限制，无法继续发起飞书真实网络探针；下一次可直接使用带新 `--idempotency-suffix` 的命令复测
   - 当前联调暴露的检索质量问题：真实模型自由调用 `knowledge.search` 时会搜索全局知识库，可能把历史个人阶段小结等旧文档排到本次补充文档之前；后续需要为会前链路增加“候选文档范围过滤/项目知识域过滤/本次会议资源 boost”，否则弱相关或历史文档可能污染卡片证据
+  - 已新增 `--event-title`，支持按日程标题包含匹配真实会议，避免默认选择最近会议时误测其他日程
+  - 已修复会前卡片来源链接展示：`cards/pre_meeting.py` 会在完整卡片的待读资料和证据引用中渲染来源 URL；`core/pre_meeting.py` 会在最小 facts 中追加“资料链接”
+  - 已收紧 `im.send_card` 的 LLM 可见 schema：不再向模型暴露自由 `card` 参数，避免真实模型自造没有来源链接的卡片；工具层仍统一通过 `title/summary/facts` 生成稳定卡片
+  - 2026-04-30 使用真实会议标题 `飞书环境配置` 完成全链路写入联调，报告输出到 `storage/reports/m3/pre_meeting_live_9c44a6ce81cb.md` 与 `.json`；日历中未找到用户口述的 `飞书环境测试`，同日窗口实际匹配到 `飞书环境配置`
+  - 本次联调使用三个已给文档：`李健文-个人阶段小结`、`飞书 AI 校园挑战赛-线上开赛仪式`、`Trae IDE 模型配置指南`；索引均复用已有 namespace `sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce`
+  - 本次 `knowledge.search` 首要命中为 `Trae IDE 模型配置指南` 的配置步骤 chunk，随后模型通过 `knowledge.fetch_chunk` 展开两个 Trae chunk，并成功调用 `im.send_card`；飞书返回 `message_id=om_x100b501909b7c888b217c7cb23ad2f7`
+  - 本次发送结果确认卡片内容包含三篇原始文档链接和会议日历链接；发送者为应用身份，说明 `im.send_card` 默认 tenant 身份可向配置测试群发送
+  - 2026-04-30 二次复盘发现真实模型仍可能自行组织 facts，导致卡片背景和链接混排，并把 Unix 时间戳错误换算为 `10:30/14:30`；根因是 workflow goal 只给了原始时间戳，且卡片模板没有强制链接后置
+  - 已更新 `scripts/pre_meeting_live_test.py`：`build_live_goal()` 会把会议时间格式化为 `Asia/Shanghai` 的权威展示时间，并明确禁止模型自行换算时间戳；`飞书环境配置` 的 `1777545000-1777546800` 本地格式化为 `2026-04-30 18:30-19:00 Asia/Shanghai`
+  - 已更新 `adapters/feishu_client.py`：`build_meetflow_card()` 会把 facts 分为“核心背景知识”和“原始链接”两个区块，链接类 facts 永远后置，避免群卡片阅读结构漂移
+  - 已通过 `python3 -m py_compile adapters/feishu_client.py scripts/pre_meeting_live_test.py` 验证语法正确，并用本地函数验证时间格式化和 facts 分组逻辑正确
+  - 2026-04-30 按用户偏好更新 `scripts/pre_meeting_live_test.py`：默认不再写入 `storage/reports/m3/pre_meeting_live_*.md/.json`；新增 `--write-report` 作为显式可观察性报告开关，保留复杂链路排查能力
+  - 2026-04-30 验证 BM25/RRF 后的真实联调安全边界：直接使用 `--llm-provider deepseek --allow-write` 会把真实会议/文档内容发送给外部 LLM，审批器拒绝；改用 `scripted_debug` 跑真实飞书读写链路
+  - 已更新 `scripts/agent_demo.py`：`ScriptedDebugProvider` 在 `knowledge.search` 成功且 `im_send_card` 可用时，会继续调用 `im_send_card`；这只用于受控联调，避免 scripted_debug 停在只读检索阶段
+  - 复测发现旧文档在 `updated_at + checksum + embedding_fingerprint` 未变化时会跳过重建，导致后加的 FTS5/BM25 表没有旧 chunk 记录；已更新 `core/knowledge.py`，在资源跳过重建时仍会轻量回填 `knowledge_chunks_fts`
+  - 已通过命令 `python3 scripts/pre_meeting_live_test.py --identity user --event-title '飞书环境配置' --lookahead-hours 24 --doc 'https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig' --llm-provider scripted_debug --max-iterations 5 --allow-write --enable-idempotency --idempotency-suffix 'bm25-rrf-20260430-1346' --write-report` 完成 BM25/RRF 后的全链路真实写入
+  - 本次联调只使用一篇真实文档 `Trae IDE 模型配置指南`，索引复用已有 namespace `sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce`，`chunk_count=7`
+  - 本次 `knowledge.search` 返回 `混合检索候选 4 条；向量命中 3 条；BM25 命中 3 条；融合策略 rrf；最终返回 2 条；rrf_k=60`，命中结果包含 `BM25召回`、`keyword_rank`、`bm25_score`、`vector_rank` 和 `rrf_score` 解释字段
+  - 本次 `im.send_card` 成功向测试群发送交互式卡片：`chat_id=oc_3e432398cc43063fda2b2d322bb6dead`，`message_id=om_x100b501af60f7880b2a6c2ecaf3ad8e`，发送者为应用身份
+  - 本次链路文档已写入 `storage/reports/m3/pre_meeting_live_b22f5cf8350e.md` 与 `.json`；Markdown 顶部补充了执行命令、安全说明、BM25/RRF 证据和飞书写入结果
+  - 2026-04-30 在用户明确确认外部模型与真实写入风险后，已执行 `deepseek + allow-write` 真实链路：`python3 scripts/pre_meeting_live_test.py --identity user --event-title '飞书环境配置' --lookahead-hours 24 --doc 'https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig' --llm-provider deepseek --max-iterations 6 --allow-write --enable-idempotency --idempotency-suffix 'deepseek-bm25-rrf-20260430-confirmed' --write-report`
+  - 本次 DeepSeek 真实链路状态为 `success`，工具顺序为 `knowledge.search -> knowledge.search -> knowledge.fetch_chunk -> knowledge.fetch_chunk -> im.send_card`，测试群真实消息为 `message_id=om_x100b501b5cce7cb8b2a4c2062fa1cf3`
+  - 本次混合检索验证重点：第一次泛查询 `飞书环境配置` 为 `向量命中 8 条 / BM25 命中 0 条`；DeepSeek 随后改用更具体查询 `Trae IDE 模型配置 火山引擎 自定义模型`，结果为 `向量命中 8 条 / BM25 命中 7 条 / 融合策略 rrf / rrf_k=60`
+  - 本次 RRF top1 为 `Trae IDE 模型配置指南` 的 `步骤三：添加并配置自定义模型` chunk，解释字段为 `vector_rank=1`、`keyword_rank=1`、`bm25_score=-1.19834`、`rrf_score=0.032787`，验证了向量与 BM25 同时高排名时 RRF 会稳定推到首位
+  - 为避免报告过长，本次另写简明链路记录 `storage/reports/m3/pre_meeting_live_239b439075d2_summary.md`；完整原始报告保留在 `storage/reports/m3/pre_meeting_live_239b439075d2.md` 与 `.json`

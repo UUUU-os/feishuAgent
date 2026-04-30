@@ -44,6 +44,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--calendar-id", default="primary", help="日历 ID，默认 primary。")
     parser.add_argument("--event-id", default="", help="指定要测试的 event_id；不传则自动选择最近一条即将开始的会议。")
+    parser.add_argument("--event-title", default="", help="按标题包含匹配选择会议；适合真实联调时定位指定会议。")
     parser.add_argument("--identity", default="", choices=["tenant", "user"], help="飞书身份；不传则读取配置默认值。")
     parser.add_argument("--start-time", default="", help="查询开始时间，秒级时间戳。")
     parser.add_argument("--end-time", default="", help="查询结束时间，秒级时间戳。")
@@ -68,9 +69,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--force-index", action="store_true", help="强制重建补充资源索引；默认复用未变化的已有索引。")
     parser.add_argument("--show-full", action="store_true", help="打印完整 AgentRunResult。")
     parser.add_argument(
+        "--write-report",
+        action="store_true",
+        help="显式写入链路可视化报告；默认不再生成 storage/reports/m3 文件。",
+    )
+    parser.add_argument(
         "--report-dir",
         default="storage/reports/m3",
-        help="链路可视化报告输出目录，默认 storage/reports/m3。",
+        help="配合 --write-report 使用的报告输出目录，默认 storage/reports/m3。",
     )
     return parser.parse_args()
 
@@ -103,6 +109,7 @@ def main() -> int:
             end_time=end_time,
             identity=identity,
             event_id=args.event_id,
+            event_title=args.event_title,
         )
         resources = fetch_supporting_resources(
             client=client,
@@ -155,7 +162,12 @@ def main() -> int:
 
     result = agent.run(
         agent_input=trigger_plan.agent_input,
-        workflow_goal=build_live_goal(event=event, resources=resources, allow_write=args.allow_write),
+        workflow_goal=build_live_goal(
+            event=event,
+            resources=resources,
+            allow_write=args.allow_write,
+            timezone_name=settings.app.timezone,
+        ),
         generation_settings=GenerationSettings(
             model=llm_settings.model,
             temperature=llm_settings.temperature,
@@ -167,17 +179,21 @@ def main() -> int:
     )
 
     result_dict = result.to_dict()
-    report_paths = write_observability_report(
-        report_dir=PROJECT_ROOT / args.report_dir,
-        event=event,
-        identity=identity,
-        resources=resources,
-        index_summaries=index_summaries,
-        knowledge_store=knowledge_store,
-        trigger_plan=trigger_plan.to_dict(),
-        allow_write=args.allow_write,
-        result=result_dict,
-    )
+    # 默认不再落盘生成 reports/m3 文件，避免真实联调后产生大量本地报告。
+    # 需要排查链路细节时，仍可通过 --write-report 显式开启。
+    report_paths: dict[str, str] = {}
+    if args.write_report:
+        report_paths = write_observability_report(
+            report_dir=PROJECT_ROOT / args.report_dir,
+            event=event,
+            identity=identity,
+            resources=resources,
+            index_summaries=index_summaries,
+            knowledge_store=knowledge_store,
+            trigger_plan=trigger_plan.to_dict(),
+            allow_write=args.allow_write,
+            result=result_dict,
+        )
 
     print_runtime_summary(
         event=event,
@@ -211,6 +227,7 @@ def select_target_event(
     end_time: str,
     identity: str,
     event_id: str = "",
+    event_title: str = "",
 ) -> CalendarEvent:
     """从真实日历中选择一条用于 M3 联调的会议。"""
 
@@ -227,6 +244,12 @@ def select_target_event(
             if item.event_id == event_id:
                 return item
         raise FeishuAPIError(f"没有找到指定 event_id 的会议：{event_id}")
+    if event_title:
+        matched = [item for item in events if event_title.lower() in (item.summary or "").lower()]
+        if matched:
+            return sorted(matched, key=lambda item: safe_event_timestamp(item.start_time))[0]
+        available = "；".join(item.summary or item.event_id for item in events[:10])
+        raise FeishuAPIError(f"没有找到标题包含 {event_title!r} 的会议；当前窗口会议：{available}")
     return sorted(events, key=lambda item: safe_event_timestamp(item.start_time))[0]
 
 
@@ -350,27 +373,58 @@ def build_live_llm(args: argparse.Namespace, fallback: LLMSettings) -> tuple[Scr
     return create_llm_provider(llm_settings), llm_settings
 
 
-def build_live_goal(event: CalendarEvent, resources: list[Resource], allow_write: bool) -> str:
+def build_live_goal(event: CalendarEvent, resources: list[Resource], allow_write: bool, timezone_name: str = "Asia/Shanghai") -> str:
     """构造更贴近 M3 联调目标的工作流说明。"""
 
     resource_hint = "、".join(
         [resource.title for resource in resources[:3] if resource.title]
     ) or "当前没有额外索引资源，只能依赖会议上下文和已有知识库"
+    meeting_time = format_event_time_range(event, timezone_name=timezone_name)
     write_hint = (
-        "允许调用写工具发送最终会前卡片；完成证据检索后必须调用 im_send_card，优先传 title、summary、facts 和 idempotency_key，不要自造复杂 card。"
+        "允许调用写工具发送最终会前卡片；完成证据检索后必须调用 im_send_card，只传 title、summary、facts 和 idempotency_key，不要传 card；facts 先写核心背景知识，最后写原始资料链接。"
         if allow_write
         else "当前只读联调，不要发送真实卡片，只输出会前卡片草案和引用。"
     )
     return (
         f"请围绕真实会议《{event.summary or event.event_id}》生成会前知识卡片。\n"
         f"- 本次补充索引资源：{resource_hint}\n"
-        f"- 会议开始时间: {event.start_time}\n"
+        f"- 会议时间（权威，禁止自行换算）: {meeting_time}\n"
+        f"- 会议开始时间戳（仅供审计，不要展示给用户）: {event.start_time}\n"
         f"- 会议描述: {event.description or '无'}\n"
         f"- 参会人数: {len(event.attendees)}\n"
         f"- {write_hint}\n"
+        "- 卡片结构必须是：一句会议背景摘要 -> 核心背景知识 2-4 条 -> 原始资料链接。\n"
+        "- 展示会议时间时必须原样使用“会议时间（权威）”，不要根据时间戳重新计算。\n"
         "- 结论必须基于 knowledge_search / knowledge_fetch_chunk 或当前会议上下文，不要编造资料。\n"
         "- 如果证据不足，要明确指出资料不足或仅为可能相关资料。"
     )
+
+
+def format_event_time_range(event: CalendarEvent, timezone_name: str = "Asia/Shanghai") -> str:
+    """把飞书日程秒级时间戳格式化为本地会议时间。"""
+
+    tz = ZoneInfo(timezone_name or "Asia/Shanghai")
+    start_text = format_event_timestamp(event.start_time, tz)
+    end_text = format_event_timestamp(event.end_time, tz)
+    if start_text and end_text:
+        start_date, start_clock = start_text.split(" ", 1)
+        end_date, end_clock = end_text.split(" ", 1)
+        if start_date == end_date:
+            return f"{start_date} {start_clock}-{end_clock} {timezone_name or 'Asia/Shanghai'}"
+        return f"{start_text}-{end_text} {timezone_name or 'Asia/Shanghai'}"
+    return start_text or event.start_time or "未知"
+
+
+def format_event_timestamp(value: str, timezone: ZoneInfo) -> str:
+    """格式化秒级或毫秒级时间戳。"""
+
+    try:
+        timestamp = int(str(value or "0"))
+    except ValueError:
+        return str(value or "")
+    if timestamp > 10_000_000_000:
+        timestamp = timestamp // 1000
+    return datetime.fromtimestamp(timestamp, timezone).strftime("%Y-%m-%d %H:%M")
 
 
 def print_runtime_summary(
@@ -566,7 +620,7 @@ def render_observability_markdown(details: dict[str, Any]) -> str:
         "## 2. 工作流阶段",
         "",
         "```text",
-        "真实日历会议 -> 真实文档读取 -> 文档清洗与 chunk -> 向量/关键词索引 -> meeting.soon -> PreMeetingBriefWorkflow -> knowledge.search -> 会前卡片草案",
+        "真实日历会议 -> 真实文档读取 -> 文档清洗与 chunk -> 向量/BM25 索引 -> meeting.soon -> PreMeetingBriefWorkflow -> knowledge.search -> im.send_card(allow_write 时)",
         "```",
         "",
         "## 3. 检索 Query",

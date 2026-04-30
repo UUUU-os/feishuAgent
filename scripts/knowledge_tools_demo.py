@@ -26,7 +26,12 @@ def main() -> int:
     settings = load_settings()
     configure_logging(settings.logging)
     demo_db_path = Path(settings.storage.db_path).parent / "knowledge" / "knowledge_tools_demo.sqlite"
-    store = KnowledgeIndexStore(settings.storage, db_path=demo_db_path, embedding_settings=settings.embedding)
+    store = KnowledgeIndexStore(
+        settings.storage,
+        db_path=demo_db_path,
+        embedding_settings=settings.embedding,
+        search_settings=settings.knowledge_search,
+    )
     store.initialize()
     seed_resources(store)
 

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from config import EmbeddingSettings, RerankerSettings, StorageSettings
+from config import EmbeddingSettings, KnowledgeSearchSettings, RerankerSettings, StorageSettings
 from core.logging import get_logger
 from core.models import BaseModel, Resource
 from core.pre_meeting import RetrievedResource
@@ -31,6 +31,8 @@ DEFAULT_FRESHNESS_WEIGHT = 0.05
 DEFAULT_SIMILARITY_THRESHOLD = 0.20
 DEFAULT_RERANKER_TOP_K = 32
 DEFAULT_RERANKER_WEIGHT = 0.25
+DEFAULT_FUSION_STRATEGY = "rrf"
+DEFAULT_RRF_K = 60
 DOC_CHILD_CHUNK_TARGET_TOKENS = 420
 DOC_CHILD_CHUNK_MAX_TOKENS = 680
 
@@ -389,6 +391,10 @@ class KnowledgeSearchHit(BaseModel):
     score: float
     vector_similarity: float = 0.0
     term_similarity: float = 0.0
+    bm25_score: float = 0.0
+    vector_rank: int = 0
+    keyword_rank: int = 0
+    rrf_score: float = 0.0
     rerank_score: float = 0.0
     final_score: float = 0.0
     source_url: str = ""
@@ -452,6 +458,7 @@ class KnowledgeIndexStore:
         db_path: str | Path | None = None,
         embedding_settings: EmbeddingSettings | None = None,
         reranker_settings: RerankerSettings | None = None,
+        search_settings: KnowledgeSearchSettings | None = None,
     ) -> None:
         self.settings = settings
         self.db_path = Path(db_path) if db_path else Path(settings.db_path).parent / "knowledge" / "knowledge.sqlite"
@@ -462,6 +469,7 @@ class KnowledgeIndexStore:
             reranker_settings = build_reranker_settings_from_env()
         self.embedding_settings = embedding_settings
         self.reranker_settings = reranker_settings
+        self.search_settings = search_settings or build_knowledge_search_settings_from_env()
         self.embedding_fingerprint = build_embedding_fingerprint(embedding_settings)
         self.knowledge_namespace = build_knowledge_namespace(embedding_settings)
         model_digest = hashlib.sha1(self.embedding_fingerprint.encode("utf-8")).hexdigest()[:8]
@@ -521,6 +529,7 @@ class KnowledgeIndexStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_document_id ON knowledge_chunks(document_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_doc_type ON knowledge_chunks(doc_type)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_documents_source_type ON knowledge_documents(source_type)")
+            self._ensure_fts_index(conn)
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS index_jobs (
@@ -544,6 +553,32 @@ class KnowledgeIndexStore:
             conn.commit()
         self.logger.info("知识索引存储初始化完成 db_path=%s", self.db_path)
 
+    def _ensure_fts_index(self, conn: sqlite3.Connection) -> bool:
+        """创建 SQLite FTS5/BM25 关键词索引，不可用时保留旧关键词兜底。
+
+        FTS 表只是 `knowledge_chunks` 的检索索引副本，不承载业务主数据；
+        命中后仍然回表读取标题、来源、metadata 和完整证据。
+        """
+
+        try:
+            conn.execute(
+                """
+                CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_chunks_fts
+                USING fts5(
+                    chunk_id UNINDEXED,
+                    document_id UNINDEXED,
+                    title,
+                    text,
+                    keywords,
+                    tokenize='unicode61'
+                )
+                """
+            )
+            return True
+        except sqlite3.OperationalError as error:
+            self.logger.warning("SQLite FTS5 不可用，BM25 将回退到旧关键词扫描 error=%s", error)
+            return False
+
     def index_resource(self, resource: Resource | RetrievedResource, force: bool = False) -> KnowledgeIndexResult:
         """清洗并索引一个资源。
 
@@ -563,6 +598,14 @@ class KnowledgeIndexStore:
             and existing.get("checksum") == document.checksum
             and existing_embedding_fingerprint == self.embedding_fingerprint
         ):
+            with sqlite3.connect(self.db_path) as conn:
+                # 资源本身未变化时不重写向量库；但 FTS5/BM25 是后增索引，
+                # 老文档可能还没有全文索引记录，因此这里做一次轻量回填。
+                self._ensure_fts_index(conn)
+                if self._fts_index_exists(conn):
+                    conn.execute("DELETE FROM knowledge_chunks_fts WHERE document_id = ?", (document.document_id,))
+                    self._sync_fts_chunks(conn, document=document, chunks=chunks)
+                    conn.commit()
             document.index_status = existing.get("index_status", "succeeded")
             document.last_indexed_at = int(existing.get("last_indexed_at", 0) or 0)
             document.chunk_count = int(existing.get("chunk_count", 0) or 0)
@@ -587,6 +630,8 @@ class KnowledgeIndexStore:
 
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("DELETE FROM knowledge_chunks WHERE document_id = ?", (document.document_id,))
+            if self._fts_index_exists(conn):
+                conn.execute("DELETE FROM knowledge_chunks_fts WHERE document_id = ?", (document.document_id,))
             conn.execute(
                 """
                 INSERT OR REPLACE INTO knowledge_documents (
@@ -658,6 +703,7 @@ class KnowledgeIndexStore:
                     for chunk in chunks
                 ],
             )
+            self._sync_fts_chunks(conn, document=document, chunks=chunks)
             conn.commit()
 
         vector_result = self.vector_index.upsert_document(document, chunks)
@@ -671,6 +717,51 @@ class KnowledgeIndexStore:
             skipped=False,
             reason=f"资源已清洗为 {len(chunks)} 个 chunk 并写入知识索引。",
         )
+
+    def _sync_fts_chunks(self, conn: sqlite3.Connection, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> None:
+        """把可检索子 chunk 同步到 FTS5 表，供 BM25 使用。
+
+        父级 `parent_section` 通常是长段落合集，只用于证据展开；不进入 BM25
+        精准召回，避免长父 chunk 因包含更多词而压过具体子 chunk。
+        """
+
+        if not self._fts_index_exists(conn):
+            return
+        rows: list[tuple[str, str, str, str, str]] = []
+        for chunk in chunks:
+            if chunk.chunk_type == "parent_section":
+                continue
+            keywords = chunk.metadata.get("keywords") or []
+            rows.append(
+                (
+                    chunk.chunk_id,
+                    chunk.document_id,
+                    document.title,
+                    chunk.text,
+                    " ".join(str(item) for item in keywords),
+                )
+            )
+        if rows:
+            conn.executemany(
+                """
+                INSERT INTO knowledge_chunks_fts (
+                    chunk_id,
+                    document_id,
+                    title,
+                    text,
+                    keywords
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+
+    def _fts_index_exists(self, conn: sqlite3.Connection) -> bool:
+        """确认当前 SQLite 连接中是否存在可用 FTS5 表。"""
+
+        row = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'knowledge_chunks_fts'"
+        ).fetchone()
+        return row is not None
 
     def get_document(self, document_id: str) -> dict[str, Any] | None:
         """读取文档元数据。"""
@@ -954,6 +1045,8 @@ class KnowledgeIndexStore:
         similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
         vector_weight: float = DEFAULT_VECTOR_WEIGHT,
         keyword_weight: float = DEFAULT_KEYWORD_WEIGHT,
+        fusion_strategy: str = "",
+        rrf_k: int = 0,
         reranker_enabled: bool | None = None,
         reranker_provider: str = "",
         reranker_model: str = "",
@@ -971,8 +1064,8 @@ class KnowledgeIndexStore:
     ) -> KnowledgeSearchResult:
         """在本地知识 chunk 中做轻量 RAG 召回。
 
-        当前通过 ChromaDB 向量索引召回候选 chunk，再结合结构化元数据、
-        更新时间和关键词命中生成压缩 evidence pack，避免把全文直接塞回 LLM。
+        当前通过 ChromaDB 向量索引召回候选 chunk，通过 SQLite FTS5/BM25
+        召回关键词候选，再用 RRF 融合排名，避免直接比较不同检索器的原始分数。
         """
 
         self.initialize()
@@ -1033,6 +1126,13 @@ class KnowledgeIndexStore:
             maximum=1.0,
             default=DEFAULT_KEYWORD_WEIGHT,
         )
+        final_fusion_strategy = normalize_fusion_strategy(fusion_strategy or self.search_settings.fusion_strategy)
+        final_rrf_k = clamp_int(
+            rrf_k or self.search_settings.rrf_k,
+            minimum=1,
+            maximum=200,
+            default=DEFAULT_RRF_K,
+        )
         final_reranker_enabled = self.reranker_settings.enabled if reranker_enabled is None else bool(reranker_enabled)
         final_reranker_provider = (reranker_provider or self.reranker_settings.provider or "local-rule").strip()
         final_reranker_model = (reranker_model or self.reranker_settings.model or "").strip()
@@ -1081,7 +1181,7 @@ class KnowledgeIndexStore:
         elif not vector_result.get("ok"):
             vector_error = str(vector_result.get("error") or "")
 
-        keyword_hits = self._build_keyword_hits(
+        keyword_hits, keyword_backend = self._build_bm25_hits(
             query_terms=query_terms,
             query=query,
             time_window=time_window,
@@ -1089,15 +1189,24 @@ class KnowledgeIndexStore:
             metadata_filter=metadata_filter,
             top_k=final_top_k,
         )
-        merged_hits = merge_hybrid_hits(
-            vector_hits=vector_hits,
-            keyword_hits=keyword_hits,
-            vector_weight=final_vector_weight,
-            keyword_weight=final_keyword_weight,
-            freshness_weight=DEFAULT_FRESHNESS_WEIGHT,
-            similarity_threshold=final_threshold,
-            threshold_relaxed=bool(document_id or source_url),
-        )
+        if final_fusion_strategy == "rrf":
+            merged_hits = merge_hybrid_hits_rrf(
+                vector_hits=vector_hits,
+                keyword_hits=keyword_hits,
+                rrf_k=final_rrf_k,
+                similarity_threshold=final_threshold,
+                threshold_relaxed=bool(document_id or source_url),
+            )
+        else:
+            merged_hits = merge_hybrid_hits(
+                vector_hits=vector_hits,
+                keyword_hits=keyword_hits,
+                vector_weight=final_vector_weight,
+                keyword_weight=final_keyword_weight,
+                freshness_weight=DEFAULT_FRESHNESS_WEIGHT,
+                similarity_threshold=final_threshold,
+                threshold_relaxed=bool(document_id or source_url),
+            )
         reranker_result = apply_optional_reranker(
             query=query,
             query_terms=query_terms,
@@ -1121,9 +1230,12 @@ class KnowledgeIndexStore:
             reason_parts = [
                 f"混合检索候选 {candidate_count} 条",
                 f"向量命中 {len(vector_hits)} 条",
-                f"关键词命中 {len(keyword_hits)} 条",
+                f"{keyword_backend} 命中 {len(keyword_hits)} 条",
+                f"融合策略 {final_fusion_strategy}",
                 f"最终返回 {len(packed_hits)} 条",
             ]
+            if final_fusion_strategy == "rrf":
+                reason_parts.append(f"rrf_k={final_rrf_k}")
             if reranker_result["enabled"]:
                 reason_parts.append(f"reranker:{reranker_result['provider']} 重排 {reranker_result['reranked_count']} 条")
             if domain_status["incompatible_count"] or domain_status["unknown_count"]:
@@ -1222,10 +1334,102 @@ class KnowledgeIndexStore:
             hit = score_chunk_row(row, query_terms=query_terms, query=query, time_window=time_window)
             vector_score = distance_to_similarity(distances[index] if index < len(distances) else 1.0)
             hit.vector_similarity = vector_score
+            hit.vector_rank = index + 1
             hit.reason = f"向量召回:{vector_score:.2f}；{hit.reason}"
             scored.append(hit)
         scored.sort(key=lambda item: (item.vector_similarity, item.term_similarity, item.updated_at), reverse=True)
+        for rank, hit in enumerate(scored, start=1):
+            hit.vector_rank = rank
         return scored[: max(1, min(int(top_k or 20), 50))]
+
+    def _build_bm25_hits(
+        self,
+        query_terms: list[str],
+        query: str,
+        time_window: str,
+        resource_types: set[str],
+        metadata_filter: dict[str, str],
+        top_k: int,
+    ) -> tuple[list[KnowledgeSearchHit], str]:
+        """优先通过 SQLite FTS5 BM25 做关键词召回，不可用时回退旧扫描。"""
+
+        match_query = build_fts_match_query(query_terms=query_terms, query=query)
+        if not match_query:
+            return self._build_keyword_hits(
+                query_terms=query_terms,
+                query=query,
+                time_window=time_window,
+                resource_types=resource_types,
+                metadata_filter=metadata_filter,
+                top_k=top_k,
+            ), "关键词回退"
+        limit = max(1, min(int(top_k or 20) * 4, 100))
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                if not self._fts_index_exists(conn):
+                    raise sqlite3.OperationalError("knowledge_chunks_fts 不存在")
+                rows = conn.execute(
+                    """
+                    SELECT
+                        chunks.chunk_id,
+                        chunks.document_id,
+                        chunks.chunk_type,
+                        chunks.text,
+                        chunks.source_locator,
+                        chunks.parent_chunk_id,
+                        chunks.metadata_json AS chunk_metadata_json,
+                        chunks.updated_at AS chunk_updated_at,
+                        documents.source_type,
+                        documents.title,
+                        documents.source_url,
+                        documents.owner_id,
+                        documents.permission_scope,
+                        documents.updated_at AS document_updated_at,
+                        documents.metadata_json AS document_metadata_json,
+                        bm25(knowledge_chunks_fts) AS bm25_score
+                    FROM knowledge_chunks_fts
+                    JOIN knowledge_chunks AS chunks
+                        ON chunks.chunk_id = knowledge_chunks_fts.chunk_id
+                    JOIN knowledge_documents AS documents
+                        ON documents.document_id = chunks.document_id
+                    WHERE knowledge_chunks_fts MATCH ?
+                        AND chunks.chunk_type != 'parent_section'
+                    ORDER BY bm25_score ASC
+                    LIMIT ?
+                    """,
+                    (match_query, limit),
+                ).fetchall()
+        except sqlite3.OperationalError as error:
+            self.logger.warning("BM25 检索不可用，回退旧关键词扫描 error=%s", error)
+            return self._build_keyword_hits(
+                query_terms=query_terms,
+                query=query,
+                time_window=time_window,
+                resource_types=resource_types,
+                metadata_filter=metadata_filter,
+                top_k=top_k,
+            ), "关键词回退"
+
+        hits: list[KnowledgeSearchHit] = []
+        for row in rows:
+            source_type = normalize_source_type(str(row["source_type"] or ""))
+            if resource_types and source_type not in resource_types:
+                continue
+            if not row_matches_metadata_filter(row, metadata_filter):
+                continue
+            if not row_matches_embedding_namespace(row, self.embedding_fingerprint):
+                continue
+            hit = score_chunk_row(row, query_terms=query_terms, query=query, time_window=time_window)
+            raw_bm25 = float(row["bm25_score"] or 0.0)
+            hit.bm25_score = round(raw_bm25, 6)
+            hit.term_similarity = bm25_rank_to_similarity(len(hits) + 1)
+            hit.keyword_rank = len(hits) + 1
+            hit.reason = f"BM25召回 rank:{hit.keyword_rank} bm25:{raw_bm25:.4f}；{hit.reason}"
+            hits.append(hit)
+            if len(hits) >= max(1, min(int(top_k or 20), 50)):
+                break
+        return hits, "BM25"
 
     def _build_keyword_hits(
         self,
@@ -1276,10 +1480,14 @@ class KnowledgeIndexStore:
             hit = score_chunk_row(row, query_terms=query_terms, query=query, time_window=time_window)
             if hit.term_similarity <= 0 and query_terms:
                 continue
+            hit.keyword_rank = len(hits) + 1
             hit.reason = f"关键词召回:{hit.term_similarity:.2f}；{hit.reason}"
             hits.append(hit)
         hits.sort(key=lambda item: (item.term_similarity, item.updated_at, item.title), reverse=True)
-        return hits[: max(1, min(int(top_k or 20), 50))]
+        final_hits = hits[: max(1, min(int(top_k or 20), 50))]
+        for rank, hit in enumerate(final_hits, start=1):
+            hit.keyword_rank = rank
+        return final_hits
 
     def fetch_chunk(self, chunk_id: str = "", ref_id: str = "") -> KnowledgeChunkFetchResult:
         """按 chunk_id 或 ref_id 读取更完整证据。"""
@@ -2189,6 +2397,15 @@ def build_reranker_settings_from_env() -> RerankerSettings:
     )
 
 
+def build_knowledge_search_settings_from_env() -> KnowledgeSearchSettings:
+    """从环境变量构造知识检索融合配置。"""
+
+    return KnowledgeSearchSettings(
+        fusion_strategy=normalize_fusion_strategy(os.getenv("MEETFLOW_KNOWLEDGE_FUSION_STRATEGY", DEFAULT_FUSION_STRATEGY)),
+        rrf_k=int(os.getenv("MEETFLOW_KNOWLEDGE_RRF_K", str(DEFAULT_RRF_K))),
+    )
+
+
 def build_embedding_fingerprint(settings: EmbeddingSettings) -> str:
     """生成 embedding 向量空间指纹，防止不同模型或维度混检。"""
 
@@ -2221,6 +2438,35 @@ def distance_to_similarity(distance: float) -> float:
     except (TypeError, ValueError):
         return 0.0
     return round(max(0.0, min(1.0, 1.0 - value)), 3)
+
+
+def normalize_fusion_strategy(value: str) -> str:
+    """规范化混合检索融合策略，未知值回退到 RRF。"""
+
+    strategy = str(value or "").strip().lower()
+    if strategy in {"weighted", "rrf"}:
+        return strategy
+    return DEFAULT_FUSION_STRATEGY
+
+
+def build_fts_match_query(query_terms: list[str], query: str) -> str:
+    """把用户查询转成保守的 FTS5 MATCH 表达式。"""
+
+    candidates = unique_strings([*query_terms, query])
+    phrases: list[str] = []
+    for item in candidates:
+        clean = re.sub(r"\s+", " ", str(item or "").strip())
+        clean = clean.replace('"', '""')
+        if clean:
+            phrases.append(f'"{clean}"')
+    return " OR ".join(phrases[:12])
+
+
+def bm25_rank_to_similarity(rank: int) -> float:
+    """把 BM25 排名映射为 0-1 解释分，避免比较不同检索器原始分。"""
+
+    safe_rank = max(1, int(rank or 1))
+    return round(1.0 / (1.0 + ((safe_rank - 1) * 0.15)), 3)
 
 
 def extract_query_terms(query: str, project_id: str = "", meeting_id: str = "") -> list[str]:
@@ -2381,6 +2627,66 @@ def merge_hybrid_hits(
     return final_hits
 
 
+def merge_hybrid_hits_rrf(
+    vector_hits: list[KnowledgeSearchHit],
+    keyword_hits: list[KnowledgeSearchHit],
+    rrf_k: int = DEFAULT_RRF_K,
+    similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
+    threshold_relaxed: bool = False,
+) -> list[KnowledgeSearchHit]:
+    """用 RRF 融合向量召回和 BM25 召回的排名。
+
+    RRF 只依赖各检索器内部排名，不直接比较 vector similarity 与 BM25
+    原始分数，更适合解释“语义召回 + 关键词召回”的混合检索。
+    """
+
+    merged: dict[str, KnowledgeSearchHit] = {}
+    vector_rank_by_id: dict[str, int] = {}
+    keyword_rank_by_id: dict[str, int] = {}
+    for rank, hit in enumerate(vector_hits, start=1):
+        vector_rank_by_id[hit.chunk_id] = hit.vector_rank or rank
+        merged.setdefault(hit.chunk_id, hit)
+    for rank, hit in enumerate(keyword_hits, start=1):
+        keyword_rank_by_id[hit.chunk_id] = hit.keyword_rank or rank
+        existing = merged.get(hit.chunk_id)
+        if existing is None:
+            merged[hit.chunk_id] = hit
+            continue
+        existing.vector_similarity = max(existing.vector_similarity, hit.vector_similarity)
+        existing.term_similarity = max(existing.term_similarity, hit.term_similarity)
+        existing.bm25_score = hit.bm25_score or existing.bm25_score
+        existing.reason = "；".join(unique_strings([existing.reason, hit.reason]))
+
+    final_hits: list[KnowledgeSearchHit] = []
+    safe_k = max(1, int(rrf_k or DEFAULT_RRF_K))
+    max_rrf = (1.0 / (safe_k + 1)) * 2
+    for chunk_id, hit in merged.items():
+        vector_rank = vector_rank_by_id.get(chunk_id, 0)
+        keyword_rank = keyword_rank_by_id.get(chunk_id, 0)
+        rrf_score = 0.0
+        if vector_rank:
+            rrf_score += 1.0 / (safe_k + vector_rank)
+        if keyword_rank:
+            rrf_score += 1.0 / (safe_k + keyword_rank)
+        normalized_score = round(min(rrf_score / max_rrf, 0.99), 3) if max_rrf else 0.0
+        hit.vector_rank = vector_rank
+        hit.keyword_rank = keyword_rank
+        hit.rrf_score = round(rrf_score, 6)
+        hit.final_score = normalized_score
+        hit.score = normalized_score
+        rank_reason = f"RRF融合 rrf_score:{hit.rrf_score:.6f} vector_rank:{vector_rank or '-'} keyword_rank:{keyword_rank or '-'}"
+        if threshold_relaxed:
+            hit.reason = f"显式资源过滤放宽阈值；{rank_reason}；{hit.reason}"
+        else:
+            hit.reason = f"{rank_reason}；{hit.reason}"
+        if not threshold_relaxed and normalized_score < similarity_threshold:
+            continue
+        final_hits.append(hit)
+
+    final_hits.sort(key=lambda item: (item.final_score, item.rrf_score, item.updated_at, item.title), reverse=True)
+    return final_hits
+
+
 def apply_optional_reranker(
     query: str,
     query_terms: list[str],
@@ -2481,6 +2787,10 @@ def build_evidence_pack(
             score=hit.score,
             vector_similarity=hit.vector_similarity,
             term_similarity=hit.term_similarity,
+            bm25_score=hit.bm25_score,
+            vector_rank=hit.vector_rank,
+            keyword_rank=hit.keyword_rank,
+            rrf_score=hit.rrf_score,
             rerank_score=hit.rerank_score,
             final_score=hit.final_score,
             source_url=hit.source_url,
@@ -2732,6 +3042,8 @@ def build_knowledge_search_tool(store: KnowledgeIndexStore) -> AgentTool:
                 },
                 "vector_weight": {"type": "number", "description": "向量相似度权重，默认 0.65。"},
                 "keyword_weight": {"type": "number", "description": "关键词相似度权重，默认 0.30。"},
+                "fusion_strategy": {"type": "string", "description": "混合检索融合策略：rrf 或 weighted，默认 rrf。"},
+                "rrf_k": {"type": "integer", "description": "RRF 排名融合常数，默认 60。"},
                 "reranker_enabled": {"type": "boolean", "description": "是否开启可选 reranker 重排。"},
                 "reranker_provider": {"type": "string", "description": "reranker provider，当前支持 local-rule。"},
                 "reranker_model": {"type": "string", "description": "reranker 模型名，local-rule 可为空。"},
@@ -2766,6 +3078,8 @@ def build_knowledge_search_tool(store: KnowledgeIndexStore) -> AgentTool:
             similarity_threshold=float(arguments.get("similarity_threshold") or DEFAULT_SIMILARITY_THRESHOLD),
             vector_weight=float(arguments.get("vector_weight") or DEFAULT_VECTOR_WEIGHT),
             keyword_weight=float(arguments.get("keyword_weight") or DEFAULT_KEYWORD_WEIGHT),
+            fusion_strategy=str(arguments.get("fusion_strategy") or ""),
+            rrf_k=int(arguments.get("rrf_k") or 0),
             reranker_enabled=arguments.get("reranker_enabled") if "reranker_enabled" in arguments else None,
             reranker_provider=str(arguments.get("reranker_provider") or ""),
             reranker_model=str(arguments.get("reranker_model") or ""),

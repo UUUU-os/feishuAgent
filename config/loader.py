@@ -83,6 +83,18 @@ class RerankerSettings:
 
 
 @dataclass(slots=True)
+class KnowledgeSearchSettings:
+    """知识检索排序配置。
+
+    BM25/RRF 属于本地检索策略，不依赖外部密钥；单独放在配置里，便于
+    本地 demo、答辩对比和后续灰度切换。
+    """
+
+    fusion_strategy: str
+    rrf_k: int
+
+
+@dataclass(slots=True)
 class SchedulerSettings:
     """调度器配置，负责会前提醒和失败重试等时机控制。"""
 
@@ -127,6 +139,7 @@ class Settings:
     llm: LLMSettings
     embedding: EmbeddingSettings
     reranker: RerankerSettings
+    knowledge_search: KnowledgeSearchSettings
     scheduler: SchedulerSettings
     risk_rules: RiskRuleSettings
     logging: LoggingSettings
@@ -181,6 +194,8 @@ ENV_MAPPING: dict[str, tuple[str, str, Any]] = {
     "MEETFLOW_RERANKER_MODEL": ("reranker", "model", str),
     "MEETFLOW_RERANKER_TOP_K": ("reranker", "top_k", int),
     "MEETFLOW_RERANKER_TIMEOUT_SECONDS": ("reranker", "timeout_seconds", int),
+    "MEETFLOW_KNOWLEDGE_FUSION_STRATEGY": ("knowledge_search", "fusion_strategy", str),
+    "MEETFLOW_KNOWLEDGE_RRF_K": ("knowledge_search", "rrf_k", int),
     "MEETFLOW_SCHEDULER_PRE_MEETING_MINUTES": ("scheduler", "pre_meeting_minutes_before", int),
     "MEETFLOW_SCHEDULER_RISK_SCAN_CRON": ("scheduler", "risk_scan_cron", str),
     "MEETFLOW_SCHEDULER_MINUTE_RETRY_INTERVAL": ("scheduler", "minute_retry_interval_minutes", int),
@@ -307,6 +322,7 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         llm=LLMSettings(**merged["llm"]),
         embedding=EmbeddingSettings(**merged["embedding"]),
         reranker=RerankerSettings(**merged["reranker"]),
+        knowledge_search=KnowledgeSearchSettings(**merged["knowledge_search"]),
         scheduler=SchedulerSettings(**merged["scheduler"]),
         risk_rules=RiskRuleSettings(**merged["risk_rules"]),
         logging=LoggingSettings(**merged["logging"]),

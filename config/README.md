@@ -105,6 +105,16 @@ export MEETFLOW_EMBEDDING_MODEL="BAAI/bge-small-zh-v1.5"
 export MEETFLOW_EMBEDDING_DIMENSIONS="512"
 ```
 
+如果模型已经下载到本机缓存，但当前环境不能访问 HuggingFace，可以显式开启离线模式，避免 `sentence-transformers` 启动时发起 HEAD 请求：
+
+```bash
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+python3 scripts/knowledge_tools_demo.py
+```
+
+注意：离线模式只适合模型已缓存的机器；首次下载模型仍需要联网，或提前把模型缓存准备好。
+
 切换到 OpenAI `text-embedding-3-small` 示例：
 
 ```bash
@@ -133,6 +143,17 @@ export MEETFLOW_RERANKER_TOP_K="32"
 ```
 
 当前 `local-rule` 不需要模型和 API key，只根据 query 覆盖率、标题命中、问题命中等轻量信号生成 `rerank_score`。后续接入 bge-reranker、Jina 或 OpenAI-compatible rerank 时，应继续通过本配置段扩展，不要把密钥写入示例配置。
+
+## Knowledge Search 配置
+
+M3 混合检索默认采用 `SQLite FTS5/BM25 + ChromaDB vector + RRF`：
+
+```bash
+export MEETFLOW_KNOWLEDGE_FUSION_STRATEGY="rrf"
+export MEETFLOW_KNOWLEDGE_RRF_K="60"
+```
+
+`rrf` 会按向量召回排名和 BM25 排名做 Reciprocal Rank Fusion，避免直接比较向量相似度和 BM25 原始分数。调试旧逻辑时可以临时设置 `MEETFLOW_KNOWLEDGE_FUSION_STRATEGY="weighted"`，此时仍使用 `vector_weight`、`keyword_weight` 和 freshness 权重。
 
 ## 使用方式
 

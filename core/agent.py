@@ -227,6 +227,7 @@ def create_meetflow_agent(
             settings.storage,
             embedding_settings=settings.embedding,
             reranker_settings=settings.reranker,
+            search_settings=settings.knowledge_search,
         )
         knowledge_store.initialize()
         register_knowledge_tools(final_tool_registry, knowledge_store)
