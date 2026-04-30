@@ -252,7 +252,7 @@ def _build_im_send_card_tool(client: FeishuClient, default_chat_id: str) -> Agen
         internal_name="im.send_card",
         description=(
             "发送 MeetFlow 飞书卡片消息。写操作，通常用于会前背景卡、任务确认卡和风险提醒。"
-            "优先传 title、summary、facts，由工具构造稳定卡片；只有已经有完整合法的飞书 interactive card JSON 时才传 card。"
+            "请传 title、summary、facts，由工具构造稳定卡片；facts 中应包含可打开的原始资料链接。"
         ),
         parameters={
             "type": "object",
@@ -260,7 +260,6 @@ def _build_im_send_card_tool(client: FeishuClient, default_chat_id: str) -> Agen
                 "title": {"type": "string", "description": "卡片标题。"},
                 "summary": {"type": "string", "description": "卡片正文摘要。"},
                 "facts": {"type": "array", "items": {}, "description": "卡片事实列表，可传字符串或包含 label/value 的对象。"},
-                "card": {"type": "object", "description": "可选完整飞书 interactive card JSON；传入后优先直接发送。"},
                 "receive_id": {"type": "string", "description": "接收者 ID，默认使用配置中的测试群。"},
                 "receive_id_type": {"type": "string", "description": "接收者 ID 类型，默认 chat_id。"},
                 "idempotency_key": {"type": "string", "description": "消息幂等键，避免重复发送。"},

@@ -1024,6 +1024,14 @@ def render_pre_meeting_card_payload(brief: MeetingBrief) -> PreMeetingCardPayloa
                 "value": "；".join(item.title for item in brief.possible_related_resources[:3]),
             }
         )
+    source_links = collect_brief_source_links(brief)
+    if source_links:
+        facts.append(
+            {
+                "label": "资料链接",
+                "value": "；".join(source_links[:3]),
+            }
+        )
     sections = build_pre_meeting_card_sections(brief)
     card = build_pre_meeting_card(brief)
     return PreMeetingCardPayload(
@@ -1035,6 +1043,35 @@ def render_pre_meeting_card_payload(brief: MeetingBrief) -> PreMeetingCardPayloa
         source_meeting_id=brief.meeting_id,
         idempotency_key=f"pre_meeting_brief:{brief.meeting_id or brief.calendar_event_id}",
     )
+
+
+def collect_brief_source_links(brief: MeetingBrief) -> list[str]:
+    """收集会前卡片中可直接打开的原始资料链接。"""
+
+    links: list[str] = []
+    for ref in brief.evidence_refs:
+        if ref.source_url:
+            links.append(ref.source_url)
+    for group in (brief.must_read_resources, brief.possible_related_resources):
+        for item in group:
+            for ref in item.evidence_refs:
+                if ref.source_url:
+                    links.append(ref.source_url)
+    return unique_preserved_strings(links)
+
+
+def unique_preserved_strings(values: list[str]) -> list[str]:
+    """按出现顺序去重字符串，避免卡片 facts 重复展示同一链接。"""
+
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        clean = str(value or "").strip()
+        if not clean or clean in seen:
+            continue
+        seen.add(clean)
+        result.append(clean)
+    return result
 
 
 def normalize_dict_list(value: Any) -> list[dict[str, Any]]:

@@ -1,0 +1,1221 @@
+{
+  "event": {
+    "event_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+    "summary": "飞书环境配置",
+    "description": "",
+    "start_time": "1777545000",
+    "end_time": "1777546800",
+    "timezone": "Asia/Shanghai",
+    "organizer_name": "李健文",
+    "organizer_id": "ou_709153a65286899de8e61adcf8d52850",
+    "status": "confirmed",
+    "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=cc40c4af-8edc-46b1-8e13-47f014520f0a&originalTime=0&startTime=1777545000",
+    "attendees": [],
+    "raw_payload": {
+      "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=cc40c4af-8edc-46b1-8e13-47f014520f0a&originalTime=0&startTime=1777545000",
+      "attendee_ability": "can_invite_others",
+      "color": -1,
+      "description": "",
+      "end_time": {
+        "timestamp": "1777546800",
+        "timezone": "Asia/Shanghai"
+      },
+      "event_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+      "event_organizer": {
+        "display_name": "李健文",
+        "user_id": "ou_709153a65286899de8e61adcf8d52850"
+      },
+      "free_busy_status": "busy",
+      "is_exception": false,
+      "organizer_calendar_id": "feishu.cn_wb45FozogM5VgWWOMXpE9a@group.calendar.feishu.cn",
+      "self_rsvp_status": "accept",
+      "start_time": {
+        "timestamp": "1777545000",
+        "timezone": "Asia/Shanghai"
+      },
+      "status": "confirmed",
+      "summary": "飞书环境配置",
+      "vchat": {
+        "meeting_url": "https://vc.feishu.cn/j/570832437",
+        "vc_type": "vc"
+      },
+      "visibility": "default"
+    }
+  },
+  "identity": "user",
+  "allow_write": true,
+  "index_summaries": [
+    {
+      "resource_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+      "resource_type": "feishu_document",
+      "title": "Trae IDE 模型配置指南",
+      "status": "skipped",
+      "skipped": true,
+      "chunk_count": 7,
+      "knowledge_namespace": "sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce"
+    }
+  ],
+  "resources": [
+    {
+      "resource": {
+        "resource_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+        "resource_type": "feishu_document",
+        "title": "Trae IDE 模型配置指南",
+        "content": "<title>Trae IDE 模型配置指南</title><callout emoji=\"💡\"><p><b>背景介绍</b><br/>本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。</p></callout><h3>1. 准备工作</h3><p>在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息：</p><grid><column width-ratio=\"0.330000\"><p><b>接入点 (Endpoint)</b><br/>在这里是服务商，选火山引擎-自定义模型即可</p><p></p></column><column width-ratio=\"0.330000\"><p><b>模型 ID (Model ID)</b><br/>你想要使用的具体模型名称（如 <code>gpt-4o</code>, <code>claude-3-5-sonnet</code> 等）。</p></column><column width-ratio=\"0.340000\"><p><b>API Key</b><br/>用于身份验证的密钥，请务必妥善保管，不要泄露。</p></column></grid><p></p><hr/><h3>2. 配置步骤</h3><p>请按照以下步骤在 Trae IDE 中进行操作：</p><h4><b>步骤一：打开设置界面</b></h4><p>打开 Trae IDE，在界面左下角找到并点击 <b>“设置” (Settings)</b> 图标（齿轮形状），或者使用快捷键 <code>Ctrl + ,</code> (Windows/Linux) 或 <code>Cmd + ,</code> (macOS)。</p><h4><b>步骤二：进入模型配置</b></h4><p>在设置页面的左侧导航栏中，点击 <b>“模型” (Model)</b> 选项卡。</p><h4><b>步骤三：添加并配置自定义模型</b></h4><p>在模型配置界面中，找到“自定义模型”或“添加模型”按钮，并根据提示填入你准备好的信息：</p><ol><li><b>Endpoint</b>:  选择火山引擎 - 自定义模型 </li><li><b>Model ID</b>: 填入对应的模型标识符。（请用自行认领的<cite doc-id=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" file-type=\"sheets\" title=\"EP自助认领—for Trae Idea配置\" token=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" type=\"doc\"></cite>）</li><li><b>API Key</b>: 填入导师提供的 API key。（<cite doc-id=\"SirHbPIqmaqLnZsHaCkcx7esnyc\" file-type=\"bitable\" table-id=\"tblsT5q43EP8tjKU\" title=\"配置数据领取\" token=\"SirHbPIqmaqLnZsHaCkcx7esnyc\" type=\"doc\" view-id=\"vewixQ9v8F\"></cite>）</li></ol><callout emoji=\"🫡\"><p>注意，以上配置信息仅用于本次活动，活动结束后将会收回。请保存好不要外泄，信息安全你我共建</p></callout><img name=\"image.png\" mime=\"image/png\" scale=\"0.543186\" src=\"CdwGb1Hs1olfqzxJWxFc5Mk3nkb\"/><p></p><callout emoji=\"⭐\"><p><b>提示：</b> 填写完成后，请确保点击“保存”或“应用”按钮以生效配置。</p></callout><hr/><h3>3. 测试与确认</h3><p>配置完成后，你可以通过以下方式验证是否成功：</p><ol><li>打开 Trae IDE 的 <b>AI 聊天窗口</b> (Chat)。</li><li>在模型下拉菜单中选择你刚刚配置的 <b>自定义模型</b>。</li><li>输入一个简单的问题（例如：“你好，请介绍一下你自己”），观察模型是否能正常回复。</li></ol><p><b>如果模型能够流畅回答，说明你的配置已经成功！</b></p><callout emoji=\"💭\"><p><b>遇到问题？</b><br/>如果你在配置过程中遇到报错，请首先检查 Endpoint 是否填写完整（包含 https://），以及 API Key 是否有余量或已过期。</p></callout>",
+        "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+        "source_meta": {
+          "document_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "revision_id": 102,
+          "doc_format": "xml",
+          "detail": "simple",
+          "scope": "full",
+          "content_length": 2025,
+          "content_excerpt": "Trae IDE 模型配置指南 背景介绍 本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。 1. 准备工作 在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息： 接入点 (Endpoint) 在这里是服务商，选火山引擎-自定义模型即可 模型 ID (Model ID) 你想要使用的具体模型名称（如 gpt-4o , claude-3-5-sonnet 等）。 API Key 用于身份验证的密钥，请务必妥善保管，不要泄露。 2. 配置步骤 请按照以下步骤在 Trae IDE 中进行操作： 步骤一：打开设置界面 打开 Trae IDE，在界面左下角找到并点击 “设置” (Settings) 图标（齿轮形状），或者使用快捷键 Ctrl + , (Windows/Linux) 或 Cmd + , (macOS)。 步骤二：进入模型配置 在设置页面的左侧导航栏中，点击 “模型” (Model) 选项卡。 步骤三：添加并配置自定义模型 在模型配置界面中，找到..."
+        },
+        "updated_at": "102"
+      },
+      "document": {
+        "document_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+        "source_type": "doc",
+        "title": "Trae IDE 模型配置指南",
+        "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+        "owner_id": "",
+        "updated_at": "102",
+        "permission_scope": "",
+        "checksum": "28e99047684577f47b1669598702911e5f551bf1cd04e5fc7bc11d3cdfd0daac",
+        "index_status": "succeeded",
+        "last_indexed_at": 1777457294,
+        "chunk_count": 7,
+        "metadata": {
+          "document_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "revision_id": 102,
+          "doc_format": "xml",
+          "detail": "simple",
+          "scope": "full",
+          "content_length": 2025,
+          "content_excerpt": "Trae IDE 模型配置指南 背景介绍 本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。 1. 准备工作 在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息： 接入点 (Endpoint) 在这里是服务商，选火山引擎-自定义模型即可 模型 ID (Model ID) 你想要使用的具体模型名称（如 gpt-4o , claude-3-5-sonnet 等）。 API Key 用于身份验证的密钥，请务必妥善保管，不要泄露。 2. 配置步骤 请按照以下步骤在 Trae IDE 中进行操作： 步骤一：打开设置界面 打开 Trae IDE，在界面左下角找到并点击 “设置” (Settings) 图标（齿轮形状），或者使用快捷键 Ctrl + , (Windows/Linux) 或 Cmd + , (macOS)。 步骤二：进入模型配置 在设置页面的左侧导航栏中，点击 “模型” (Model) 选项卡。 步骤三：添加并配置自定义模型 在模型配置界面中，找到...",
+          "embedding_provider": "sentence-transformers",
+          "embedding_model": "BAAI/bge-small-zh-v1.5",
+          "embedding_dimensions": 512,
+          "embedding_fingerprint": "sentence-transformers:BAAI/bge-small-zh-v1.5:512",
+          "knowledge_namespace": "sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce",
+          "vector_collection_name": "meetflow_knowledge_chunks_137933ce"
+        }
+      },
+      "chunks": [
+        {
+          "chunk_id": "KlW9dIlyzo17ccxl26Gc9TGsnig#chunk_1_37aa82bdd82a",
+          "chunk_type": "paragraph",
+          "chunk_order": 1,
+          "parent_chunk_id": "",
+          "doc_type": "doc",
+          "content_tokens": 75,
+          "source_locator": "doc:chunk:1",
+          "toc_path": [
+            "Trae IDE 模型配置指南"
+          ],
+          "positions": {
+            "heading": "Trae IDE 模型配置指南",
+            "toc_path": [
+              "Trae IDE 模型配置指南"
+            ],
+            "block_types": [
+              "paragraph"
+            ],
+            "block_count": 1,
+            "source_type": "doc",
+            "source_locator": "doc:chunk:1",
+            "chunk_order": 1
+          },
+          "child_chunk_ids": [],
+          "keywords": [
+            "trae",
+            "ide",
+            "模型配置指南",
+            "背景介绍",
+            "本指南旨在帮助同学们快速掌握在",
+            "中配置自定义大语言模型",
+            "llm",
+            "的方法。通过配置自定义模型",
+            "你可以根据学习需求灵活切换不同的",
+            "ai",
+            "服务",
+            "提升编程效率"
+          ],
+          "questions": [],
+          "text_preview": "背景介绍 本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。"
+        },
+        {
+          "chunk_id": "KlW9dIlyzo17ccxl26Gc9TGsnig#chunk_2_00400102f724",
+          "chunk_type": "section",
+          "chunk_order": 2,
+          "parent_chunk_id": "",
+          "doc_type": "doc",
+          "content_tokens": 123,
+          "source_locator": "doc:chunk:2",
+          "toc_path": [
+            "1. 准备工作"
+          ],
+          "positions": {
+            "heading": "1. 准备工作",
+            "toc_path": [
+              "1. 准备工作"
+            ],
+            "block_types": [
+              "heading",
+              "paragraph",
+              "paragraph",
+              "paragraph",
+              "paragraph"
+            ],
+            "block_count": 5,
+            "source_type": "doc",
+            "source_locator": "doc:chunk:2",
+            "chunk_order": 2
+          },
+          "child_chunk_ids": [],
+          "keywords": [
+            "trae",
+            "ide",
+            "模型配置指南",
+            "准备工作",
+            "在开始配置之前",
+            "请确保你已经从指导老师或相关平台获取了以下三项关键信息",
+            "接入点",
+            "endpoint",
+            "在这里是服务商",
+            "选火山引擎-自定义模型即可",
+            "模型",
+            "id"
+          ],
+          "questions": [],
+          "text_preview": "1. 准备工作\n在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息：\n接入点 (Endpoint) 在这里是服务商，选火山引擎-自定义模型即可\n模型 ID (Model ID) 你想要使用的具体模型名称（如 gpt-4o , claude-3-5-sonnet 等）。\nAPI Key 用于身份验证的密钥，请务必妥善保管，不要泄露。"
+        },
+        {
+          "chunk_id": "KlW9dIlyzo17ccxl26Gc9TGsnig#chunk_3_329f7db97c61",
+          "chunk_type": "section",
+          "chunk_order": 3,
+          "parent_chunk_id": "",
+          "doc_type": "doc",
+          "content_tokens": 21,
+          "source_locator": "doc:chunk:3",
+          "toc_path": [
+            "2. 配置步骤"
+          ],
+          "positions": {
+            "heading": "2. 配置步骤",
+            "toc_path": [
+              "2. 配置步骤"
+            ],
+            "block_types": [
+              "heading",
+              "paragraph"
+            ],
+            "block_count": 2,
+            "source_type": "doc",
+            "source_locator": "doc:chunk:3",
+            "chunk_order": 3
+          },
+          "child_chunk_ids": [],
+          "keywords": [
+            "trae",
+            "ide",
+            "模型配置指南",
+            "配置步骤",
+            "请按照以下步骤在",
+            "中进行操作"
+          ],
+          "questions": [],
+          "text_preview": "2. 配置步骤\n请按照以下步骤在 Trae IDE 中进行操作："
+        },
+        {
+          "chunk_id": "KlW9dIlyzo17ccxl26Gc9TGsnig#chunk_4_e0af38db84b3",
+          "chunk_type": "section",
+          "chunk_order": 4,
+          "parent_chunk_id": "",
+          "doc_type": "doc",
+          "content_tokens": 60,
+          "source_locator": "doc:chunk:4",
+          "toc_path": [
+            "2. 配置步骤",
+            "步骤一：打开设置界面"
+          ],
+          "positions": {
+            "heading": "步骤一：打开设置界面",
+            "toc_path": [
+              "2. 配置步骤",
+              "步骤一：打开设置界面"
+            ],
+            "block_types": [
+              "heading",
+              "paragraph"
+            ],
+            "block_count": 2,
+            "source_type": "doc",
+            "source_locator": "doc:chunk:4",
+            "chunk_order": 4
+          },
+          "child_chunk_ids": [],
+          "keywords": [
+            "trae",
+            "ide",
+            "模型配置指南",
+            "步骤一",
+            "打开设置界面",
+            "打开",
+            "在界面左下角找到并点击",
+            "“设置”",
+            "settings",
+            "图标",
+            "齿轮形状",
+            "或者使用快捷键"
+          ],
+          "questions": [],
+          "text_preview": "步骤一：打开设置界面\n打开 Trae IDE，在界面左下角找到并点击 “设置” (Settings) 图标（齿轮形状），或者使用快捷键 Ctrl + , (Windows/Linux) 或 Cmd + , (macOS)。"
+        },
+        {
+          "chunk_id": "KlW9dIlyzo17ccxl26Gc9TGsnig#chunk_5_a8f48635ff30",
+          "chunk_type": "section",
+          "chunk_order": 5,
+          "parent_chunk_id": "",
+          "doc_type": "doc",
+          "content_tokens": 35,
+          "source_locator": "doc:chunk:5",
+          "toc_path": [
+            "2. 配置步骤",
+            "步骤二：进入模型配置"
+          ],
+          "positions": {
+            "heading": "步骤二：进入模型配置",
+            "toc_path": [
+              "2. 配置步骤",
+              "步骤二：进入模型配置"
+            ],
+            "block_types": [
+              "heading",
+              "paragraph"
+            ],
+            "block_count": 2,
+            "source_type": "doc",
+            "source_locator": "doc:chunk:5",
+            "chunk_order": 5
+          },
+          "child_chunk_ids": [],
+          "keywords": [
+            "trae",
+            "ide",
+            "模型配置指南",
+            "步骤二",
+            "进入模型配置",
+            "在设置页面的左侧导航栏中",
+            "点击",
+            "“模型”",
+            "model",
+            "选项卡"
+          ],
+          "questions": [],
+          "text_preview": "步骤二：进入模型配置\n在设置页面的左侧导航栏中，点击 “模型” (Model) 选项卡。"
+        },
+        {
+          "chunk_id": "KlW9dIlyzo17ccxl26Gc9TGsnig#chunk_6_2a3af4e72d6b",
+          "chunk_type": "section",
+          "chunk_order": 6,
+          "parent_chunk_id": "",
+          "doc_type": "doc",
+          "content_tokens": 197,
+          "source_locator": "doc:chunk:6",
+          "toc_path": [
+            "2. 配置步骤",
+            "步骤三：添加并配置自定义模型"
+          ],
+          "positions": {
+            "heading": "步骤三：添加并配置自定义模型",
+            "toc_path": [
+              "2. 配置步骤",
+              "步骤三：添加并配置自定义模型"
+            ],
+            "block_types": [
+              "heading",
+              "paragraph",
+              "list_item",
+              "list_item",
+              "list_item",
+              "paragraph",
+              "image",
+              "paragraph"
+            ],
+            "block_count": 8,
+            "source_type": "doc",
+            "source_locator": "doc:chunk:6",
+            "chunk_order": 6
+          },
+          "child_chunk_ids": [],
+          "keywords": [
+            "trae",
+            "ide",
+            "模型配置指南",
+            "步骤三",
+            "添加并配置自定义模型",
+            "在模型配置界面中",
+            "找到“自定义模型”或“添加模型”按钮",
+            "并根据提示填入你准备好的信息",
+            "endpoint",
+            "选择火山引擎",
+            "自定义模型",
+            "model"
+          ],
+          "questions": [],
+          "text_preview": "步骤三：添加并配置自定义模型\n在模型配置界面中，找到“自定义模型”或“添加模型”按钮，并根据提示填入你准备好的信息：\nEndpoint : 选择火山引擎 - 自定义模型\nModel ID : 填入对应的模型标识符。（请用自行认领的 ）\nAPI Key : 填入导师提供的 API key。（ ）\n注意，以上配置信息仅用于本次活动，活动结束后将会收回。请保存好不要外泄，信息安全你我共建\n图片：image.png（src: CdwGb1Hs1olfqzxJWxFc5Mk3nkb）\n提示： 填写完成后，请确保点击“保存”或“应用”按钮以生效配置。"
+        },
+        {
+          "chunk_id": "KlW9dIlyzo17ccxl26Gc9TGsnig#chunk_7_3a000ebb4a8b",
+          "chunk_type": "section",
+          "chunk_order": 7,
+          "parent_chunk_id": "",
+          "doc_type": "doc",
+          "content_tokens": 173,
+          "source_locator": "doc:chunk:7",
+          "toc_path": [
+            "3. 测试与确认"
+          ],
+          "positions": {
+            "heading": "3. 测试与确认",
+            "toc_path": [
+              "3. 测试与确认"
+            ],
+            "block_types": [
+              "heading",
+              "paragraph",
+              "list_item",
+              "list_item",
+              "list_item",
+              "paragraph",
+              "paragraph"
+            ],
+            "block_count": 7,
+            "source_type": "doc",
+            "source_locator": "doc:chunk:7",
+            "chunk_order": 7
+          },
+          "child_chunk_ids": [],
+          "keywords": [
+            "trae",
+            "ide",
+            "模型配置指南",
+            "测试与确认",
+            "配置完成后",
+            "你可以通过以下方式验证是否成功",
+            "打开",
+            "ai",
+            "聊天窗口",
+            "chat",
+            "在模型下拉菜单中选择你刚刚配置的",
+            "自定义模型"
+          ],
+          "questions": [
+            "配置完成后，你可以通过以下方式验证是否成功：",
+            "输入一个简单的问题（例如：“你好，请介绍一下你自己”），观察模型是否能正常回复",
+            "遇到问题？",
+            "如果你在配置过程中遇到报错，请首先检查 Endpoint 是否填写完整（包含 https://），以及 API Key 是否有余量或已过期"
+          ],
+          "text_preview": "3. 测试与确认\n配置完成后，你可以通过以下方式验证是否成功：\n打开 Trae IDE 的 AI 聊天窗口 (Chat)。\n在模型下拉菜单中选择你刚刚配置的 自定义模型 。\n输入一个简单的问题（例如：“你好，请介绍一下你自己”），观察模型是否能正常回复。\n如果模型能够流畅回答，说明你的配置已经成功！\n遇到问题？ 如果你在配置过程中遇到报错，请首先检查 Endpoint 是否填写完整（包含 https://），以及 API Key 是否有余量或已过期。"
+        }
+      ]
+    }
+  ],
+  "trigger_plan": {
+    "trigger_id": "meeting.soon:cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+    "event": {
+      "event_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+      "calendar_event_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+      "meeting_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+      "project_id": "meetflow",
+      "summary": "飞书环境配置",
+      "description": "",
+      "start_time": "1777545000",
+      "end_time": "1777546800",
+      "participants": [],
+      "attendees": [],
+      "related_resources": [
+        {
+          "resource_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "resource_type": "feishu_document",
+          "title": "Trae IDE 模型配置指南",
+          "content": "<title>Trae IDE 模型配置指南</title><callout emoji=\"💡\"><p><b>背景介绍</b><br/>本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。</p></callout><h3>1. 准备工作</h3><p>在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息：</p><grid><column width-ratio=\"0.330000\"><p><b>接入点 (Endpoint)</b><br/>在这里是服务商，选火山引擎-自定义模型即可</p><p></p></column><column width-ratio=\"0.330000\"><p><b>模型 ID (Model ID)</b><br/>你想要使用的具体模型名称（如 <code>gpt-4o</code>, <code>claude-3-5-sonnet</code> 等）。</p></column><column width-ratio=\"0.340000\"><p><b>API Key</b><br/>用于身份验证的密钥，请务必妥善保管，不要泄露。</p></column></grid><p></p><hr/><h3>2. 配置步骤</h3><p>请按照以下步骤在 Trae IDE 中进行操作：</p><h4><b>步骤一：打开设置界面</b></h4><p>打开 Trae IDE，在界面左下角找到并点击 <b>“设置” (Settings)</b> 图标（齿轮形状），或者使用快捷键 <code>Ctrl + ,</code> (Windows/Linux) 或 <code>Cmd + ,</code> (macOS)。</p><h4><b>步骤二：进入模型配置</b></h4><p>在设置页面的左侧导航栏中，点击 <b>“模型” (Model)</b> 选项卡。</p><h4><b>步骤三：添加并配置自定义模型</b></h4><p>在模型配置界面中，找到“自定义模型”或“添加模型”按钮，并根据提示填入你准备好的信息：</p><ol><li><b>Endpoint</b>:  选择火山引擎 - 自定义模型 </li><li><b>Model ID</b>: 填入对应的模型标识符。（请用自行认领的<cite doc-id=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" file-type=\"sheets\" title=\"EP自助认领—for Trae Idea配置\" token=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" type=\"doc\"></cite>）</li><li><b>API Key</b>: 填入导师提供的 API key。（<cite doc-id=\"SirHbPIqmaqLnZsHaCkcx7esnyc\" file-type=\"bitable\" table-id=\"tblsT5q43EP8tjKU\" title=\"配置数据领取\" token=\"SirHbPIqmaqLnZsHaCkcx7esnyc\" type=\"doc\" view-id=\"vewixQ9v8F\"></cite>）</li></ol><callout emoji=\"🫡\"><p>注意，以上配置信息仅用于本次活动，活动结束后将会收回。请保存好不要外泄，信息安全你我共建</p></callout><img name=\"image.png\" mime=\"image/png\" scale=\"0.543186\" src=\"CdwGb1Hs1olfqzxJWxFc5Mk3nkb\"/><p></p><callout emoji=\"⭐\"><p><b>提示：</b> 填写完成后，请确保点击“保存”或“应用”按钮以生效配置。</p></callout><hr/><h3>3. 测试与确认</h3><p>配置完成后，你可以通过以下方式验证是否成功：</p><ol><li>打开 Trae IDE 的 <b>AI 聊天窗口</b> (Chat)。</li><li>在模型下拉菜单中选择你刚刚配置的 <b>自定义模型</b>。</li><li>输入一个简单的问题（例如：“你好，请介绍一下你自己”），观察模型是否能正常回复。</li></ol><p><b>如果模型能够流畅回答，说明你的配置已经成功！</b></p><callout emoji=\"💭\"><p><b>遇到问题？</b><br/>如果你在配置过程中遇到报错，请首先检查 Endpoint 是否填写完整（包含 https://），以及 API Key 是否有余量或已过期。</p></callout>",
+          "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "source_meta": {
+            "document_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "revision_id": 102,
+            "doc_format": "xml",
+            "detail": "simple",
+            "scope": "full",
+            "content_length": 2025,
+            "content_excerpt": "Trae IDE 模型配置指南 背景介绍 本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。 1. 准备工作 在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息： 接入点 (Endpoint) 在这里是服务商，选火山引擎-自定义模型即可 模型 ID (Model ID) 你想要使用的具体模型名称（如 gpt-4o , claude-3-5-sonnet 等）。 API Key 用于身份验证的密钥，请务必妥善保管，不要泄露。 2. 配置步骤 请按照以下步骤在 Trae IDE 中进行操作： 步骤一：打开设置界面 打开 Trae IDE，在界面左下角找到并点击 “设置” (Settings) 图标（齿轮形状），或者使用快捷键 Ctrl + , (Windows/Linux) 或 Cmd + , (macOS)。 步骤二：进入模型配置 在设置页面的左侧导航栏中，点击 “模型” (Model) 选项卡。 步骤三：添加并配置自定义模型 在模型配置界面中，找到..."
+          },
+          "updated_at": "102"
+        }
+      ],
+      "attachments": [
+        {
+          "title": "Trae IDE 模型配置指南",
+          "url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "resource_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "resource_type": "feishu_document",
+          "updated_at": "102"
+        }
+      ],
+      "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=cc40c4af-8edc-46b1-8e13-47f014520f0a&originalTime=0&startTime=1777545000"
+    },
+    "agent_input": {
+      "trigger_type": "schedule",
+      "event_type": "meeting.soon",
+      "payload": {
+        "event_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+        "calendar_event_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+        "meeting_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+        "project_id": "meetflow",
+        "summary": "飞书环境配置",
+        "description": "",
+        "start_time": "1777545000",
+        "end_time": "1777546800",
+        "participants": [],
+        "attendees": [],
+        "related_resources": [
+          {
+            "resource_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "resource_type": "feishu_document",
+            "title": "Trae IDE 模型配置指南",
+            "content": "<title>Trae IDE 模型配置指南</title><callout emoji=\"💡\"><p><b>背景介绍</b><br/>本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。</p></callout><h3>1. 准备工作</h3><p>在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息：</p><grid><column width-ratio=\"0.330000\"><p><b>接入点 (Endpoint)</b><br/>在这里是服务商，选火山引擎-自定义模型即可</p><p></p></column><column width-ratio=\"0.330000\"><p><b>模型 ID (Model ID)</b><br/>你想要使用的具体模型名称（如 <code>gpt-4o</code>, <code>claude-3-5-sonnet</code> 等）。</p></column><column width-ratio=\"0.340000\"><p><b>API Key</b><br/>用于身份验证的密钥，请务必妥善保管，不要泄露。</p></column></grid><p></p><hr/><h3>2. 配置步骤</h3><p>请按照以下步骤在 Trae IDE 中进行操作：</p><h4><b>步骤一：打开设置界面</b></h4><p>打开 Trae IDE，在界面左下角找到并点击 <b>“设置” (Settings)</b> 图标（齿轮形状），或者使用快捷键 <code>Ctrl + ,</code> (Windows/Linux) 或 <code>Cmd + ,</code> (macOS)。</p><h4><b>步骤二：进入模型配置</b></h4><p>在设置页面的左侧导航栏中，点击 <b>“模型” (Model)</b> 选项卡。</p><h4><b>步骤三：添加并配置自定义模型</b></h4><p>在模型配置界面中，找到“自定义模型”或“添加模型”按钮，并根据提示填入你准备好的信息：</p><ol><li><b>Endpoint</b>:  选择火山引擎 - 自定义模型 </li><li><b>Model ID</b>: 填入对应的模型标识符。（请用自行认领的<cite doc-id=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" file-type=\"sheets\" title=\"EP自助认领—for Trae Idea配置\" token=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" type=\"doc\"></cite>）</li><li><b>API Key</b>: 填入导师提供的 API key。（<cite doc-id=\"SirHbPIqmaqLnZsHaCkcx7esnyc\" file-type=\"bitable\" table-id=\"tblsT5q43EP8tjKU\" title=\"配置数据领取\" token=\"SirHbPIqmaqLnZsHaCkcx7esnyc\" type=\"doc\" view-id=\"vewixQ9v8F\"></cite>）</li></ol><callout emoji=\"🫡\"><p>注意，以上配置信息仅用于本次活动，活动结束后将会收回。请保存好不要外泄，信息安全你我共建</p></callout><img name=\"image.png\" mime=\"image/png\" scale=\"0.543186\" src=\"CdwGb1Hs1olfqzxJWxFc5Mk3nkb\"/><p></p><callout emoji=\"⭐\"><p><b>提示：</b> 填写完成后，请确保点击“保存”或“应用”按钮以生效配置。</p></callout><hr/><h3>3. 测试与确认</h3><p>配置完成后，你可以通过以下方式验证是否成功：</p><ol><li>打开 Trae IDE 的 <b>AI 聊天窗口</b> (Chat)。</li><li>在模型下拉菜单中选择你刚刚配置的 <b>自定义模型</b>。</li><li>输入一个简单的问题（例如：“你好，请介绍一下你自己”），观察模型是否能正常回复。</li></ol><p><b>如果模型能够流畅回答，说明你的配置已经成功！</b></p><callout emoji=\"💭\"><p><b>遇到问题？</b><br/>如果你在配置过程中遇到报错，请首先检查 Endpoint 是否填写完整（包含 https://），以及 API Key 是否有余量或已过期。</p></callout>",
+            "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "source_meta": {
+              "document_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+              "revision_id": 102,
+              "doc_format": "xml",
+              "detail": "simple",
+              "scope": "full",
+              "content_length": 2025,
+              "content_excerpt": "Trae IDE 模型配置指南 背景介绍 本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。 1. 准备工作 在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息： 接入点 (Endpoint) 在这里是服务商，选火山引擎-自定义模型即可 模型 ID (Model ID) 你想要使用的具体模型名称（如 gpt-4o , claude-3-5-sonnet 等）。 API Key 用于身份验证的密钥，请务必妥善保管，不要泄露。 2. 配置步骤 请按照以下步骤在 Trae IDE 中进行操作： 步骤一：打开设置界面 打开 Trae IDE，在界面左下角找到并点击 “设置” (Settings) 图标（齿轮形状），或者使用快捷键 Ctrl + , (Windows/Linux) 或 Cmd + , (macOS)。 步骤二：进入模型配置 在设置页面的左侧导航栏中，点击 “模型” (Model) 选项卡。 步骤三：添加并配置自定义模型 在模型配置界面中，找到..."
+            },
+            "updated_at": "102"
+          }
+        ],
+        "attachments": [
+          {
+            "title": "Trae IDE 模型配置指南",
+            "url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "resource_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "resource_type": "feishu_document",
+            "updated_at": "102"
+          }
+        ],
+        "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=cc40c4af-8edc-46b1-8e13-47f014520f0a&originalTime=0&startTime=1777545000",
+        "workflow_type": "pre_meeting_brief",
+        "idempotency_key": "pre_meeting_brief:cc40c4af-8edc-46b1-8e13-47f014520f0a_0:bm25-rrf-20260430-1346"
+      },
+      "actor": "",
+      "source": "pre_meeting_live_test",
+      "event_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+      "trace_id": "b22f5cf8350e",
+      "created_at": 1777527675
+    },
+    "idempotency_key": "pre_meeting_brief:cc40c4af-8edc-46b1-8e13-47f014520f0a_0:bm25-rrf-20260430-1346",
+    "due_in_seconds": 0,
+    "reason": "会议进入会前触发窗口，准备生成会前背景卡。"
+  },
+  "pre_meeting_artifacts": {
+    "workflow_input": {
+      "meeting_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+      "calendar_event_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+      "project_id": "meetflow",
+      "meeting_title": "飞书环境配置",
+      "meeting_description": "",
+      "start_time": "1777545000",
+      "end_time": "1777546800",
+      "timezone": "",
+      "organizer": "",
+      "participants": [],
+      "attachments": [
+        {
+          "title": "Trae IDE 模型配置指南",
+          "url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "resource_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "resource_type": "feishu_document",
+          "updated_at": "102"
+        }
+      ],
+      "related_resources": [
+        {
+          "resource_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "resource_type": "feishu_document",
+          "title": "Trae IDE 模型配置指南",
+          "content": "<title>Trae IDE 模型配置指南</title><callout emoji=\"💡\"><p><b>背景介绍</b><br/>本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。</p></callout><h3>1. 准备工作</h3><p>在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息：</p><grid><column width-ratio=\"0.330000\"><p><b>接入点 (Endpoint)</b><br/>在这里是服务商，选火山引擎-自定义模型即可</p><p></p></column><column width-ratio=\"0.330000\"><p><b>模型 ID (Model ID)</b><br/>你想要使用的具体模型名称（如 <code>gpt-4o</code>, <code>claude-3-5-sonnet</code> 等）。</p></column><column width-ratio=\"0.340000\"><p><b>API Key</b><br/>用于身份验证的密钥，请务必妥善保管，不要泄露。</p></column></grid><p></p><hr/><h3>2. 配置步骤</h3><p>请按照以下步骤在 Trae IDE 中进行操作：</p><h4><b>步骤一：打开设置界面</b></h4><p>打开 Trae IDE，在界面左下角找到并点击 <b>“设置” (Settings)</b> 图标（齿轮形状），或者使用快捷键 <code>Ctrl + ,</code> (Windows/Linux) 或 <code>Cmd + ,</code> (macOS)。</p><h4><b>步骤二：进入模型配置</b></h4><p>在设置页面的左侧导航栏中，点击 <b>“模型” (Model)</b> 选项卡。</p><h4><b>步骤三：添加并配置自定义模型</b></h4><p>在模型配置界面中，找到“自定义模型”或“添加模型”按钮，并根据提示填入你准备好的信息：</p><ol><li><b>Endpoint</b>:  选择火山引擎 - 自定义模型 </li><li><b>Model ID</b>: 填入对应的模型标识符。（请用自行认领的<cite doc-id=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" file-type=\"sheets\" title=\"EP自助认领—for Trae Idea配置\" token=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" type=\"doc\"></cite>）</li><li><b>API Key</b>: 填入导师提供的 API key。（<cite doc-id=\"SirHbPIqmaqLnZsHaCkcx7esnyc\" file-type=\"bitable\" table-id=\"tblsT5q43EP8tjKU\" title=\"配置数据领取\" token=\"SirHbPIqmaqLnZsHaCkcx7esnyc\" type=\"doc\" view-id=\"vewixQ9v8F\"></cite>）</li></ol><callout emoji=\"🫡\"><p>注意，以上配置信息仅用于本次活动，活动结束后将会收回。请保存好不要外泄，信息安全你我共建</p></callout><img name=\"image.png\" mime=\"image/png\" scale=\"0.543186\" src=\"CdwGb1Hs1olfqzxJWxFc5Mk3nkb\"/><p></p><callout emoji=\"⭐\"><p><b>提示：</b> 填写完成后，请确保点击“保存”或“应用”按钮以生效配置。</p></callout><hr/><h3>3. 测试与确认</h3><p>配置完成后，你可以通过以下方式验证是否成功：</p><ol><li>打开 Trae IDE 的 <b>AI 聊天窗口</b> (Chat)。</li><li>在模型下拉菜单中选择你刚刚配置的 <b>自定义模型</b>。</li><li>输入一个简单的问题（例如：“你好，请介绍一下你自己”），观察模型是否能正常回复。</li></ol><p><b>如果模型能够流畅回答，说明你的配置已经成功！</b></p><callout emoji=\"💭\"><p><b>遇到问题？</b><br/>如果你在配置过程中遇到报错，请首先检查 Endpoint 是否填写完整（包含 https://），以及 API Key 是否有余量或已过期。</p></callout>",
+          "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "source_meta": {
+            "document_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "revision_id": 102,
+            "doc_format": "xml",
+            "detail": "simple",
+            "scope": "full",
+            "content_length": 2025,
+            "content_excerpt": "Trae IDE 模型配置指南 背景介绍 本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。 1. 准备工作 在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息： 接入点 (Endpoint) 在这里是服务商，选火山引擎-自定义模型即可 模型 ID (Model ID) 你想要使用的具体模型名称（如 gpt-4o , claude-3-5-sonnet 等）。 API Key 用于身份验证的密钥，请务必妥善保管，不要泄露。 2. 配置步骤 请按照以下步骤在 Trae IDE 中进行操作： 步骤一：打开设置界面 打开 Trae IDE，在界面左下角找到并点击 “设置” (Settings) 图标（齿轮形状），或者使用快捷键 Ctrl + , (Windows/Linux) 或 Cmd + , (macOS)。 步骤二：进入模型配置 在设置页面的左侧导航栏中，点击 “模型” (Model) 选项卡。 步骤三：添加并配置自定义模型 在模型配置界面中，找到..."
+          },
+          "updated_at": "102"
+        }
+      ],
+      "memory_snapshot": {
+        "project_id": "meetflow",
+        "summary": "这是 T2.12 demo 写入的项目记忆。",
+        "last_focus": "构建 Agent Runtime 的上下文层。"
+      },
+      "raw_payload": {
+        "event_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+        "calendar_event_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+        "meeting_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+        "project_id": "meetflow",
+        "summary": "飞书环境配置",
+        "description": "",
+        "start_time": "1777545000",
+        "end_time": "1777546800",
+        "participants": [],
+        "attendees": [],
+        "related_resources": [
+          {
+            "resource_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "resource_type": "feishu_document",
+            "title": "Trae IDE 模型配置指南",
+            "content": "<title>Trae IDE 模型配置指南</title><callout emoji=\"💡\"><p><b>背景介绍</b><br/>本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。</p></callout><h3>1. 准备工作</h3><p>在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息：</p><grid><column width-ratio=\"0.330000\"><p><b>接入点 (Endpoint)</b><br/>在这里是服务商，选火山引擎-自定义模型即可</p><p></p></column><column width-ratio=\"0.330000\"><p><b>模型 ID (Model ID)</b><br/>你想要使用的具体模型名称（如 <code>gpt-4o</code>, <code>claude-3-5-sonnet</code> 等）。</p></column><column width-ratio=\"0.340000\"><p><b>API Key</b><br/>用于身份验证的密钥，请务必妥善保管，不要泄露。</p></column></grid><p></p><hr/><h3>2. 配置步骤</h3><p>请按照以下步骤在 Trae IDE 中进行操作：</p><h4><b>步骤一：打开设置界面</b></h4><p>打开 Trae IDE，在界面左下角找到并点击 <b>“设置” (Settings)</b> 图标（齿轮形状），或者使用快捷键 <code>Ctrl + ,</code> (Windows/Linux) 或 <code>Cmd + ,</code> (macOS)。</p><h4><b>步骤二：进入模型配置</b></h4><p>在设置页面的左侧导航栏中，点击 <b>“模型” (Model)</b> 选项卡。</p><h4><b>步骤三：添加并配置自定义模型</b></h4><p>在模型配置界面中，找到“自定义模型”或“添加模型”按钮，并根据提示填入你准备好的信息：</p><ol><li><b>Endpoint</b>:  选择火山引擎 - 自定义模型 </li><li><b>Model ID</b>: 填入对应的模型标识符。（请用自行认领的<cite doc-id=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" file-type=\"sheets\" title=\"EP自助认领—for Trae Idea配置\" token=\"Ehw0sK4DKhjtyttqiMecKG42nOc\" type=\"doc\"></cite>）</li><li><b>API Key</b>: 填入导师提供的 API key。（<cite doc-id=\"SirHbPIqmaqLnZsHaCkcx7esnyc\" file-type=\"bitable\" table-id=\"tblsT5q43EP8tjKU\" title=\"配置数据领取\" token=\"SirHbPIqmaqLnZsHaCkcx7esnyc\" type=\"doc\" view-id=\"vewixQ9v8F\"></cite>）</li></ol><callout emoji=\"🫡\"><p>注意，以上配置信息仅用于本次活动，活动结束后将会收回。请保存好不要外泄，信息安全你我共建</p></callout><img name=\"image.png\" mime=\"image/png\" scale=\"0.543186\" src=\"CdwGb1Hs1olfqzxJWxFc5Mk3nkb\"/><p></p><callout emoji=\"⭐\"><p><b>提示：</b> 填写完成后，请确保点击“保存”或“应用”按钮以生效配置。</p></callout><hr/><h3>3. 测试与确认</h3><p>配置完成后，你可以通过以下方式验证是否成功：</p><ol><li>打开 Trae IDE 的 <b>AI 聊天窗口</b> (Chat)。</li><li>在模型下拉菜单中选择你刚刚配置的 <b>自定义模型</b>。</li><li>输入一个简单的问题（例如：“你好，请介绍一下你自己”），观察模型是否能正常回复。</li></ol><p><b>如果模型能够流畅回答，说明你的配置已经成功！</b></p><callout emoji=\"💭\"><p><b>遇到问题？</b><br/>如果你在配置过程中遇到报错，请首先检查 Endpoint 是否填写完整（包含 https://），以及 API Key 是否有余量或已过期。</p></callout>",
+            "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "source_meta": {
+              "document_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+              "revision_id": 102,
+              "doc_format": "xml",
+              "detail": "simple",
+              "scope": "full",
+              "content_length": 2025,
+              "content_excerpt": "Trae IDE 模型配置指南 背景介绍 本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。 1. 准备工作 在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息： 接入点 (Endpoint) 在这里是服务商，选火山引擎-自定义模型即可 模型 ID (Model ID) 你想要使用的具体模型名称（如 gpt-4o , claude-3-5-sonnet 等）。 API Key 用于身份验证的密钥，请务必妥善保管，不要泄露。 2. 配置步骤 请按照以下步骤在 Trae IDE 中进行操作： 步骤一：打开设置界面 打开 Trae IDE，在界面左下角找到并点击 “设置” (Settings) 图标（齿轮形状），或者使用快捷键 Ctrl + , (Windows/Linux) 或 Cmd + , (macOS)。 步骤二：进入模型配置 在设置页面的左侧导航栏中，点击 “模型” (Model) 选项卡。 步骤三：添加并配置自定义模型 在模型配置界面中，找到..."
+            },
+            "updated_at": "102"
+          }
+        ],
+        "attachments": [
+          {
+            "title": "Trae IDE 模型配置指南",
+            "url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "resource_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "resource_type": "feishu_document",
+            "updated_at": "102"
+          }
+        ],
+        "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=cc40c4af-8edc-46b1-8e13-47f014520f0a&originalTime=0&startTime=1777545000",
+        "workflow_type": "pre_meeting_brief",
+        "idempotency_key": "pre_meeting_brief:cc40c4af-8edc-46b1-8e13-47f014520f0a_0:bm25-rrf-20260430-1346"
+      }
+    },
+    "topic_signal": {
+      "topic": "飞书环境配置 / Trae / IDE",
+      "candidate_projects": [
+        {
+          "project_id": "meetflow",
+          "name": "meetflow",
+          "score": 0.1,
+          "matched_signals": [
+            "project_id:meetflow"
+          ],
+          "source": "memory"
+        }
+      ],
+      "business_entities": [
+        "飞书环境配置",
+        "Trae",
+        "IDE",
+        "模型配置指南"
+      ],
+      "attendee_signals": [],
+      "confidence": 0.8099999999999999,
+      "missing_context": [
+        "participants"
+      ],
+      "query_hints": [
+        "飞书环境配置 / Trae / IDE",
+        "meetflow",
+        "飞书环境配置",
+        "Trae",
+        "IDE",
+        "模型配置指南",
+        "Trae IDE 模型配置指南"
+      ],
+      "needs_confirmation": true,
+      "reason": "候选项目 meetflow 命中 project_id:meetflow；识别到实体 飞书环境配置, Trae, IDE, 模型配置指南；缺少上下文 participants"
+    },
+    "retrieval_query": {
+      "meeting_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+      "calendar_event_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+      "project_id": "meetflow",
+      "meeting_title": "飞书环境配置",
+      "meeting_description": "",
+      "entities": [
+        "飞书环境配置",
+        "Trae",
+        "IDE",
+        "模型配置指南"
+      ],
+      "attendee_names": [],
+      "attachment_titles": [
+        "Trae IDE 模型配置指南"
+      ],
+      "related_resource_titles": [
+        "Trae IDE 模型配置指南"
+      ],
+      "resource_types": [
+        "doc",
+        "sheet",
+        "minute",
+        "task"
+      ],
+      "time_window": "recent_90_days",
+      "search_queries": [
+        "飞书环境配置 / Trae / IDE",
+        "飞书环境配置",
+        "meetflow",
+        "Trae",
+        "IDE",
+        "模型配置指南",
+        "Trae IDE 模型配置指南",
+        "飞书环境配置 Trae IDE 模型配置指南"
+      ],
+      "confidence": 0.85,
+      "missing_context": [
+        "participants"
+      ],
+      "extra": {
+        "identified_topic": "飞书环境配置 / Trae / IDE",
+        "topic_signal": {
+          "topic": "飞书环境配置 / Trae / IDE",
+          "candidate_projects": [
+            {
+              "project_id": "meetflow",
+              "name": "meetflow",
+              "score": 0.1,
+              "matched_signals": [
+                "project_id:meetflow"
+              ],
+              "source": "memory"
+            }
+          ],
+          "business_entities": [
+            "飞书环境配置",
+            "Trae",
+            "IDE",
+            "模型配置指南"
+          ],
+          "attendee_signals": [],
+          "confidence": 0.8099999999999999,
+          "missing_context": [
+            "participants"
+          ],
+          "query_hints": [
+            "飞书环境配置 / Trae / IDE",
+            "meetflow",
+            "飞书环境配置",
+            "Trae",
+            "IDE",
+            "模型配置指南",
+            "Trae IDE 模型配置指南"
+          ],
+          "needs_confirmation": true,
+          "reason": "候选项目 meetflow 命中 project_id:meetflow；识别到实体 飞书环境配置, Trae, IDE, 模型配置指南；缺少上下文 participants"
+        },
+        "start_time": "1777545000",
+        "end_time": "1777546800",
+        "timezone": "",
+        "organizer": ""
+      }
+    },
+    "retrieval_result": {
+      "query": {
+        "meeting_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+        "calendar_event_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+        "project_id": "meetflow",
+        "meeting_title": "飞书环境配置",
+        "meeting_description": "",
+        "entities": [
+          "飞书环境配置",
+          "Trae",
+          "IDE",
+          "模型配置指南"
+        ],
+        "attendee_names": [],
+        "attachment_titles": [
+          "Trae IDE 模型配置指南"
+        ],
+        "related_resource_titles": [
+          "Trae IDE 模型配置指南"
+        ],
+        "resource_types": [
+          "doc",
+          "sheet",
+          "minute",
+          "task"
+        ],
+        "time_window": "recent_90_days",
+        "search_queries": [
+          "飞书环境配置 / Trae / IDE",
+          "飞书环境配置",
+          "meetflow",
+          "Trae",
+          "IDE",
+          "模型配置指南",
+          "Trae IDE 模型配置指南",
+          "飞书环境配置 Trae IDE 模型配置指南"
+        ],
+        "confidence": 0.85,
+        "missing_context": [
+          "participants"
+        ],
+        "extra": {
+          "identified_topic": "飞书环境配置 / Trae / IDE",
+          "topic_signal": {
+            "topic": "飞书环境配置 / Trae / IDE",
+            "candidate_projects": [
+              {
+                "project_id": "meetflow",
+                "name": "meetflow",
+                "score": 0.1,
+                "matched_signals": [
+                  "project_id:meetflow"
+                ],
+                "source": "memory"
+              }
+            ],
+            "business_entities": [
+              "飞书环境配置",
+              "Trae",
+              "IDE",
+              "模型配置指南"
+            ],
+            "attendee_signals": [],
+            "confidence": 0.8099999999999999,
+            "missing_context": [
+              "participants"
+            ],
+            "query_hints": [
+              "飞书环境配置 / Trae / IDE",
+              "meetflow",
+              "飞书环境配置",
+              "Trae",
+              "IDE",
+              "模型配置指南",
+              "Trae IDE 模型配置指南"
+            ],
+            "needs_confirmation": true,
+            "reason": "候选项目 meetflow 命中 project_id:meetflow；识别到实体 飞书环境配置, Trae, IDE, 模型配置指南；缺少上下文 participants"
+          },
+          "start_time": "1777545000",
+          "end_time": "1777546800",
+          "timezone": "",
+          "organizer": ""
+        }
+      },
+      "resources": [
+        {
+          "resource_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "resource_type": "doc",
+          "title": "Trae IDE 模型配置指南",
+          "summary": "<title>Trae IDE 模型配置指南</title><callout emoji=\"💡\"><p><b>背景介绍</b><br/>本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。</p></callout><h3>1. 准备工作</h3><p>在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息：</p><grid><column ",
+          "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "updated_at": "102",
+          "score": 0.99,
+          "reasons": [
+            "命中检索词:Trae",
+            "命中检索词:IDE",
+            "命中检索词:模型配置指南",
+            "命中检索词:Trae IDE 模型配置指南",
+            "命中实体:Trae",
+            "命中实体:IDE",
+            "命中实体:模型配置指南",
+            "命中附件标题:Trae IDE 模型配置指南",
+            "资源类型匹配:doc",
+            "资源更新时间较近",
+            "包含来源链接"
+          ],
+          "source_locator": "",
+          "metadata": {
+            "candidate_source": "payload.related_resources",
+            "document_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "revision_id": 102,
+            "doc_format": "xml",
+            "detail": "simple",
+            "scope": "full",
+            "content_length": 2025,
+            "content_excerpt": "Trae IDE 模型配置指南 背景介绍 本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。 1. 准备工作 在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息： 接入点 (Endpoint) 在这里是服务商，选火山引擎-自定义模型即可 模型 ID (Model ID) 你想要使用的具体模型名称（如 gpt-4o , claude-3-5-sonnet 等）。 API Key 用于身份验证的密钥，请务必妥善保管，不要泄露。 2. 配置步骤 请按照以下步骤在 Trae IDE 中进行操作： 步骤一：打开设置界面 打开 Trae IDE，在界面左下角找到并点击 “设置” (Settings) 图标（齿轮形状），或者使用快捷键 Ctrl + , (Windows/Linux) 或 Cmd + , (macOS)。 步骤二：进入模型配置 在设置页面的左侧导航栏中，点击 “模型” (Model) 选项卡。 步骤三：添加并配置自定义模型 在模型配置界面中，找到..."
+          }
+        }
+      ],
+      "omitted_count": 0,
+      "low_confidence": false,
+      "reason": "召回 1 条资源，按关键词、元数据和更新时间排序。"
+    },
+    "meeting_brief": {
+      "meeting_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+      "calendar_event_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+      "project_id": "meetflow",
+      "topic": "飞书环境配置 / Trae / IDE",
+      "summary": "围绕 飞书环境配置 / Trae / IDE，已召回 1 条相关资料。会前待读资料：Trae IDE 模型配置指南。",
+      "last_decisions": [],
+      "current_questions": [],
+      "must_read_resources": [
+        {
+          "title": "Trae IDE 模型配置指南",
+          "content": "<title>Trae IDE 模型配置指南</title><callout emoji=\"💡\"><p><b>背景介绍</b><br/>本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。</p></callout><h3>1. 准备工作</h3><p>在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息：</p><grid><column \n召回原因：命中检索词:Trae；命中检索词:IDE；命中检索词:模型配置指南",
+          "evidence_refs": [
+            {
+              "source_type": "doc",
+              "source_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+              "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+              "snippet": "<title>Trae IDE 模型配置指南</title><callout emoji=\"💡\"><p><b>背景介绍</b><br/>本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。</p></callout><h3>1. 准备工作</h3><p>在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息：</p><grid><column ",
+              "updated_at": "102"
+            }
+          ],
+          "confidence": 0.99,
+          "status": "high_confidence"
+        }
+      ],
+      "risks": [],
+      "possible_related_resources": [],
+      "evidence_refs": [
+        {
+          "source_type": "doc",
+          "source_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+          "snippet": "<title>Trae IDE 模型配置指南</title><callout emoji=\"💡\"><p><b>背景介绍</b><br/>本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。</p></callout><h3>1. 准备工作</h3><p>在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息：</p><grid><column ",
+          "updated_at": "102"
+        }
+      ],
+      "confidence": 0.85,
+      "needs_confirmation": true,
+      "status": "draft"
+    },
+    "card_payload": {
+      "title": "MeetFlow 会前背景卡：飞书环境配置 / Trae / IDE",
+      "summary": "围绕 飞书环境配置 / Trae / IDE，已召回 1 条相关资料。会前待读资料：Trae IDE 模型配置指南。",
+      "facts": [
+        {
+          "label": "会议主题",
+          "value": "飞书环境配置 / Trae / IDE"
+        },
+        {
+          "label": "背景摘要",
+          "value": "围绕 飞书环境配置 / Trae / IDE，已召回 1 条相关资料。会前待读资料：Trae IDE 模型配置指南。"
+        },
+        {
+          "label": "置信度",
+          "value": "0.85"
+        },
+        {
+          "label": "状态",
+          "value": "上下文不足，建议人工确认后再推送"
+        },
+        {
+          "label": "待读资料",
+          "value": "Trae IDE 模型配置指南"
+        },
+        {
+          "label": "资料链接",
+          "value": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig"
+        }
+      ],
+      "sections": [
+        {
+          "key": "last_decisions",
+          "title": "上次结论",
+          "empty": "暂无明确结论",
+          "items": []
+        },
+        {
+          "key": "current_questions",
+          "title": "当前问题",
+          "empty": "暂无待确认问题",
+          "items": []
+        },
+        {
+          "key": "risks",
+          "title": "风险点",
+          "empty": "暂无显著风险",
+          "items": []
+        },
+        {
+          "key": "must_read_resources",
+          "title": "待读资料",
+          "empty": "暂无必读资料",
+          "items": [
+            {
+              "title": "Trae IDE 模型配置指南",
+              "content": "<title>Trae IDE 模型配置指南</title><callout emoji=\"💡\"><p><b>背景介绍</b><br/>本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。</p></callout><h3>1. 准备工作</h3><p>在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息：</p><grid><column \n召回原因：命中检索词:Trae；命中检索词:IDE；命中检索词:模型配置指南",
+              "ref_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+              "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig"
+            }
+          ]
+        },
+        {
+          "key": "possible_related_resources",
+          "title": "可能相关资料",
+          "empty": "暂无候选资料",
+          "items": []
+        }
+      ],
+      "card": {
+        "config": {
+          "wide_screen_mode": true
+        },
+        "header": {
+          "template": "orange",
+          "title": {
+            "tag": "plain_text",
+            "content": "MeetFlow 会前背景卡：飞书环境配置 / Trae / IDE"
+          }
+        },
+        "elements": [
+          {
+            "tag": "markdown",
+            "content": "**主题**：飞书环境配置 / Trae / IDE\n**状态**：需确认  |  **置信度**：0.85\n**背景摘要**：围绕 飞书环境配置 / Trae / IDE，已召回 1 条相关资料。会前待读资料：Trae IDE 模型配置指南。"
+          },
+          {
+            "tag": "hr"
+          },
+          {
+            "tag": "div",
+            "text": {
+              "tag": "lark_md",
+              "content": "**待读资料**\n1. [Trae IDE 模型配置指南](https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig)：<title>Trae IDE 模型配置指南</title><callout emoji=\"💡\"><p><b>背景介绍</b><br/>本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。</p></callout><h3>1. 准备工作</h3><p>在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息：</p><grid><column \n召回原因：命中检索词:Trae；命中检索词:IDE；命中检索词:模型配置指南 `KlW9dIlyzo17ccxl26Gc9TGsnig`"
+            }
+          },
+          {
+            "tag": "hr"
+          },
+          {
+            "tag": "markdown",
+            "content": "**证据引用**\n- [`KlW9dIlyzo17ccxl26Gc9TGsnig`](https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig) doc：<title>Trae IDE 模型配置指南</title><callout emoji=\"💡\"><p><b>背景介绍</b><br/>本指南旨在帮助同学们快速"
+          }
+        ]
+      },
+      "source_meeting_id": "cc40c4af-8edc-46b1-8e13-47f014520f0a_0",
+      "idempotency_key": "pre_meeting_brief:cc40c4af-8edc-46b1-8e13-47f014520f0a_0"
+    },
+    "stage_plan": [
+      "prepare_context",
+      "build_retrieval_query",
+      "agent_loop_collect_evidence",
+      "validate_meeting_brief",
+      "render_card_payload",
+      "send_or_save"
+    ]
+  },
+  "tool_results": [
+    {
+      "tool_name": "knowledge.search",
+      "status": "success",
+      "content": "工具 knowledge.search 执行成功。\n结构化数据 JSON：\n{\n  \"query\": \"飞书环境配置 Trae IDE 模型配置指南\",\n  \"hits\": [\n    {\n      \"ref_id\": \"kref_e4cba7610a1ea558\",\n      \"chunk_id\": \"KlW9dIlyzo17ccxl26Gc9TGsnig#chunk_1_37aa82bdd82a\",\n      \"document_id\": \"KlW9dIlyzo17ccxl26Gc9TGsnig\",\n      \"source_type\": \"doc\",\n      \"title\": \"Trae IDE 模型配置指南\",\n      \"snippet\": \"背景介绍 本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。\",\n      \"reason\": \"RRF融合 rrf_score:0.032522 vector_rank:1 keyword_rank:2；向量召回:0.67；命中查询词:trae；命中查询词:ide；命中查询词:模型配置指南；命中查询词:meetflow；包含回链定位；BM25召回 rank:2 bm25:-0.0000；命中查询词:trae；命中查询词:ide；命中查询词:模型配置指南；命中查询词:meetflow；包含回链定位\",\n      \"score\": 0.99,\n      \"vector_similarity\": 0.667,\n      \"term_similarity\": 0.87,\n      \"bm25_score\": -5e-06,\n      \"vector_rank\": 1,\n      \"keyword_rank\": 2,\n      \"rrf_score\": 0.032522,\n      \"rerank_score\": 0.0,\n      \"final_score\": 0.99,\n      \"source_url\": \"https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig\",\n      \"source_locator\": \"doc:chunk:1\",\n      \"parent_chunk_id\": \"\",\n      \"toc_path\": [\n        \"Trae IDE 模型配置指南\"\n      ],\n      \"updated_at\": \"102\",\n      \"metadata\": {\n        \"document_id\": \"KlW9dIlyzo17ccxl26...",
+      "data": {
+        "query": "飞书环境配置 Trae IDE 模型配置指南",
+        "hits": [
+          {
+            "ref_id": "kref_e4cba7610a1ea558",
+            "chunk_id": "KlW9dIlyzo17ccxl26Gc9TGsnig#chunk_1_37aa82bdd82a",
+            "document_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "source_type": "doc",
+            "title": "Trae IDE 模型配置指南",
+            "snippet": "背景介绍 本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。",
+            "reason": "RRF融合 rrf_score:0.032522 vector_rank:1 keyword_rank:2；向量召回:0.67；命中查询词:trae；命中查询词:ide；命中查询词:模型配置指南；命中查询词:meetflow；包含回链定位；BM25召回 rank:2 bm25:-0.0000；命中查询词:trae；命中查询词:ide；命中查询词:模型配置指南；命中查询词:meetflow；包含回链定位",
+            "score": 0.99,
+            "vector_similarity": 0.667,
+            "term_similarity": 0.87,
+            "bm25_score": -5e-06,
+            "vector_rank": 1,
+            "keyword_rank": 2,
+            "rrf_score": 0.032522,
+            "rerank_score": 0.0,
+            "final_score": 0.99,
+            "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "source_locator": "doc:chunk:1",
+            "parent_chunk_id": "",
+            "toc_path": [
+              "Trae IDE 模型配置指南"
+            ],
+            "updated_at": "102",
+            "metadata": {
+              "document_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+              "revision_id": 102,
+              "doc_format": "xml",
+              "detail": "simple",
+              "scope": "full",
+              "content_length": 2025,
+              "content_excerpt": "Trae IDE 模型配置指南 背景介绍 本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。 1. 准备工作 在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息： 接入点 (Endpoint) 在这里是服务商，选火山引擎-自定义模型即可 模型 ID (Model ID) 你想要使用的具体模型名称（如 gpt-4o , claude-3-5-sonnet 等）。 API Key 用于身份验证的密钥，请务必妥善保管，不要泄露。 2. 配置步骤 请按照以下步骤在 Trae IDE 中进行操作： 步骤一：打开设置界面 打开 Trae IDE，在界面左下角找到并点击 “设置” (Settings) 图标（齿轮形状），或者使用快捷键 Ctrl + , (Windows/Linux) 或 Cmd + , (macOS)。 步骤二：进入模型配置 在设置页面的左侧导航栏中，点击 “模型” (Model) 选项卡。 步骤三：添加并配置自定义模型 在模型配置界面中，找到...",
+              "embedding_provider": "sentence-transformers",
+              "embedding_model": "BAAI/bge-small-zh-v1.5",
+              "embedding_dimensions": 512,
+              "embedding_fingerprint": "sentence-transformers:BAAI/bge-small-zh-v1.5:512",
+              "knowledge_namespace": "sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce",
+              "vector_collection_name": "meetflow_knowledge_chunks_137933ce",
+              "title": "Trae IDE 模型配置指南",
+              "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+              "source_type": "doc",
+              "heading": "Trae IDE 模型配置指南",
+              "toc_path": [
+                "Trae IDE 模型配置指南"
+              ],
+              "block_types": [
+                "paragraph"
+              ],
+              "positions": {
+                "heading": "Trae IDE 模型配置指南",
+                "toc_path": [
+                  "Trae IDE 模型配置指南"
+                ],
+                "block_types": [
+                  "paragraph"
+                ],
+                "block_count": 1,
+                "source_type": "doc",
+                "source_locator": "doc:chunk:1",
+                "chunk_order": 1
+              },
+              "keywords": [
+                "trae",
+                "ide",
+                "模型配置指南",
+                "背景介绍",
+                "本指南旨在帮助同学们快速掌握在",
+                "中配置自定义大语言模型",
+                "llm",
+                "的方法。通过配置自定义模型",
+                "你可以根据学习需求灵活切换不同的",
+                "ai",
+                "服务",
+                "提升编程效率"
+              ],
+              "questions": [],
+              "doc_type": "doc"
+            }
+          },
+          {
+            "ref_id": "kref_b51d43aeae330a78",
+            "chunk_id": "KlW9dIlyzo17ccxl26Gc9TGsnig#chunk_3_329f7db97c61",
+            "document_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "source_type": "doc",
+            "title": "Trae IDE 模型配置指南",
+            "snippet": "2. 配置步骤 请按照以下步骤在 Trae IDE 中进行操作：",
+            "reason": "RRF融合 rrf_score:0.032522 vector_rank:2 keyword_rank:1；向量召回:0.66；命中查询词:trae；命中查询词:ide；命中查询词:模型配置指南；命中查询词:meetflow；包含回链定位；BM25召回 rank:1 bm25:-0.0000；命中查询词:trae；命中查询词:ide；命中查询词:模型配置指南；命中查询词:meetflow；包含回链定位",
+            "score": 0.99,
+            "vector_similarity": 0.664,
+            "term_similarity": 1.0,
+            "bm25_score": -5e-06,
+            "vector_rank": 2,
+            "keyword_rank": 1,
+            "rrf_score": 0.032522,
+            "rerank_score": 0.0,
+            "final_score": 0.99,
+            "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+            "source_locator": "doc:chunk:3",
+            "parent_chunk_id": "",
+            "toc_path": [
+              "2. 配置步骤"
+            ],
+            "updated_at": "102",
+            "metadata": {
+              "document_id": "KlW9dIlyzo17ccxl26Gc9TGsnig",
+              "revision_id": 102,
+              "doc_format": "xml",
+              "detail": "simple",
+              "scope": "full",
+              "content_length": 2025,
+              "content_excerpt": "Trae IDE 模型配置指南 背景介绍 本指南旨在帮助同学们快速掌握在 Trae IDE 中配置自定义大语言模型（LLM）的方法。通过配置自定义模型，你可以根据学习需求灵活切换不同的 AI 服务，提升编程效率。 1. 准备工作 在开始配置之前，请确保你已经从指导老师或相关平台获取了以下三项关键信息： 接入点 (Endpoint) 在这里是服务商，选火山引擎-自定义模型即可 模型 ID (Model ID) 你想要使用的具体模型名称（如 gpt-4o , claude-3-5-sonnet 等）。 API Key 用于身份验证的密钥，请务必妥善保管，不要泄露。 2. 配置步骤 请按照以下步骤在 Trae IDE 中进行操作： 步骤一：打开设置界面 打开 Trae IDE，在界面左下角找到并点击 “设置” (Settings) 图标（齿轮形状），或者使用快捷键 Ctrl + , (Windows/Linux) 或 Cmd + , (macOS)。 步骤二：进入模型配置 在设置页面的左侧导航栏中，点击 “模型” (Model) 选项卡。 步骤三：添加并配置自定义模型 在模型配置界面中，找到...",
+              "embedding_provider": "sentence-transformers",
+              "embedding_model": "BAAI/bge-small-zh-v1.5",
+              "embedding_dimensions": 512,
+              "embedding_fingerprint": "sentence-transformers:BAAI/bge-small-zh-v1.5:512",
+              "knowledge_namespace": "sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce",
+              "vector_collection_name": "meetflow_knowledge_chunks_137933ce",
+              "title": "Trae IDE 模型配置指南",
+              "source_url": "https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig",
+              "source_type": "doc",
+              "heading": "2. 配置步骤",
+              "toc_path": [
+                "2. 配置步骤"
+              ],
+              "block_types": [
+                "heading",
+                "paragraph"
+              ],
+              "positions": {
+                "heading": "2. 配置步骤",
+                "toc_path": [
+                  "2. 配置步骤"
+                ],
+                "block_types": [
+                  "heading",
+                  "paragraph"
+                ],
+                "block_count": 2,
+                "source_type": "doc",
+                "source_locator": "doc:chunk:3",
+                "chunk_order": 3
+              },
+              "keywords": [
+                "trae",
+                "ide",
+                "模型配置指南",
+                "配置步骤",
+                "请按照以下步骤在",
+                "中进行操作"
+              ],
+              "questions": [],
+              "doc_type": "doc"
+            }
+          }
+        ],
+        "omitted_count": 2,
+        "token_budget": 600,
+        "used_tokens": 466,
+        "knowledge_namespace": "sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce",
+        "vector_collection_name": "meetflow_knowledge_chunks_137933ce",
+        "embedding_provider": "sentence-transformers",
+        "embedding_model": "BAAI/bge-small-zh-v1.5",
+        "embedding_dimensions": 512,
+        "low_confidence": false,
+        "reason": "混合检索候选 4 条；向量命中 3 条；BM25 命中 3 条；融合策略 rrf；最终返回 2 条；rrf_k=60；已过滤 embedding 不兼容文档 0 个、缺少指纹旧文档 5 个；namespace=sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce；collection=meetflow_knowledge_chunks_137933ce"
+      },
+      "error_message": ""
+    },
+    {
+      "tool_name": "im.send_card",
+      "status": "success",
+      "content": "工具 im.send_card 执行成功。\n结构化数据 JSON：\n{\n  \"body\": {\n    \"content\": \"{\\\"title\\\":\\\"会前背景知识卡片：飞书环境配置\\\",\\\"elements\\\":[[{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"scripted_debug 已完成真实会议、真实文档索引和 knowledge.search 检索，并通过受控工具发送本卡片。\\\"}],[{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"原始链接\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"\\\\n- 相关资料：Trae IDE 模型配置指南: \\\"},{\\\"tag\\\":\\\"a\\\",\\\"href\\\":\\\"https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig\\\",\\\"text\\\":\\\"https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"\\\\n- 会议链接：\\\"},{\\\"tag\\\":\\\"a\\\",\\\"href\\\":\\\"https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=cc40c4af-8edc-46b1-8e13-47f014520f0a&originalTime=0&startTime=1777545000\\\",\\\"text\\\":\\\"https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=cc40c4af-8edc-46b1-8e13-47f014520f0a&originalTime=0&startTime=1777545000\\\"}]]}\"\n  },\n  \"chat_id\": \"oc_3e432398cc43063fda2b2d322bb6dead\",\n  \"create_time\": \"1777527692406\",\n  \"deleted\": false,\n  \"message_id\": \"om_x100b501af60f7880b2a6c2ecaf3ad8e\",\n  \"msg_type\": \"interactive\",\n  \"sender\": {\n    \"id\": \"cli_a96606adf978dbc4\",\n    \"id_type\": \"app_id\",\n    \"sender_type\": \"app\",\n    \"tenant...",
+      "data": {
+        "body": {
+          "content": "{\"title\":\"会前背景知识卡片：飞书环境配置\",\"elements\":[[{\"tag\":\"text\",\"text\":\"scripted_debug 已完成真实会议、真实文档索引和 knowledge.search 检索，并通过受控工具发送本卡片。\"}],[{\"tag\":\"text\",\"text\":\"原始链接\"},{\"tag\":\"text\",\"text\":\"\\n- 相关资料：Trae IDE 模型配置指南: \"},{\"tag\":\"a\",\"href\":\"https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig\",\"text\":\"https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig\"},{\"tag\":\"text\",\"text\":\"\\n- 会议链接：\"},{\"tag\":\"a\",\"href\":\"https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=cc40c4af-8edc-46b1-8e13-47f014520f0a&originalTime=0&startTime=1777545000\",\"text\":\"https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=cc40c4af-8edc-46b1-8e13-47f014520f0a&originalTime=0&startTime=1777545000\"}]]}"
+        },
+        "chat_id": "oc_3e432398cc43063fda2b2d322bb6dead",
+        "create_time": "1777527692406",
+        "deleted": false,
+        "message_id": "om_x100b501af60f7880b2a6c2ecaf3ad8e",
+        "msg_type": "interactive",
+        "sender": {
+          "id": "cli_a96606adf978dbc4",
+          "id_type": "app_id",
+          "sender_type": "app",
+          "tenant_key": "1abd20e084069b82"
+        },
+        "update_time": "1777527692406",
+        "updated": false
+      },
+      "error_message": ""
+    }
+  ],
+  "agent_result": {
+    "trace_id": "b22f5cf8350e",
+    "workflow_type": "pre_meeting_brief",
+    "status": "success",
+    "summary": "scripted_debug 最终回复：工具 im.send_card 执行成功。\n结构化数据 JSON：\n{\n  \"body\": {\n    \"content\": \"{\\\"title\\\":\\\"会前背景知识卡片：飞书环境配置\\\",\\\"ele",
+    "final_answer": "scripted_debug 最终回复：工具 im.send_card 执行成功。\n结构化数据 JSON：\n{\n  \"body\": {\n    \"content\": \"{\\\"title\\\":\\\"会前背景知识卡片：飞书环境配置\\\",\\\"elements\\\":[[{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"scripted_debug 已完成真实会议、真实文档索引和 knowledge.search 检索，并通过受控工具发送本卡片。\\\"}],[{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"原始链接\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"\\\\n- 相关资料：Trae IDE 模型配置指南: \\\"},{\\\"tag\\\":\\\"a\\\",\\\"href\\\":\\\"https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig\\\",\\\"text\\\":\\\"https://bytedance.larkoffice.com/docx/KlW9dIlyzo17ccxl26Gc9TGsnig\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"\\\\n- 会议链接：\\\"},{\\\"tag\\\":\\\"a\\\",\\\"href\\\":\\\"https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=cc40c4af-8edc-46b1-8e13-47f014520f0a&originalTime=0&startTime=1777545000\\\",\\\"text\\\":\\\"https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631477959517752545&key=cc40c4af-8edc-46b1-8e13-47f014520f0a&originalTime=0&startTime=1777545000\\\"}]]}\"\n  },\n  \"chat_id\": \"oc_3e432398cc43063fda2b2d322bb6dead\",\n  \"create_time\": \"1777527692406\",\n  \"deleted\": false,\n  \"message_id\": \"om_x100b501af60f7880b2a6c2ecaf3ad8e\",\n  \"msg_type\": \"interactive\",\n  \"sender\": {\n    \"id\": \"cli_a96606adf978dbc4\",\n    \"id_type\": \"app_id\",\n    \"sender_type\": \"app\",\n    \"tenant_key\": \"1abd20e084069b82\"\n  },\n  \"update_time\": \"1777527692406\",\n  \"updated\": false\n}"
+  }
+}

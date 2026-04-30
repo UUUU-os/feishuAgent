@@ -41,6 +41,26 @@ def normalize_feishu_message_uuid(idempotency_key: str) -> str:
     return f"mf_{digest[:24]}"
 
 
+def partition_card_facts(facts: list[str]) -> tuple[list[str], list[str]]:
+    """把卡片事实分为核心背景和原始链接两组。
+
+    LLM 传入 facts 时可能把链接和背景混在一起。这里在客户端模板层强制
+    “先背景、后链接”，让真实群卡片保持稳定阅读顺序。
+    """
+
+    background: list[str] = []
+    links: list[str] = []
+    for fact in facts:
+        text = str(fact or "").strip()
+        if not text:
+            continue
+        if "http://" in text or "https://" in text or "链接" in text:
+            links.append(text)
+        else:
+            background.append(text)
+    return background, links
+
+
 @dataclass(slots=True)
 class TokenCache:
     """租户访问令牌缓存。
@@ -1525,14 +1545,24 @@ class FeishuClient:
             }
         ]
         if facts:
-            fact_lines = "\n".join(f"- {fact}" for fact in facts if fact)
-            if fact_lines:
+            background_facts, link_facts = partition_card_facts(facts)
+            if background_facts:
                 elements.append(
                     {
                         "tag": "div",
                         "text": {
                             "tag": "lark_md",
-                            "content": fact_lines,
+                            "content": "**核心背景知识**\n" + "\n".join(f"- {fact}" for fact in background_facts),
+                        },
+                    }
+                )
+            if link_facts:
+                elements.append(
+                    {
+                        "tag": "div",
+                        "text": {
+                            "tag": "lark_md",
+                            "content": "**原始链接**\n" + "\n".join(f"- {fact}" for fact in link_facts),
                         },
                     }
                 )

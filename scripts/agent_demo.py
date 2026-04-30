@@ -402,6 +402,9 @@ class ScriptedDebugProvider(LLMProvider):
         """读取上下文后选择一个适合的工具调用。"""
 
         tool_messages = [message for message in messages if message.role == "tool"]
+        user_content = next((message.content for message in messages if message.role == "user"), "")
+        context_payload = extract_context_payload(user_content)
+        available_tools = {tool.name for tool in tools or []}
         if tool_messages and tool_messages[-1].metadata.get("tool_name") == "contact.get_current_user":
             return LLMResponse(
                 finish_reason="tool_calls",
@@ -420,16 +423,29 @@ class ScriptedDebugProvider(LLMProvider):
                 ],
             )
 
+        if (
+            tool_messages
+            and tool_messages[-1].metadata.get("tool_name") == "knowledge.search"
+            and "im_send_card" in available_tools
+        ):
+            return LLMResponse(
+                finish_reason="tool_calls",
+                model="scripted-debug",
+                tool_calls=[
+                    AgentToolCall(
+                        call_id="debug_send_card",
+                        tool_name="im_send_card",
+                        arguments=build_debug_card_arguments(user_content, context_payload),
+                    )
+                ],
+            )
+
         if tool_messages:
             return LLMResponse(
                 content=f"scripted_debug 最终回复：{tool_messages[-1].content}",
                 finish_reason="stop",
                 model="scripted-debug",
             )
-
-        user_content = next((message.content for message in messages if message.role == "user"), "")
-        context_payload = extract_context_payload(user_content)
-        available_tools = {tool.name for tool in tools or []}
 
         if "tasks_create_task" in available_tools and "contact_get_current_user" in available_tools:
             return LLMResponse(
@@ -484,11 +500,40 @@ class ScriptedDebugProvider(LLMProvider):
         return LLMResponse(content="scripted_debug 没有找到可调用工具。", finish_reason="stop", model="scripted-debug")
 
 
+def build_debug_card_arguments(user_content: str, context_payload: dict[str, str]) -> dict[str, object]:
+    """为真实联调构造稳定卡片参数，避免 scripted_debug 停在只读检索阶段。"""
+
+    runtime_context = extract_runtime_context_json(user_content)
+    event = runtime_context.get("event") if isinstance(runtime_context.get("event"), dict) else {}
+    event_payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+    meeting_title = str(event_payload.get("summary") or context_payload.get("query") or "会前知识卡片")
+    related_resources = runtime_context.get("related_resources")
+    facts: list[object] = []
+    if isinstance(related_resources, list):
+        for resource in related_resources[:3]:
+            if not isinstance(resource, dict):
+                continue
+            title = str(resource.get("title") or resource.get("resource_id") or "相关资料")
+            source_url = str(resource.get("source_url") or "")
+            facts.append({"label": "相关资料", "value": f"{title}: {source_url}" if source_url else title})
+    if not facts:
+        facts.append("已完成 knowledge.search 检索，可在链路报告中查看 evidence pack。")
+    if event_payload.get("app_link"):
+        facts.append({"label": "会议链接", "value": str(event_payload.get("app_link"))})
+    return {
+        "title": f"会前背景知识卡片：{meeting_title}",
+        "summary": "scripted_debug 已完成真实会议、真实文档索引和 knowledge.search 检索，并通过受控工具发送本卡片。",
+        "facts": facts,
+        "idempotency_key": context_payload.get("idempotency_key", ""),
+        "identity": "tenant",
+    }
+
+
 def extract_context_payload(user_content: str) -> dict[str, str]:
     """从 user message 中粗略提取调试参数。"""
 
     payload: dict[str, str] = {}
-    for key in ("calendar_id", "start_time", "end_time", "project_id", "meeting_id", "query"):
+    for key in ("calendar_id", "start_time", "end_time", "project_id", "meeting_id", "query", "idempotency_key"):
         marker = f"- {key}:"
         for line in user_content.splitlines():
             if line.strip().startswith(marker):
@@ -501,6 +546,8 @@ def extract_context_payload(user_content: str) -> dict[str, str]:
             payload["meeting_id"] = str(runtime_context.get("meeting_id") or event_payload.get("meeting_id") or "")
         if not payload.get("project_id"):
             payload["project_id"] = str(runtime_context.get("project_id") or event_payload.get("project_id") or "meetflow")
+        if not payload.get("idempotency_key"):
+            payload["idempotency_key"] = str(event_payload.get("idempotency_key") or "")
         if not payload.get("query"):
             query_parts = [
                 str(event_payload.get("summary") or ""),

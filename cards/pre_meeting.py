@@ -115,8 +115,9 @@ def render_section_markdown(section: dict[str, Any]) -> str:
     lines = [f"**{section['title']}**"]
     for index, item in enumerate(section["items"][:3], start=1):
         evidence = f" `{item['ref_id']}`" if item.get("ref_id") else ""
+        title = render_link(item["title"], item.get("source_url", ""))
         content = f"：{item['content']}" if item.get("content") else ""
-        lines.append(f"{index}. {item['title']}{content}{evidence}")
+        lines.append(f"{index}. {title}{content}{evidence}")
     return "\n".join(lines)
 
 
@@ -127,9 +128,11 @@ def render_evidence_markdown(evidence_refs: list[Any]) -> str:
     for index, ref in enumerate(evidence_refs[:5], start=1):
         source_type = safe_text(getattr(ref, "source_type", ""))
         source_id = safe_text(getattr(ref, "source_id", ""))
+        source_url = safe_text(getattr(ref, "source_url", ""))
         snippet = safe_text(getattr(ref, "snippet", ""))[:80]
         label = source_id or f"ref_{index}"
-        lines.append(f"- `{label}` {source_type}：{snippet}")
+        linked_label = render_link(f"`{label}`", source_url)
+        lines.append(f"- {linked_label} {source_type}：{snippet}")
     return "\n".join(lines)
 
 
@@ -145,9 +148,22 @@ def normalize_card_items(items: list[Any]) -> list[dict[str, str]]:
                 "title": safe_text(getattr(item, "title", "")),
                 "content": safe_text(getattr(item, "content", "")),
                 "ref_id": safe_text(getattr(first_ref, "source_id", "")) if first_ref else "",
+                "source_url": safe_text(getattr(first_ref, "source_url", "")) if first_ref else "",
             }
         )
     return normalized
+
+
+def render_link(label: str, url: str) -> str:
+    """在有来源 URL 时渲染飞书 Markdown 链接。"""
+
+    clean_label = safe_text(label)
+    clean_url = safe_text(url)
+    if not clean_label:
+        return ""
+    if not clean_url:
+        return clean_label
+    return f"[{clean_label}]({clean_url})"
 
 
 def choose_header_template(brief: Any) -> str:
