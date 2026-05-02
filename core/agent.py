@@ -15,6 +15,7 @@ from core.knowledge import KnowledgeIndexStore, register_knowledge_tools
 from core.logging import bind_trace_id, get_logger, reset_trace_id
 from core.models import AgentDecision, AgentInput, AgentRunResult
 from core.policy import AgentPolicy
+from core.post_meeting_tools import register_post_meeting_tools
 from core.router import WorkflowRouter
 from core.storage import MeetFlowStorage
 from core.tools import ToolRegistry
@@ -222,6 +223,7 @@ def create_meetflow_agent(
         client=client,
         default_chat_id=settings.feishu.default_chat_id,
     )
+    knowledge_store: KnowledgeIndexStore | None = None
     if tool_registry is None:
         knowledge_store = KnowledgeIndexStore(
             settings.storage,
@@ -231,6 +233,14 @@ def create_meetflow_agent(
         )
         knowledge_store.initialize()
         register_knowledge_tools(final_tool_registry, knowledge_store)
+        register_post_meeting_tools(
+            final_tool_registry,
+            storage=final_storage,
+            knowledge_store=knowledge_store,
+            client=client,
+            default_chat_id=settings.feishu.default_chat_id,
+            timezone=settings.app.timezone,
+        )
     final_llm_provider = llm_provider or create_llm_provider(settings.llm)
     final_policy = policy or AgentPolicy()
 

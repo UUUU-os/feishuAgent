@@ -31,6 +31,12 @@ def _parse_args() -> argparse.Namespace:
         help="本次登录请求的 scope，使用空格分隔；不传则读取配置中的 feishu.user_oauth_scope。",
     )
     parser.add_argument(
+        "--add-scope",
+        action="append",
+        default=[],
+        help="在配置的 feishu.user_oauth_scope 基础上追加一个 scope；可重复传入。",
+    )
+    parser.add_argument(
         "--no-save",
         action="store_true",
         help="只打印 token 结果，不写入 settings.local.json。",
@@ -117,7 +123,10 @@ def main() -> int:
     logger = get_logger("meetflow.oauth.device_login")
 
     client = FeishuClient(settings.feishu)
-    scope = args.scope.strip() or settings.feishu.user_oauth_scope.strip()
+    scope = build_oauth_scope(
+        base_scope=args.scope.strip() or settings.feishu.user_oauth_scope.strip(),
+        additional_scopes=args.add_scope,
+    )
 
     try:
         device = client.request_device_authorization(scope=scope)
@@ -150,6 +159,25 @@ def main() -> int:
     print("下一步你可以直接运行：")
     print("python3 scripts/calendar_live_test.py --identity user --calendar-id primary --debug-calendar")
     return 0
+
+
+def build_oauth_scope(base_scope: str, additional_scopes: list[str]) -> str:
+    """合并 OAuth scope。
+
+    `--scope` 适合完全覆盖；`--add-scope` 适合临时补权限，避免用户手写一长串
+    scope 时把中文说明或逗号传给飞书导致 invalid_scope。
+    """
+
+    scopes: list[str] = []
+    seen: set[str] = set()
+    for raw_scope in [base_scope, *additional_scopes, "offline_access"]:
+        for item in str(raw_scope or "").split():
+            item = item.strip()
+            if not item or item in seen:
+                continue
+            seen.add(item)
+            scopes.append(item)
+    return " ".join(scopes)
 
 
 if __name__ == "__main__":

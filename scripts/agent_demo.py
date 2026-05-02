@@ -38,6 +38,7 @@ from core import (
     register_knowledge_tools,
 )
 from core.agent import MeetFlowAgent, create_meetflow_agent
+from core.post_meeting_tools import register_post_meeting_tools
 from scripts.meetflow_agent_live_test import (
     build_llm_settings,
     build_workflow_goal,
@@ -118,6 +119,10 @@ def main() -> int:
         return 2
 
     agent.loop.max_iterations = args.max_iterations
+    if args.llm_provider == "scripted_debug":
+        # M4 scripted_debug 需要从工具消息中回读 artifacts，再驱动后续工具调用。
+        # 这里仅放宽本地调试入口的截断阈值，不改变生产 Agent 默认值。
+        agent.loop.max_tool_result_chars = 30000
     result = agent.run(
         agent_input=agent_input,
         workflow_goal=build_goal(args, decision.reason, payload),
@@ -162,7 +167,18 @@ def default_tools_for_event(event_type: str) -> list[str]:
     """为常见调试事件提供更安全的默认工具集。"""
 
     if event_type == "minute.ready":
-        return ["minutes.fetch_resource", "tasks.create_task", "im.send_card"]
+        return [
+            "minutes.fetch_resource",
+            "knowledge.search",
+            "post_meeting.build_artifacts",
+            "post_meeting.enrich_related_knowledge",
+            "post_meeting.prepare_task",
+            "post_meeting.send_summary_card",
+            "post_meeting.save_pending_actions",
+            "contact.get_current_user",
+            "contact.search_user",
+            "im.send_card",
+        ]
     if event_type == "risk.scan.tick":
         return ["tasks.list_my_tasks", "im.send_card"]
     if event_type == "message.command":
@@ -379,7 +395,23 @@ def build_local_registry() -> ToolRegistry:
             internal_name="minutes.fetch_resource",
             description="本地模拟读取妙记。",
             parameters={"type": "object", "properties": {"minute": {"type": "string"}}, "required": ["minute"]},
-            handler=lambda minute, **_: {"title": "Demo 妙记", "content": f"妙记 {minute} 的模拟内容"},
+            handler=lambda minute, **_: {
+                "resource_id": minute,
+                "resource_type": "minute",
+                "title": "MeetFlow M4 Agent 化复盘",
+                "content": "\n".join(
+                    [
+                        "会议总结",
+                        "决定将 M4 会后链路接回 MeetFlowAgentLoop，由 Agent 判断是否补充 RAG、创建任务或发送待确认消息。",
+                        "待办",
+                        "张三明天整理 M4 Agent 化验证报告",
+                        "所有参赛同学下周补充会后体验反馈",
+                        "开放问题",
+                        "是否需要在真实 DeepSeek 联调前增加更多 scripted_debug 用例？",
+                    ]
+                ),
+                "source_url": f"https://bytedance.larkoffice.com/minutes/{minute}",
+            },
             read_only=True,
         )
     )
@@ -387,6 +419,12 @@ def build_local_registry() -> ToolRegistry:
     knowledge_store = KnowledgeIndexStore(settings.storage, embedding_settings=settings.embedding)
     knowledge_store.initialize()
     register_knowledge_tools(registry, knowledge_store)
+    register_post_meeting_tools(
+        registry,
+        storage=MeetFlowStorage(settings.storage),
+        knowledge_store=knowledge_store,
+        timezone=settings.app.timezone,
+    )
     return registry
 
 
@@ -403,8 +441,19 @@ class ScriptedDebugProvider(LLMProvider):
 
         tool_messages = [message for message in messages if message.role == "tool"]
         user_content = next((message.content for message in messages if message.role == "user"), "")
+        runtime_context = extract_runtime_context_json(user_content)
         context_payload = extract_context_payload(user_content)
         available_tools = {tool.name for tool in tools or []}
+        if runtime_context.get("workflow_type") == "post_meeting_followup":
+            response = build_post_meeting_scripted_response(
+                tool_messages=tool_messages,
+                runtime_context=runtime_context,
+                context_payload=context_payload,
+                available_tools=available_tools,
+            )
+            if response is not None:
+                return response
+
         if tool_messages and tool_messages[-1].metadata.get("tool_name") == "contact.get_current_user":
             return LLMResponse(
                 finish_reason="tool_calls",
@@ -500,6 +549,204 @@ class ScriptedDebugProvider(LLMProvider):
         return LLMResponse(content="scripted_debug 没有找到可调用工具。", finish_reason="stop", model="scripted-debug")
 
 
+def build_post_meeting_scripted_response(
+    tool_messages: list[AgentMessage],
+    runtime_context: dict[str, object],
+    context_payload: dict[str, str],
+    available_tools: set[str],
+) -> LLMResponse | None:
+    """为 M4 scripted_debug 构造稳定的 Agent 工具调用链。"""
+
+    minute_token = str(runtime_context.get("minute_token") or context_payload.get("minute_token") or "")
+    event = runtime_context.get("event") if isinstance(runtime_context.get("event"), dict) else {}
+    event_payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+    idempotency_key = str(event_payload.get("idempotency_key") or context_payload.get("idempotency_key") or minute_token)
+
+    if not tool_messages and "minutes_fetch_resource" in available_tools:
+        return LLMResponse(
+            finish_reason="tool_calls",
+            model="scripted-debug",
+            tool_calls=[
+                AgentToolCall(
+                    call_id="m4_fetch_minute",
+                    tool_name="minutes_fetch_resource",
+                    arguments={"minute": minute_token or "demo-minute", "include_artifacts": True, "identity": "user"},
+                )
+            ],
+        )
+
+    if not tool_messages:
+        return None
+
+    last_tool_name = str(tool_messages[-1].metadata.get("tool_name") or "")
+    last_data = extract_tool_data(tool_messages[-1])
+    latest_artifacts = find_latest_m4_artifacts(tool_messages)
+
+    if last_tool_name == "minutes.fetch_resource" and "post_meeting_build_artifacts" in available_tools:
+        return LLMResponse(
+            finish_reason="tool_calls",
+            model="scripted-debug",
+            tool_calls=[
+                AgentToolCall(
+                    call_id="m4_build_artifacts",
+                    tool_name="post_meeting_build_artifacts",
+                    arguments={
+                        "minute_resource": last_data,
+                        "minute": minute_token,
+                        "meeting_id": str(runtime_context.get("meeting_id") or ""),
+                        "calendar_event_id": str(runtime_context.get("calendar_event_id") or ""),
+                        "project_id": str(runtime_context.get("project_id") or "meetflow"),
+                    },
+                )
+            ],
+        )
+
+    if last_tool_name == "post_meeting.build_artifacts" and "post_meeting_enrich_related_knowledge" in available_tools:
+        artifacts = last_data.get("artifacts") if isinstance(last_data.get("artifacts"), dict) else latest_artifacts
+        return LLMResponse(
+            finish_reason="tool_calls",
+            model="scripted-debug",
+            tool_calls=[
+                AgentToolCall(
+                    call_id="m4_enrich_knowledge",
+                    tool_name="post_meeting_enrich_related_knowledge",
+                    arguments={"artifacts": artifacts, "top_n": 3},
+                )
+            ],
+        )
+
+    if last_tool_name in {"post_meeting.enrich_related_knowledge", "post_meeting.build_artifacts"}:
+        artifacts = latest_artifacts or (last_data.get("artifacts") if isinstance(last_data.get("artifacts"), dict) else {})
+        send_calls = build_post_meeting_send_and_save_calls(
+            artifacts=artifacts,
+            runtime_context=runtime_context,
+            idempotency_key=idempotency_key,
+            available_tools=available_tools,
+        )
+        if send_calls:
+            return LLMResponse(finish_reason="tool_calls", model="scripted-debug", tool_calls=send_calls)
+
+    if last_tool_name in {"post_meeting.send_summary_card", "post_meeting.save_pending_actions"}:
+        return LLMResponse(
+            content="scripted_debug M4 最终回复：已通过 Agent Loop 构造会后 artifacts，并发送会后卡片、保存全部待确认任务 registry；任务创建等待人工确认入口触发。",
+            finish_reason="stop",
+            model="scripted-debug",
+        )
+
+    return None
+
+
+def build_post_meeting_send_and_save_calls(
+    artifacts: dict[str, object],
+    runtime_context: dict[str, object],
+    idempotency_key: str,
+    available_tools: set[str],
+) -> list[AgentToolCall]:
+    """构造 M4 发卡和保存待确认 registry 的工具调用。"""
+
+    if not artifacts:
+        return []
+    calls: list[AgentToolCall] = []
+    if "post_meeting_send_summary_card" in available_tools:
+        calls.append(
+            AgentToolCall(
+                call_id="m4_send_summary_card",
+                tool_name="post_meeting_send_summary_card",
+                arguments={
+                    "artifacts": artifacts,
+                    "card_type": "summary_card",
+                    "idempotency_key": f"{idempotency_key}:m4_summary_card",
+                    "identity": "tenant",
+                },
+            )
+        )
+    pending_items = artifacts.get("pending_action_items") if isinstance(artifacts, dict) else []
+    if pending_items and "post_meeting_send_summary_card" in available_tools:
+        calls.append(
+            AgentToolCall(
+                call_id="m4_send_pending_card",
+                tool_name="post_meeting_send_summary_card",
+                arguments={
+                    "artifacts": artifacts,
+                    "card_type": "pending_card",
+                    "idempotency_key": f"{idempotency_key}:m4_pending_card",
+                    "identity": "tenant",
+                },
+            )
+        )
+    if pending_items and "post_meeting_save_pending_actions" in available_tools:
+        calls.append(
+            AgentToolCall(
+                call_id="m4_save_pending_actions",
+                tool_name="post_meeting_save_pending_actions",
+                arguments={
+                    "artifacts": artifacts,
+                    "source": {
+                        "trace_id": str(runtime_context.get("trace_id") or ""),
+                        "minute_token": str(runtime_context.get("minute_token") or ""),
+                        "mode": "agent_loop",
+                    },
+                    "idempotency_key": f"{idempotency_key}:m4_pending_actions",
+                },
+            )
+        )
+    return calls
+
+
+def first_auto_create_candidate(artifacts: dict[str, object]) -> dict[str, object]:
+    """读取第一条字段完整候选，保留函数名兼容旧调试代码。"""
+
+    action_items = artifacts.get("action_items") if isinstance(artifacts, dict) else []
+    if not isinstance(action_items, list):
+        return {}
+    for item in action_items:
+        if isinstance(item, dict) and not item.get("needs_confirm"):
+            return item
+    return {}
+
+
+def extract_assignee_ids(data: dict[str, object]) -> list[str]:
+    """从通讯录工具结果中提取 open_id。"""
+
+    if data.get("open_id"):
+        return [str(data["open_id"])]
+    items = data.get("items")
+    if isinstance(items, list):
+        for item in items:
+            if isinstance(item, dict) and item.get("open_id"):
+                return [str(item["open_id"])]
+    return []
+
+
+def find_latest_m4_artifacts(tool_messages: list[AgentMessage]) -> dict[str, object]:
+    """从历史工具消息中读取最近一次 M4 artifacts。"""
+
+    for message in reversed(tool_messages):
+        data = extract_tool_data(message)
+        artifacts = data.get("artifacts")
+        if isinstance(artifacts, dict):
+            return artifacts
+    return {}
+
+
+def extract_tool_data(message: AgentMessage) -> dict[str, object]:
+    """从工具消息文本中提取结构化 JSON。"""
+
+    metadata_data = message.metadata.get("data")
+    if isinstance(metadata_data, dict):
+        return metadata_data
+
+    marker = "结构化数据 JSON："
+    if marker not in message.content:
+        return {}
+    raw_json = message.content.split(marker, 1)[1].strip()
+    try:
+        parsed = json.loads(raw_json)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def build_debug_card_arguments(user_content: str, context_payload: dict[str, str]) -> dict[str, object]:
     """为真实联调构造稳定卡片参数，避免 scripted_debug 停在只读检索阶段。"""
 
@@ -533,7 +780,7 @@ def extract_context_payload(user_content: str) -> dict[str, str]:
     """从 user message 中粗略提取调试参数。"""
 
     payload: dict[str, str] = {}
-    for key in ("calendar_id", "start_time", "end_time", "project_id", "meeting_id", "query", "idempotency_key"):
+    for key in ("calendar_id", "start_time", "end_time", "project_id", "meeting_id", "minute_token", "query", "idempotency_key"):
         marker = f"- {key}:"
         for line in user_content.splitlines():
             if line.strip().startswith(marker):
@@ -544,6 +791,8 @@ def extract_context_payload(user_content: str) -> dict[str, str]:
         event_payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
         if not payload.get("meeting_id"):
             payload["meeting_id"] = str(runtime_context.get("meeting_id") or event_payload.get("meeting_id") or "")
+        if not payload.get("minute_token"):
+            payload["minute_token"] = str(runtime_context.get("minute_token") or event_payload.get("minute_token") or "")
         if not payload.get("project_id"):
             payload["project_id"] = str(runtime_context.get("project_id") or event_payload.get("project_id") or "meetflow")
         if not payload.get("idempotency_key"):

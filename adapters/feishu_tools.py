@@ -141,7 +141,7 @@ def _build_tasks_create_task_tool(client: FeishuClient) -> AgentTool:
 
     return AgentTool(
         internal_name="tasks.create_task",
-        description="创建飞书任务。写操作，后续 AgentPolicy 应先检查置信度、负责人和幂等键。",
+        description="创建飞书任务。写操作，后续 AgentPolicy 应先检查人工确认、负责人、截止时间和幂等键。",
         parameters={
             "type": "object",
             "properties": {
@@ -153,6 +153,8 @@ def _build_tasks_create_task_tool(client: FeishuClient) -> AgentTool:
                     "description": "负责人 open_id 列表。",
                 },
                 "due_timestamp_ms": {"type": "string", "description": "截止时间，毫秒级时间戳。"},
+                "confidence": {"type": "number", "description": "行动项置信度，AgentPolicy 用于辅助判断是否仍需补充确认。"},
+                "evidence_refs": {"type": "array", "items": {}, "description": "会议证据引用，用于审计和任务描述，不直接透传飞书。"},
                 "idempotency_key": {"type": "string", "description": "幂等键，避免重复创建。"},
                 "identity": {"type": "string", "description": "飞书身份，任务创建通常使用 user。"},
             },
@@ -307,16 +309,24 @@ def send_card_with_fallback(
 
     if isinstance(card, dict) and card:
         try:
-            return client.send_card_message(
+            result = client.send_card_message(
                 receive_id=receive_id,
                 card=card,
                 receive_id_type=receive_id_type,
                 idempotency_key=idempotency_key,
                 identity=identity,
             )
-        except FeishuAPIError:
+            if isinstance(result, dict):
+                result.setdefault("card_delivery", "full_card")
+            return result
+        except FeishuAPIError as error:
             if not normalized_title or not normalized_summary:
                 raise
+            fallback_reason = str(error)
+        else:
+            fallback_reason = ""
+    else:
+        fallback_reason = ""
 
     if not normalized_title or not normalized_summary:
         raise ValueError("发送卡片需要 title/summary；若传 card，必须是飞书可接受的完整 interactive card JSON")
@@ -326,13 +336,18 @@ def send_card_with_fallback(
         summary=normalized_summary,
         facts=normalized_facts,
     )
-    return client.send_card_message(
+    result = client.send_card_message(
         receive_id=receive_id,
         card=fallback_card,
         receive_id_type=receive_id_type,
         idempotency_key=idempotency_key,
         identity=identity,
     )
+    if isinstance(result, dict):
+        result.setdefault("card_delivery", "fallback_card")
+        if fallback_reason:
+            result.setdefault("fallback_reason", fallback_reason)
+    return result
 
 
 def normalize_card_facts(facts: list[Any]) -> list[str]:

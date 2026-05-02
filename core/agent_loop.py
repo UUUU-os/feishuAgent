@@ -243,13 +243,26 @@ def build_system_prompt(workflow_type: str, required_tools: list[str]) -> str:
     """构建 Agent Loop 的系统提示词。"""
 
     tools_text = "\n".join(f"- {tool}" for tool in required_tools) or "- 无"
-    return (
+    base_prompt = (
         "你是 MeetFlow，一个飞书会议知识闭环垂直 Agent。\n"
         "你必须基于工具结果和上下文回答，不要编造不存在的飞书数据。\n"
         "如果需要外部信息，优先调用可用工具；如果工具失败，需要说明失败原因并给出降级建议。\n"
         "写操作只表示请求执行，后续会由 AgentPolicy 决定是否允许自动执行。\n\n"
         f"当前工作流：{workflow_type}\n"
         f"本次允许使用的内部工具：\n{tools_text}"
+    )
+    if workflow_type != "post_meeting_followup":
+        return base_prompt
+    return (
+        f"{base_prompt}\n\n"
+        "M4 会后 Agent 要求：\n"
+        "- 先确认妙记/纪要来源，必要时调用 minutes.fetch_resource 读取真实内容。\n"
+        "- 使用 post_meeting.build_artifacts 审阅关键结论、行动项和开放问题。\n"
+        "- 需要背景资料时调用 post_meeting.enrich_related_knowledge 或 knowledge.search，query 只能来自会议主题、项目名、关键结论和行动项标题。\n"
+        "- 不要在会后主链路请求 tasks.create_task；即使字段完整、高置信，也必须先发送/保存待确认任务。\n"
+        "- 负责人为“我”时先调用 contact.get_current_user；负责人是姓名时先调用 contact.search_user；群体负责人进入待确认。\n"
+        "- 缺负责人、缺截止时间、群体负责人、低置信或证据不足的行动项，应说明待补充原因。\n"
+        "- 最终回答必须分别说明已发出的待确认、跳过原因，以及任何工具失败。"
     )
 
 
@@ -267,6 +280,7 @@ def build_runtime_context_message(context: WorkflowContext, workflow_goal: str) 
         "related_resources": [resource.to_dict() for resource in context.related_resources],
         "memory_snapshot": context.memory_snapshot,
         "event": context.event.to_dict() if context.event else None,
+        "raw_context": context.raw_context,
     }
     return (
         f"工作流目标：{workflow_goal or '请根据上下文完成当前工作流目标。'}\n\n"

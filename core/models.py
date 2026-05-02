@@ -361,6 +361,7 @@ class AgentLoopState(BaseModel):
                     "tool_name": result.tool_name,
                     "status": result.status,
                     "error_message": result.error_message,
+                    "data": result.data,
                 },
             )
         )

@@ -10,3 +10,4 @@ storage/*.jsonl
 storage/knowledge/
 storage/projects/*.json
 storage/tmp/
+.venv-lark-oapi/

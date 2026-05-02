@@ -7,6 +7,7 @@ from typing import Any
 from core.agent_loop import MeetFlowAgentLoop
 from core.llm import GenerationSettings
 from core.models import AgentDecision, AgentRunResult, WorkflowContext
+from core.post_meeting import build_post_meeting_artifacts
 from core.pre_meeting import build_pre_meeting_brief_artifacts
 
 
@@ -215,7 +216,7 @@ class PostMeetingFollowupWorkflow(WorkflowRunner):
     当前只固定会后流程边界，不提前实现完整 M4：
     - 拉取妙记和纪要清洗仍由后续工具/模块完成
     - Action Item 结构化解析后续再升级为严格 schema
-    - 任务创建必须继续经过 AgentPolicy
+    - 任务创建必须先由人确认，再继续经过 AgentPolicy
     """
 
     def prepare_context(self, context: WorkflowContext, decision: AgentDecision) -> None:
@@ -223,6 +224,19 @@ class PostMeetingFollowupWorkflow(WorkflowRunner):
 
         WorkflowRunner.prepare_context(self, context=context, decision=decision)
         context.raw_context["post_meeting_plan"] = build_post_meeting_plan_draft(context)
+        artifacts = build_post_meeting_artifacts(context)
+        artifacts_dict = artifacts.to_dict()
+        context.raw_context["post_meeting_artifacts"] = artifacts_dict
+        context.raw_context["post_meeting_input"] = artifacts_dict["workflow_input"]
+        context.raw_context["cleaned_transcript"] = artifacts_dict["cleaned_transcript"]
+        context.raw_context["meeting_summary_draft"] = artifacts_dict["meeting_summary"]
+        context.raw_context["post_meeting_card_payloads"] = artifacts_dict["card_payloads"]
+        context.raw_context["pending_action_items"] = artifacts_dict["pending_action_items"]
+        context.raw_context["auto_create_candidates"] = [
+            item for item in artifacts_dict["action_items"] if not item.get("needs_confirm")
+        ]
+        context.raw_context["human_review_candidates"] = artifacts_dict["pending_action_items"]
+        context.raw_context["related_knowledge"] = artifacts_dict.get("extra", {}).get("related_knowledge_hits", [])
 
     def build_workflow_goal(self, workflow_goal: str) -> str:
         """强化会后工作流的输出和安全要求。"""
@@ -234,7 +248,8 @@ class PostMeetingFollowupWorkflow(WorkflowRunner):
             "- 先获取或确认妙记/纪要来源，再抽取结论和 Action Items。\n"
             "- Action Item 必须包含事项、负责人、截止时间、置信度和证据引用；缺失字段要标记待确认。\n"
             "- 如果负责人是“我”或具体姓名，必须先通过通讯录工具解析 open_id，不能编造 assignee_ids。\n"
-            "- 任务创建属于写操作，只能作为工具请求发起，最终必须经过 AgentPolicy。\n"
+            "- 不要在会后主链路自动创建任务；所有任务都先发送待确认材料，由人工确认入口触发创建。\n"
+            "- 人工确认后的任务创建仍属于写操作，最终必须经过 AgentPolicy。\n"
             "- 不要把低置信度或缺少证据的待办直接描述为已创建任务。"
         )
 
@@ -337,7 +352,13 @@ def build_default_workflow_runners() -> dict[str, WorkflowRunner]:
                 allowed_tools=[
                     "minutes.fetch_resource",
                     "docs.fetch_resource",
-                    "tasks.create_task",
+                    "knowledge.search",
+                    "knowledge.fetch_chunk",
+                    "post_meeting.build_artifacts",
+                    "post_meeting.enrich_related_knowledge",
+                    "post_meeting.prepare_task",
+                    "post_meeting.send_summary_card",
+                    "post_meeting.save_pending_actions",
                     "contact.get_current_user",
                     "contact.search_user",
                     "im.send_card",
@@ -408,9 +429,10 @@ def build_post_meeting_plan_draft(context: WorkflowContext) -> dict[str, Any]:
             "clean_transcript",
             "extract_decisions_and_action_items",
             "validate_owner_due_date_evidence",
-            "create_task_or_request_confirmation",
+            "send_confirmation_before_task_creation",
         ],
         "required_fields_for_task_creation": [
+            "human_confirmation",
             "summary",
             "assignee_ids",
             "due_timestamp_ms",
