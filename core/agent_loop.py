@@ -9,6 +9,7 @@ from typing import Any
 from core.llm import GenerationSettings, LLMProvider
 from core.logging import get_logger
 from core.models import AgentLoopState, AgentMessage, AgentRunResult, AgentToolResult, WorkflowContext
+from core.observability import duration_ms_since, emit_structured_event, safe_error_message
 from core.policy import AgentPolicy
 from core.storage import MeetFlowStorage
 from core.tools import ToolRegistry
@@ -59,12 +60,20 @@ class MeetFlowAgentLoop:
 
         try:
             for iteration in range(1, self.max_iterations + 1):
+                iteration_started_at = time.perf_counter()
                 state.iteration = iteration
                 self.logger.info(
                     "Agent Loop 开始一轮推理 trace_id=%s workflow=%s iteration=%s",
                     context.trace_id,
                     context.workflow_type,
                     iteration,
+                )
+                emit_structured_event(
+                    "agent_loop_iteration_started",
+                    trace_id=context.trace_id,
+                    workflow_type=context.workflow_type,
+                    iteration=iteration,
+                    required_tools=required_tools,
                 )
 
                 tool_definitions = self.tool_registry.get_definitions(required_tools)
@@ -79,6 +88,15 @@ class MeetFlowAgentLoop:
                         context=context,
                         state=state,
                         tool_calls=response.tool_calls,
+                    )
+                    emit_structured_event(
+                        "agent_loop_iteration_finished",
+                        trace_id=context.trace_id,
+                        workflow_type=context.workflow_type,
+                        iteration=iteration,
+                        status="tool_calls",
+                        tool_call_count=len(response.tool_calls),
+                        duration_ms=duration_ms_since(iteration_started_at),
                     )
                     continue
 
@@ -95,6 +113,15 @@ class MeetFlowAgentLoop:
                         },
                     )
                 )
+                emit_structured_event(
+                    "agent_loop_iteration_finished",
+                    trace_id=context.trace_id,
+                    workflow_type=context.workflow_type,
+                    iteration=iteration,
+                    status="final_answer",
+                    finish_reason=response.finish_reason,
+                    duration_ms=duration_ms_since(iteration_started_at),
+                )
                 return self._build_run_result(
                     context=context,
                     state=state,
@@ -104,6 +131,13 @@ class MeetFlowAgentLoop:
 
             state.status = "max_iterations"
             state.stop_reason = "max_iterations"
+            emit_structured_event(
+                "agent_loop_max_iterations",
+                trace_id=context.trace_id,
+                workflow_type=context.workflow_type,
+                max_iterations=self.max_iterations,
+                tool_result_count=len(state.tool_results),
+            )
             return self._build_run_result(
                 context=context,
                 state=state,
@@ -115,7 +149,7 @@ class MeetFlowAgentLoop:
                 "Agent Loop 执行失败 trace_id=%s workflow=%s error=%s",
                 context.trace_id,
                 context.workflow_type,
-                error,
+                safe_error_message(error),
             )
             state.status = "failed"
             state.stop_reason = error.__class__.__name__
@@ -123,8 +157,8 @@ class MeetFlowAgentLoop:
                 context=context,
                 state=state,
                 status="failed",
-                final_answer=f"Agent Loop 执行失败：{error}",
-                payload={"error_type": error.__class__.__name__, "error_message": str(error)},
+                final_answer=f"Agent Loop 执行失败：{safe_error_message(error)}",
+                payload={"error_type": error.__class__.__name__, "error_message": safe_error_message(error)},
             )
 
     def _build_initial_state(
@@ -186,6 +220,18 @@ class MeetFlowAgentLoop:
                     tool_call=tool_call,
                     allow_write=self.allow_write,
                     storage=self.storage,
+                )
+                emit_structured_event(
+                    "policy_decision",
+                    trace_id=context.trace_id,
+                    workflow_type=context.workflow_type,
+                    tool_name=tool.internal_name,
+                    side_effect=tool.side_effect,
+                    allow_write=self.allow_write,
+                    status=decision.status,
+                    reason=decision.reason,
+                    required_fields=decision.required_fields,
+                    idempotency_key=decision.idempotency_key,
                 )
                 if not decision.is_allowed():
                     state.append_tool_result(

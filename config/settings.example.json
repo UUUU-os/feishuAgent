@@ -68,5 +68,14 @@
     "db_path": "storage/meetflow.sqlite",
     "project_memory_dir": "storage/projects",
     "audit_log_path": "storage/workflow_runs.jsonl"
+  },
+  "observability": {
+    "structured_events_enabled": true,
+    "structured_event_path": "storage/workflow_events.jsonl",
+    "record_sensitive_payload": false,
+    "max_event_chars": 16000,
+    "max_field_chars": 1000,
+    "mask_ids": true,
+    "daily_rotate": false
   }
 }

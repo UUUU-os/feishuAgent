@@ -7,10 +7,12 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlparse
 
 from config import LLMSettings
 from core.logging import get_logger
 from core.models import AgentMessage, AgentToolCall, BaseModel
+from core.observability import duration_ms_since, emit_structured_event, safe_error_message, summarize_tool_calls
 
 
 TOOL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
@@ -144,6 +146,7 @@ class OpenAICompatibleProvider(LLMProvider):
     ) -> LLMResponse:
         """调用模型，并把响应转换成内部统一结构。"""
 
+        started_at = time.perf_counter()
         generation = settings or settings_from_config(self.settings)
         self._validate_config()
 
@@ -164,12 +167,40 @@ class OpenAICompatibleProvider(LLMProvider):
 
         endpoint = _join_url(self.settings.api_base, "chat/completions")
         self.logger.info("准备调用 LLM provider=openai-compatible model=%s", generation.model)
-        raw_payload = self._post_json(
-            endpoint=endpoint,
-            payload=payload,
-            timeout_seconds=generation.timeout_seconds,
-        )
-        return _parse_openai_response(raw_payload)
+        try:
+            raw_payload = self._post_json(
+                endpoint=endpoint,
+                payload=payload,
+                timeout_seconds=generation.timeout_seconds,
+            )
+            response = _parse_openai_response(raw_payload)
+            emit_structured_event(
+                "llm_generation",
+                provider="openai-compatible",
+                model=generation.model,
+                endpoint_path=urlparse(endpoint).path,
+                status="success",
+                finish_reason=response.finish_reason,
+                duration_ms=duration_ms_since(started_at),
+                usage=response.usage,
+                tool_calls_requested=summarize_tool_calls(response.tool_calls),
+                sensitive_payload_recorded=False,
+            )
+            return response
+        except Exception as error:
+            emit_structured_event(
+                "llm_generation",
+                provider="openai-compatible",
+                model=generation.model,
+                endpoint_path=urlparse(endpoint).path,
+                status="failed",
+                http_status=extract_http_status(error),
+                error_type=error.__class__.__name__,
+                error_message=safe_error_message(error),
+                duration_ms=duration_ms_since(started_at),
+                retryable=False,
+            )
+            raise
 
     def _validate_config(self) -> None:
         """检查调用模型所需的基础配置。"""
@@ -240,18 +271,21 @@ class DryRunLLMProvider(LLMProvider):
     ) -> LLMResponse:
         """返回一个可预测的本地响应。"""
 
+        started_at = time.perf_counter()
         last_tool_message = _find_last_message_content(messages, role="tool")
         if last_tool_message:
-            return LLMResponse(
+            response = LLMResponse(
                 content=f"dry-run 最终回复：我已经读取工具结果：{last_tool_message}",
                 finish_reason="stop",
                 model=self.model,
                 raw_payload={"provider": "dry-run", "mode": "final_after_tool"},
             )
+            self._emit_response(response, started_at)
+            return response
 
         if tools:
             tool = tools[0]
-            return LLMResponse(
+            response = LLMResponse(
                 content="",
                 finish_reason="tool_calls",
                 model=self.model,
@@ -265,13 +299,32 @@ class DryRunLLMProvider(LLMProvider):
                 ],
                 raw_payload={"provider": "dry-run", "mode": "tool_call"},
             )
+            self._emit_response(response, started_at)
+            return response
 
         last_user_message = _find_last_message_content(messages, role="user")
-        return LLMResponse(
+        response = LLMResponse(
             content=f"dry-run 回复：已收到输入：{last_user_message}",
             finish_reason="stop",
             model=self.model,
             raw_payload={"provider": "dry-run", "mode": "text"},
+        )
+        self._emit_response(response, started_at)
+        return response
+
+    def _emit_response(self, response: LLMResponse, started_at: float) -> None:
+        """记录 dry-run 模型调用事件，保证本地测试也能覆盖结构化日志。"""
+
+        emit_structured_event(
+            "llm_generation",
+            provider="dry-run",
+            model=response.model,
+            status="success",
+            finish_reason=response.finish_reason,
+            duration_ms=duration_ms_since(started_at),
+            usage=response.usage,
+            tool_calls_requested=summarize_tool_calls(response.tool_calls),
+            sensitive_payload_recorded=False,
         )
 
 
@@ -379,3 +432,12 @@ def _find_last_message_content(messages: list[AgentMessage], role: str) -> str:
         if message.role == role:
             return message.content
     return ""
+
+
+def extract_http_status(error: Exception) -> int:
+    """从 LLMAPIError 文本中提取 HTTP 状态码。"""
+
+    match = re.search(r"status=(\d+)", str(error))
+    if not match:
+        return 0
+    return int(match.group(1))

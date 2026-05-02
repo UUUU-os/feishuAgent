@@ -131,6 +131,23 @@ class StorageSettings:
 
 
 @dataclass(slots=True)
+class ObservabilitySettings:
+    """结构化观测配置。
+
+    这组配置控制 Agent 运行事件是否写入 JSONL、是否记录敏感 payload、
+    以及单字段和单事件的最大长度，避免日志变成新的数据泄露面。
+    """
+
+    structured_events_enabled: bool
+    structured_event_path: str
+    record_sensitive_payload: bool
+    max_event_chars: int
+    max_field_chars: int
+    mask_ids: bool
+    daily_rotate: bool
+
+
+@dataclass(slots=True)
 class Settings:
     """系统总配置对象，后续代码统一从这里取配置。"""
 
@@ -144,6 +161,7 @@ class Settings:
     risk_rules: RiskRuleSettings
     logging: LoggingSettings
     storage: StorageSettings
+    observability: ObservabilitySettings
 
     def as_dict(self) -> dict[str, Any]:
         """便于调试或日志打印时转换为普通字典。"""
@@ -208,6 +226,29 @@ ENV_MAPPING: dict[str, tuple[str, str, Any]] = {
     "MEETFLOW_STORAGE_DB_PATH": ("storage", "db_path", str),
     "MEETFLOW_STORAGE_PROJECT_MEMORY_DIR": ("storage", "project_memory_dir", str),
     "MEETFLOW_STORAGE_AUDIT_LOG_PATH": ("storage", "audit_log_path", str),
+    "MEETFLOW_OBSERVABILITY_STRUCTURED_EVENTS_ENABLED": (
+        "observability",
+        "structured_events_enabled",
+        lambda value: value.lower() in {"1", "true", "yes", "on"},
+    ),
+    "MEETFLOW_OBSERVABILITY_EVENT_PATH": ("observability", "structured_event_path", str),
+    "MEETFLOW_OBSERVABILITY_RECORD_SENSITIVE_PAYLOAD": (
+        "observability",
+        "record_sensitive_payload",
+        lambda value: value.lower() in {"1", "true", "yes", "on"},
+    ),
+    "MEETFLOW_OBSERVABILITY_MAX_EVENT_CHARS": ("observability", "max_event_chars", int),
+    "MEETFLOW_OBSERVABILITY_MAX_FIELD_CHARS": ("observability", "max_field_chars", int),
+    "MEETFLOW_OBSERVABILITY_MASK_IDS": (
+        "observability",
+        "mask_ids",
+        lambda value: value.lower() in {"1", "true", "yes", "on"},
+    ),
+    "MEETFLOW_OBSERVABILITY_DAILY_ROTATE": (
+        "observability",
+        "daily_rotate",
+        lambda value: value.lower() in {"1", "true", "yes", "on"},
+    ),
 }
 
 
@@ -294,6 +335,14 @@ def _resolve_storage_paths(data: dict[str, Any]) -> dict[str, Any]:
             storage_values[key] = str(PROJECT_ROOT / path)
 
     merged["storage"] = storage_values
+
+    observability_values = dict(merged.get("observability", {}))
+    raw_event_path = observability_values.get("structured_event_path")
+    if raw_event_path:
+        path = Path(raw_event_path)
+        if not path.is_absolute():
+            observability_values["structured_event_path"] = str(PROJECT_ROOT / path)
+    merged["observability"] = observability_values
     return merged
 
 
@@ -327,4 +376,5 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         risk_rules=RiskRuleSettings(**merged["risk_rules"]),
         logging=LoggingSettings(**merged["logging"]),
         storage=StorageSettings(**merged["storage"]),
+        observability=ObservabilitySettings(**merged["observability"]),
     )

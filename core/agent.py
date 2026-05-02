@@ -14,6 +14,7 @@ from core.llm import GenerationSettings, LLMProvider, create_llm_provider
 from core.knowledge import KnowledgeIndexStore, register_knowledge_tools
 from core.logging import bind_trace_id, get_logger, reset_trace_id
 from core.models import AgentDecision, AgentInput, AgentRunResult
+from core.observability import configure_structured_events, duration_ms_since, emit_structured_event, safe_error_message
 from core.policy import AgentPolicy
 from core.router import WorkflowRouter
 from core.storage import MeetFlowStorage
@@ -57,6 +58,7 @@ class MeetFlowAgent:
     ) -> AgentRunResult:
         """执行一次完整 MeetFlow Agent 运行。"""
 
+        started_at = time.perf_counter()
         trace_id = bind_trace_id(agent_input.trace_id if agent_input.trace_id != "-" else None)
         agent_input.trace_id = trace_id
         self.logger.info(
@@ -68,6 +70,8 @@ class MeetFlowAgent:
 
         try:
             decision = self.router.route(agent_input)
+            self._emit_workflow_started(agent_input=agent_input, decision=decision, allow_write=allow_write)
+            self._emit_route_decision(trace_id=trace_id, decision=decision)
             if decision.status != "ready":
                 result = self._build_terminal_result(
                     trace_id=trace_id,
@@ -76,6 +80,7 @@ class MeetFlowAgent:
                     summary=decision.reason,
                 )
                 self._save_result(result)
+                self._emit_workflow_finished(result=result, started_at=started_at)
                 return result
 
             if self._is_duplicate(decision):
@@ -86,6 +91,7 @@ class MeetFlowAgent:
                     summary=f"幂等键已处理，跳过重复执行：{decision.idempotency_key}",
                 )
                 self._save_result(result)
+                self._emit_workflow_finished(result=result, started_at=started_at)
                 return result
 
             context = self.context_builder.build(agent_input=agent_input, decision=decision)
@@ -108,19 +114,27 @@ class MeetFlowAgent:
 
             self._mark_idempotency(decision, result)
             self._save_result(result)
+            self._emit_workflow_finished(result=result, started_at=started_at)
             return result
         except Exception as error:  # noqa: BLE001 - 主入口需要兜底，避免真实事件静默丢失。
             self.logger.exception("MeetFlowAgent 执行失败")
+            safe_message = safe_error_message(error)
             result = AgentRunResult(
                 trace_id=trace_id,
                 workflow_type="agent_error",
                 status="failed",
-                summary=f"MeetFlowAgent 执行失败：{error}",
-                final_answer=f"MeetFlowAgent 执行失败：{error}",
-                payload={"error_type": error.__class__.__name__, "error_message": str(error)},
+                summary=f"MeetFlowAgent 执行失败：{safe_message}",
+                final_answer=f"MeetFlowAgent 执行失败：{safe_message}",
+                payload={"error_type": error.__class__.__name__, "error_message": safe_message},
                 created_at=int(time.time()),
             )
             self._save_result(result)
+            self._emit_workflow_failed(
+                trace_id=trace_id,
+                workflow_type=result.workflow_type,
+                error=error,
+                started_at=started_at,
+            )
             return result
         finally:
             reset_trace_id()
@@ -199,6 +213,97 @@ class MeetFlowAgent:
             created_at=int(time.time()),
         )
 
+    def _emit_workflow_started(self, agent_input: AgentInput, decision: AgentDecision, allow_write: bool) -> None:
+        """记录一次 Agent 工作流开始事件。"""
+
+        payload = agent_input.payload
+        emit_structured_event(
+            "workflow_started",
+            trace_id=agent_input.trace_id,
+            workflow_type=decision.workflow_type,
+            status=decision.status,
+            source=agent_input.source,
+            actor=agent_input.actor,
+            event_type_input=agent_input.event_type,
+            trigger_type=agent_input.trigger_type,
+            allow_write=allow_write,
+            idempotency_key=decision.idempotency_key,
+            group_id=build_group_id(decision, payload),
+            metadata={
+                "project_id": payload.get("project_id", ""),
+                "meeting_id": payload.get("meeting_id", ""),
+                "calendar_event_id": payload.get("calendar_event_id", payload.get("event_id", "")),
+                "minute_token": payload.get("minute_token", ""),
+                "task_id": payload.get("task_id", ""),
+            },
+        )
+
+    def _emit_route_decision(self, trace_id: str, decision: AgentDecision) -> None:
+        """记录路由结果，便于复盘本次为什么进入某个工作流。"""
+
+        emit_structured_event(
+            "route_decision",
+            trace_id=trace_id,
+            workflow_type=decision.workflow_type,
+            status=decision.status,
+            confidence=decision.confidence,
+            reason=decision.reason,
+            required_tools=decision.required_tools,
+            idempotency_key=decision.idempotency_key,
+            extra=decision.extra,
+        )
+
+    def _emit_workflow_finished(self, result: AgentRunResult, started_at: float) -> None:
+        """记录工作流受控结束事件。"""
+
+        loop_state = result.loop_state
+        emit_structured_event(
+            "workflow_finished",
+            trace_id=result.trace_id,
+            workflow_type=result.workflow_type,
+            status=result.status,
+            duration_ms=duration_ms_since(started_at),
+            iterations=loop_state.iteration if loop_state else 0,
+            tool_call_count=len(loop_state.tool_results) if loop_state else 0,
+            side_effects=result.side_effects,
+            summary=result.summary,
+        )
+
+    def _emit_workflow_failed(
+        self,
+        trace_id: str,
+        workflow_type: str,
+        error: Exception,
+        started_at: float,
+    ) -> None:
+        """记录主入口未受控异常。"""
+
+        emit_structured_event(
+            "workflow_failed",
+            trace_id=trace_id,
+            workflow_type=workflow_type,
+            status="failed",
+            duration_ms=duration_ms_since(started_at),
+            error_type=error.__class__.__name__,
+            error_message=safe_error_message(error),
+            retryable=False,
+        )
+
+
+def build_group_id(decision: AgentDecision, payload: dict[str, object]) -> str:
+    """按业务对象生成 trace 分组 ID。"""
+
+    if decision.workflow_type == "pre_meeting_brief":
+        value = payload.get("calendar_event_id") or payload.get("meeting_id") or payload.get("event_id")
+        return f"meeting:{value}" if value else ""
+    if decision.workflow_type == "post_meeting_followup":
+        value = payload.get("minute_token") or payload.get("meeting_id")
+        return f"minute:{value}" if value else ""
+    if decision.workflow_type == "risk_scan":
+        value = payload.get("task_id") or payload.get("project_id")
+        return f"task:{value}" if value else ""
+    return ""
+
 
 def create_meetflow_agent(
     settings: Settings,
@@ -214,6 +319,7 @@ def create_meetflow_agent(
     这里是后续 CLI、事件订阅、定时任务的统一装配入口。
     """
 
+    configure_structured_events(settings.observability)
     final_storage = storage or MeetFlowStorage(settings.storage)
     final_storage.initialize()
 

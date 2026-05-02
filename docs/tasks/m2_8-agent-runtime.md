@@ -170,6 +170,59 @@ WorkflowRunner
   - T2.13 的 MeetFlowAgentLoop 可以直接调用 `LLMProvider.chat()` 完成每轮 LLM 推理
   - 真实模型和 dry-run 模型使用同一个接口，后续本地测试和线上调用不会分叉
 
+### T2.8-O1 Agent 运行观测与结构化日志增强
+
+- 优先级：`P1`
+- 目标：基于当前 Agent Runtime 增加可复盘的结构化事件日志，覆盖工作流生命周期、路由、LLM 调用、工具调用、Policy 判断和飞书外部 API 调用
+- 状态：已完成首版 P0
+
+#### 当前实现细节
+
+- 已创建文件：
+  - `core/observability.py`
+  - `tests/test_observability.py`
+  - `docs/agent-logging-reference.md`
+  - `docs/agent-logging-implementation-plan.md`
+- 已更新文件：
+  - `config/loader.py`
+  - `config/settings.example.json`
+  - `config/__init__.py`
+  - `core/__init__.py`
+  - `core/agent.py`
+  - `core/agent_loop.py`
+  - `core/llm.py`
+  - `core/tools.py`
+  - `adapters/feishu_client.py`
+  - `scripts/agent_demo.py`
+  - `docs/tasks/m2_8-agent-runtime.md`
+- 已实现的核心类/函数：
+  - `ObservabilitySettings`：配置结构化事件开关、事件文件路径、脱敏和截断策略
+  - `EventWriterSettings` / `StructuredEventWriter`：把 Agent 运行事件写入 JSONL
+  - `configure_structured_events()` / `emit_structured_event()`：初始化和写入全局结构化事件
+  - `sanitize_event()`、`mask_secret()`、`mask_id()`、`safe_error_message()`：统一脱敏和截断
+  - `summarize_arguments()`、`summarize_tool_result()`、`summarize_tool_calls()`：记录参数和结果摘要，避免日志写入完整 prompt、文档正文或工具结果
+  - `normalize_url_template()`、`infer_feishu_api_name()`：把飞书真实 URL 归一为不泄露具体 ID 的 API 模板和 API 名称
+- 运行业务逻辑：
+  - `MeetFlowAgent.run()` 现在写入 `workflow_started`、`route_decision`、`workflow_finished`、`workflow_failed`
+  - `MeetFlowAgentLoop.run()` 现在写入 `agent_loop_iteration_started`、`agent_loop_iteration_finished`、`agent_loop_max_iterations`
+  - `MeetFlowAgentLoop._handle_tool_calls()` 在 Policy 判断后写入 `policy_decision`
+  - `OpenAICompatibleProvider.chat()` 和 `DryRunLLMProvider.chat()` 写入 `llm_generation`
+  - `ToolRegistry.execute()` 写入 `tool_call`，成功记录结果摘要，失败记录安全错误信息
+  - `FeishuClient._request()` 写入 `external_api_call`，记录 method、API 模板、身份、HTTP 状态、飞书 code、重试次数和耗时
+- 配置变化：
+  - `settings.example.json` 新增 `observability` 段，默认启用结构化事件并写入 `storage/workflow_events.jsonl`
+  - 支持 `MEETFLOW_OBSERVABILITY_*` 环境变量覆盖
+- 当前验证方式：
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile config/loader.py core/observability.py core/agent.py core/agent_loop.py core/llm.py core/tools.py adapters/feishu_client.py scripts/agent_demo.py tests/test_observability.py`
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_observability`
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/agent_demo.py --event-type meeting.soon --backend local --llm-provider scripted_debug --max-iterations 3`
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/agent_demo.py --event-type meeting.soon --backend local --llm-provider dry-run --max-iterations 2`
+  - 已确认 `storage/workflow_events.jsonl` 生成并包含 `workflow_started`、`route_decision`、`agent_loop_iteration_started`、`llm_generation`、`policy_decision`、`tool_call`、`workflow_finished` 等事件
+- 当前边界：
+  - 首版采用本地 JSONL，不引入 OpenTelemetry
+  - 默认只记录参数 key 和结果摘要，不记录完整 prompt、token、文档正文和模型完整输出
+  - `scripted_debug` 是脚本内测试 Provider，不属于核心 `LLMProvider` 实现，因此不会产生 `llm_generation`；真实 OpenAI-compatible Provider 和 `DryRunLLMProvider` 已覆盖
+
 ### T2.10 实现 Tool Registry
 
 - 优先级：`P0`
@@ -711,4 +764,3 @@ WorkflowRunner
   - 需要真实演示时，只需切换为 `--backend feishu --llm-provider deepseek`
 
 ---
-

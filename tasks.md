@@ -41,6 +41,22 @@
 
 当前开发重点在 [M3：会前知识卡片工作流](docs/tasks/m3-pre-meeting.md)。
 
+同时，基于当前 Agent Runtime 已完成一版结构化日志与观测增强，详细实现记录见
+[M2.8：业务侧垂直 Agent Runtime](docs/tasks/m2_8-agent-runtime.md) 中的
+`T2.8-O1 Agent 运行观测与结构化日志增强`。本次新增 `core/observability.py`
+和 `tests/test_observability.py`，并接入 `MeetFlowAgent`、`MeetFlowAgentLoop`、
+`LLMProvider`、`ToolRegistry`、`AgentPolicy` 判断点以及 `FeishuClient._request()`；
+验证命令包括 `py_compile`、`unittest tests.test_observability` 和两条
+`scripts/agent_demo.py` 本地链路，结构化事件输出到 `storage/workflow_events.jsonl`。
+当前日志设计、新旧日志差异和测试方法已整理到
+[MeetFlow 当前日志设计说明](docs/agent-logging-current-design.md)。
+
+飞书群聊卡片按钮交互的目标链路、按钮协议、回调服务、CardActionRouter、
+Policy/幂等/审计要求和测试步骤已整理到
+[飞书群聊卡片按钮交互实施方案](docs/feishu-card-interaction-plan.md)。
+对应的文件级代码改动草案、核心类函数签名、实现顺序和验收标准已整理到
+[飞书卡片交互代码改动草案](docs/feishu-card-interaction-code-change-draft.md)。
+
 M3 的核心边界是“轻量 RAG + 结构化元数据 + 增量更新”：
 
 RAGFlow 代码阅读中可借鉴的 RAG 设计已整理到 [RAGFlow 代码阅读笔记](docs/ragflow-design-notes.md)，作为后续增强 M3 检索、chunk 元数据、rerank 和索引任务的参考。

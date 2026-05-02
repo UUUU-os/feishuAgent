@@ -34,6 +34,7 @@ from core import (
     WorkflowRouter,
     build_agent_input,
     configure_logging,
+    configure_structured_events,
     create_llm_provider,
     register_knowledge_tools,
 )
@@ -87,6 +88,7 @@ def main() -> int:
     args = parse_args()
     settings = load_settings()
     configure_logging(settings.logging)
+    configure_structured_events(settings.observability)
 
     storage = MeetFlowStorage(settings.storage)
     storage.initialize()

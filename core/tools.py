@@ -10,6 +10,13 @@ from typing import Any
 from core.llm import TOOL_NAME_PATTERN, ToolDefinition
 from core.logging import get_logger, get_trace_id
 from core.models import AgentToolCall, AgentToolResult, BaseModel
+from core.observability import (
+    duration_ms_since,
+    emit_structured_event,
+    safe_error_message,
+    summarize_arguments,
+    summarize_tool_result,
+)
 
 
 class ToolRegistryError(RuntimeError):
@@ -143,7 +150,9 @@ class ToolRegistry:
         """执行 LLM 返回的一次工具调用，并统一包装结果。"""
 
         started_at = int(time.time())
+        perf_started_at = time.perf_counter()
         trace_id = get_trace_id()
+        tool: AgentTool | None = None
 
         try:
             tool = self.get(tool_call.tool_name)
@@ -156,6 +165,19 @@ class ToolRegistry:
             )
             raw_result = tool.execute(tool_call.arguments)
             data = serialize_tool_result(raw_result)
+            emit_structured_event(
+                "tool_call",
+                trace_id=trace_id,
+                call_id=tool_call.call_id,
+                tool_name=tool.internal_name,
+                llm_tool_name=tool.llm_name,
+                read_only=tool.read_only,
+                side_effect=tool.side_effect,
+                status="success",
+                duration_ms=duration_ms_since(perf_started_at),
+                **summarize_arguments(tool_call.arguments),
+                result_summary=summarize_tool_result(data),
+            )
             return AgentToolResult(
                 call_id=tool_call.call_id,
                 tool_name=tool.internal_name,
@@ -167,19 +189,34 @@ class ToolRegistry:
             )
         except Exception as error:  # noqa: BLE001 - 工具层需要把所有异常统一包装给 Agent Loop。
             tool_name = tool_call.tool_name
+            safe_message = safe_error_message(error)
             self.logger.warning(
                 "Agent 工具执行失败 trace_id=%s tool=%s call_id=%s error=%s",
                 trace_id,
                 tool_name,
                 tool_call.call_id,
-                error,
+                safe_message,
+            )
+            emit_structured_event(
+                "tool_call",
+                trace_id=trace_id,
+                call_id=tool_call.call_id,
+                tool_name=tool.internal_name if tool else tool_name,
+                llm_tool_name=tool.llm_name if tool else tool_name,
+                read_only=tool.read_only if tool else None,
+                side_effect=tool.side_effect if tool else "",
+                status="failed",
+                duration_ms=duration_ms_since(perf_started_at),
+                **summarize_arguments(tool_call.arguments),
+                error_type=error.__class__.__name__,
+                error_message=safe_message,
             )
             return AgentToolResult(
                 call_id=tool_call.call_id,
                 tool_name=tool_name,
                 status="error",
-                content=f"工具 {tool_name} 执行失败：{error}",
-                error_message=str(error),
+                content=f"工具 {tool_name} 执行失败：{safe_message}",
+                error_message=safe_message,
                 started_at=started_at,
                 finished_at=int(time.time()),
             )

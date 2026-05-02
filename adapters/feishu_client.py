@@ -15,6 +15,13 @@ import requests
 from config import FeishuSettings
 from core.logging import get_logger
 from core.models import ActionItem, CalendarAttendee, CalendarEvent, CalendarInfo, Resource
+from core.observability import (
+    duration_ms_since,
+    emit_structured_event,
+    infer_feishu_api_name,
+    normalize_url_template,
+    safe_error_message,
+)
 
 
 class FeishuAPIError(RuntimeError):
@@ -1694,6 +1701,7 @@ class FeishuClient:
 
         last_error: Exception | None = None
         for attempt in range(self.settings.max_retries + 1):
+            attempt_started_at = time.perf_counter()
             try:
                 self.logger.info(
                     "飞书请求开始 method=%s url=%s attempt=%s",
@@ -1712,6 +1720,18 @@ class FeishuClient:
 
                 # 对限流和 5xx 错误做简单重试。
                 if response.status_code in {429, 500, 502, 503, 504} and attempt < self.settings.max_retries:
+                    self._emit_api_event(
+                        method=method,
+                        url=url,
+                        identity=identity,
+                        status="retrying",
+                        http_status=response.status_code,
+                        feishu_code=0,
+                        request_id="",
+                        retry_attempt=attempt + 1,
+                        duration_ms=duration_ms_since(attempt_started_at),
+                        retryable=True,
+                    )
                     self.logger.warning(
                         "飞书请求命中可重试状态码 status=%s attempt=%s",
                         response.status_code,
@@ -1728,24 +1748,67 @@ class FeishuClient:
 
                 if response.status_code >= 400:
                     error_message = response.text
+                    feishu_code = 0
+                    request_id = ""
                     if isinstance(response_json, dict):
+                        feishu_code = int(response_json.get("code", 0) or 0)
+                        request_id = str(response_json.get("request_id", "") or "")
                         error_message = (
                             f"http_status={response.status_code} "
                             f"code={response_json.get('code')} "
                             f"msg={response_json.get('msg')} "
                             f"request_id={response_json.get('request_id')}"
                         )
+                    self._emit_api_event(
+                        method=method,
+                        url=url,
+                        identity=identity,
+                        status="failed",
+                        http_status=response.status_code,
+                        feishu_code=feishu_code,
+                        request_id=request_id,
+                        retry_attempt=attempt + 1,
+                        duration_ms=duration_ms_since(attempt_started_at),
+                        error_message=error_message,
+                        retryable=False,
+                    )
                     raise FeishuAPIError(
                         f"飞书接口 HTTP 错误 method={method} url={url} detail={error_message}"
                     )
 
                 if not isinstance(response_json, dict):
+                    self._emit_api_event(
+                        method=method,
+                        url=url,
+                        identity=identity,
+                        status="failed",
+                        http_status=response.status_code,
+                        feishu_code=0,
+                        request_id="",
+                        retry_attempt=attempt + 1,
+                        duration_ms=duration_ms_since(attempt_started_at),
+                        error_message="飞书接口返回了非 JSON 对象",
+                        retryable=False,
+                    )
                     raise FeishuAPIError("飞书接口返回了非 JSON 对象，无法继续解析")
 
                 code = response_json.get("code", 0)
                 if code != 0:
                     message = response_json.get("msg", "unknown error")
                     error_description = response_json.get("error_description", "")
+                    self._emit_api_event(
+                        method=method,
+                        url=url,
+                        identity=identity,
+                        status="failed",
+                        http_status=response.status_code,
+                        feishu_code=int(code or 0),
+                        request_id=str(response_json.get("request_id", "") or ""),
+                        retry_attempt=attempt + 1,
+                        duration_ms=duration_ms_since(attempt_started_at),
+                        error_message=f"code={code} msg={message} error_description={error_description}",
+                        retryable=False,
+                    )
                     raise FeishuAPIError(
                         "飞书接口业务错误 "
                         f"code={code} "
@@ -1753,9 +1816,34 @@ class FeishuClient:
                         f"error_description={error_description}"
                     )
 
+                self._emit_api_event(
+                    method=method,
+                    url=url,
+                    identity=identity,
+                    status="success",
+                    http_status=response.status_code,
+                    feishu_code=int(code or 0),
+                    request_id=str(response_json.get("request_id", "") or ""),
+                    retry_attempt=attempt + 1,
+                    duration_ms=duration_ms_since(attempt_started_at),
+                    retryable=False,
+                )
                 return response_json
             except requests.RequestException as error:
                 last_error = error
+                self._emit_api_event(
+                    method=method,
+                    url=url,
+                    identity=identity,
+                    status="retrying" if attempt < self.settings.max_retries else "failed",
+                    http_status=0,
+                    feishu_code=0,
+                    request_id="",
+                    retry_attempt=attempt + 1,
+                    duration_ms=duration_ms_since(attempt_started_at),
+                    error_message=str(error),
+                    retryable=attempt < self.settings.max_retries,
+                )
                 if attempt >= self.settings.max_retries:
                     break
                 self.logger.warning(
@@ -1775,3 +1863,36 @@ class FeishuClient:
                 raise FeishuAPIError(f"飞书接口返回了无法解析的 JSON: {error}") from error
 
         raise FeishuAPIError(f"飞书请求失败 method={method} url={url} error={last_error}") from last_error
+
+    def _emit_api_event(
+        self,
+        method: str,
+        url: str,
+        identity: IdentityMode | None,
+        status: str,
+        http_status: int,
+        feishu_code: int,
+        request_id: str,
+        retry_attempt: int,
+        duration_ms: int,
+        error_message: str = "",
+        retryable: bool = False,
+    ) -> None:
+        """记录飞书外部 API 调用事件。"""
+
+        emit_structured_event(
+            "external_api_call",
+            service="feishu",
+            api=infer_feishu_api_name(url),
+            method=method,
+            url_template=normalize_url_template(url),
+            identity=identity or self.settings.default_identity,
+            status=status,
+            http_status=http_status,
+            feishu_code=feishu_code,
+            request_id=request_id,
+            retry_attempt=retry_attempt,
+            duration_ms=duration_ms,
+            error_message=safe_error_message(error_message) if error_message else "",
+            retryable=retryable,
+        )
