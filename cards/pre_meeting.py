@@ -109,7 +109,6 @@ def build_card_action_button(
 ) -> dict[str, Any]:
     """构造单个飞书卡片按钮，避免模板里散落 action value 字段。"""
 
-    stable_event_id = calendar_event_id or meeting_id or "unknown"
     return {
         "tag": "button",
         "text": {
@@ -123,7 +122,6 @@ def build_card_action_button(
             "meeting_id": meeting_id,
             "calendar_event_id": calendar_event_id,
             "source_card": "pre_meeting_brief",
-            "idempotency_key": f"card:pre_meeting_brief:{stable_event_id}:{action}",
         },
     }
 

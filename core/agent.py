@@ -99,7 +99,6 @@ class MeetFlowAgent:
                 required_tools=decision.required_tools,
                 allow_write=allow_write,
             )
-            self.loop.allow_write = allow_write
             runner = self._resolve_workflow_runner(decision)
             result = runner.run(
                 context=context,
@@ -108,6 +107,8 @@ class MeetFlowAgent:
                 required_tools=required_tools,
                 workflow_goal=workflow_goal or decision.reason,
                 generation_settings=generation_settings,
+                storage=self.storage,
+                allow_write=allow_write,
             )
             result.payload["decision"] = decision.to_dict()
             result.payload["effective_required_tools"] = required_tools

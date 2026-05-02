@@ -40,7 +40,6 @@ def build_demo_payload(action: str) -> dict[str, Any]:
                     "meeting_id": "meeting_demo",
                     "calendar_event_id": "event_demo",
                     "source_card": "pre_meeting_brief",
-                    "idempotency_key": f"card:pre_meeting_brief:event_demo:{action}",
                 }
             },
         },

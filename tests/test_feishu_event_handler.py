@@ -74,6 +74,10 @@ class FeishuEventHandlerTest(unittest.TestCase):
         self.assertEqual(action_input.chat_id, "oc_demo")
         self.assertEqual(action_input.open_message_id, "om_demo")
         self.assertEqual(action_input.calendar_event_id, "event_demo")
+        self.assertEqual(
+            action_input.idempotency_key,
+            "card_action:pre_meeting_brief:event_demo:refresh_pre_meeting_brief:event:evt_demo",
+        )
 
     def test_missing_action_raises(self) -> None:
         handler = FeishuEventHandler()

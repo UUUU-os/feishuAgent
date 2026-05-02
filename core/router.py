@@ -165,6 +165,8 @@ def build_default_route_rules() -> list[RouteRule]:
                 "minutes.fetch_resource",
                 "docs.fetch_resource",
                 "tasks.create_task",
+                "contact.get_current_user",
+                "contact.search_user",
                 "im.send_card",
             ],
         ),
@@ -207,6 +209,8 @@ MANUAL_WORKFLOW_TOOLS: dict[str, list[str]] = {
         "minutes.fetch_resource",
         "docs.fetch_resource",
         "tasks.create_task",
+        "contact.get_current_user",
+        "contact.search_user",
         "im.send_card",
     ],
     "risk_scan": [

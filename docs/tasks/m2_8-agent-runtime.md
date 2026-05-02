@@ -658,11 +658,12 @@ WorkflowRunner
   - `AgentPolicy._resolve_idempotency_key()`：从工具参数或 `WorkflowContext.raw_context.decision.idempotency_key` 派生写操作幂等键
   - `AgentPolicy._is_duplicate_side_effect()`：基于本地存储检查写操作是否重复
 - 已接入 Agent Loop 的位置：
-  - `MeetFlowAgentLoop` 新增 `policy`、`storage`、`allow_write`
+  - `MeetFlowAgentLoop` 新增 `policy`、`storage`
   - 每次 LLM 返回 `tool_calls` 后，执行真实工具前先调用 `AgentPolicy.authorize_tool_call()`
   - 如果策略返回 `blocked` 或 `needs_confirmation`，不会调用真实工具 handler
   - 被拦截的结果会以 `AgentToolResult` 形式喂回 LLM，让模型能解释为什么没有执行
   - 如果策略返回 `allow`，会使用 `PolicyDecision.patched_arguments` 继续执行工具
+  - `allow_write` 现在作为 `MeetFlowAgent.run() -> WorkflowRunner.run() -> MeetFlowAgentLoop.run()` 的单次调用参数透传，不再挂在共享 loop 实例上，避免后续服务化时串请求污染
 - 当前首批策略：
   - 只读工具默认允许自动执行
   - 写工具默认必须显式开启 `allow_write`
@@ -688,6 +689,7 @@ WorkflowRunner
   - `scripts/agent_policy_demo.py --scenario write_disabled`：模拟 LLM 想发送卡片但未开启写权限，Policy 返回 `blocked`
 - 当前验证方式：
   - 已通过 `python3 -m py_compile core/policy.py core/agent_loop.py core/agent.py core/__init__.py adapters/feishu_tools.py scripts/agent_policy_demo.py` 验证语法正确
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_agent_loop_allow_write` 验证同一个 `MeetFlowAgentLoop` 连续两次运行时，`allow_write=False/True` 不会串线
   - 已通过 `python3 scripts/agent_policy_demo.py --scenario missing_task_fields` 验证缺字段任务进入待确认，真实 handler 未执行
   - 已通过 `python3 scripts/agent_policy_demo.py --scenario valid_task` 验证字段完整任务可被自动执行，并自动补齐幂等键
   - 已通过 `python3 scripts/agent_policy_demo.py --scenario write_disabled` 验证未开启写权限时，LLM 不能绕过 Policy 发送消息
@@ -797,14 +799,15 @@ WorkflowRunner
   - `FeishuEventHandler`：处理飞书 challenge、verification token 校验、`card.action.trigger` payload 解析和 toast 响应构造
 - 已实现的核心函数：
   - `build_card_action_input()`：构造统一卡片动作输入，供 handler、demo 和测试复用
-  - `build_card_action_idempotency_key()`：生成 `card:{source_card}:{calendar_event_id}:{action}` 形式的幂等键
+  - `build_card_action_request_idempotency_key()`：优先使用飞书回调 `event_id` 生成“本次点击级”幂等键；缺失时退化为 `source_card + calendar_event_id + action + time_bucket`
+  - `resolve_card_action_idempotency_key()`：兼容旧卡片里已经写死的固定幂等键，统一转换为新的点击级键
   - `FeishuEventHandler.parse_card_action()`：解析飞书卡片点击 payload，兼容 dict 或 JSON 字符串形式的 `action.value`
   - `FeishuEventHandler.build_callback_response()`：把内部结果转换为飞书回调 toast
 - 已接入的业务行为：
   - 会前卡片模板新增三个按钮：`刷新背景`、`生成待办草案`、`发给我`
-  - 按钮 value 使用稳定协议，包含 `action`、`workflow_type`、`meeting_id`、`calendar_event_id`、`source_card` 和 `idempotency_key`
+  - 按钮 value 使用稳定协议，包含 `action`、`workflow_type`、`meeting_id`、`calendar_event_id`、`source_card`，不再在渲染阶段写死最终 workflow 幂等键
   - `WorkflowRouter` 新增 `card.refresh_pre_meeting -> pre_meeting_brief` 路由
-  - `refresh_pre_meeting_brief` 会生成 `AgentInput(event_type="card.refresh_pre_meeting")`，复用已有 Agent 主链路
+  - `refresh_pre_meeting_brief` 会生成 `AgentInput(event_type="card.refresh_pre_meeting")`，并把点击级幂等键写入 payload，复用已有 Agent 主链路
   - `create_task_draft` 和 `send_summary_to_me` MVP 阶段只返回 `needs_confirmation`，不直接产生写副作用
 - 已新增本地服务：
   - `scripts/feishu_event_server.py --host 0.0.0.0 --port 8765`
@@ -828,6 +831,7 @@ WorkflowRunner
 - 当前验证方式：
   - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile adapters/feishu_event_handler.py core/card_actions.py scripts/card_action_demo.py scripts/feishu_event_server.py cards/pre_meeting.py core/router.py tests/test_card_actions.py tests/test_feishu_event_handler.py`
   - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_card_actions tests.test_feishu_event_handler tests.test_observability`
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_card_actions tests.test_feishu_event_handler tests.test_router`
   - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest discover -s tests -p 'test_*.py'`
   - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/card_action_demo.py --action refresh_pre_meeting_brief` 验证模拟 payload 能生成 `CardActionInput`、`CardActionResult` 和 `AgentInput`
   - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/pre_meeting_card_demo.py` 验证会前卡片 JSON 中包含三个带 `value.action` 的按钮

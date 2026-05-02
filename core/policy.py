@@ -201,12 +201,49 @@ class AgentPolicy:
                 required_fields=["idempotency_key"],
             )
 
+        risk_count = int(arguments.get("risk_count", 0) or 0)
+        notify_count = int(arguments.get("notify_count", risk_count) or 0)
+        suppressed_count = int(arguments.get("suppressed_count", 0) or 0)
+
+        if "risk_count" in arguments and risk_count <= 0:
+            return PolicyDecision(
+                status="blocked",
+                reason="风险提醒没有命中风险，跳过消息发送。",
+                tool_name=tool.internal_name,
+                idempotency_key=idempotency_key,
+                patched_arguments=arguments,
+                metadata={
+                    "risk_count": risk_count,
+                    "notify_count": notify_count,
+                    "suppressed_count": suppressed_count,
+                },
+            )
+
+        if "notify_count" in arguments and notify_count <= 0:
+            return PolicyDecision(
+                status="blocked",
+                reason="风险均已降噪或没有本次需要提醒的条目，跳过消息发送。",
+                tool_name=tool.internal_name,
+                idempotency_key=idempotency_key,
+                patched_arguments=arguments,
+                metadata={
+                    "risk_count": risk_count,
+                    "notify_count": notify_count,
+                    "suppressed_count": suppressed_count,
+                },
+            )
+
         return PolicyDecision(
             status="allow",
             reason="风险提醒具备幂等键，可自动发送。",
             tool_name=tool.internal_name,
             idempotency_key=idempotency_key,
             patched_arguments=arguments,
+            metadata={
+                "risk_count": risk_count,
+                "notify_count": notify_count,
+                "suppressed_count": suppressed_count,
+            },
         )
 
     def _resolve_idempotency_key(

@@ -325,7 +325,7 @@ def build_local_registry() -> ToolRegistry:
             internal_name="tasks.list_my_tasks",
             description="本地模拟任务列表。",
             parameters={"type": "object", "properties": {}, "required": []},
-            handler=lambda **_: {"items": [{"title": "准备演示材料", "status": "todo"}], "count": 1},
+            handler=lambda **_: {"items": build_local_risk_demo_tasks(), "count": len(build_local_risk_demo_tasks())},
             read_only=True,
         )
     )
@@ -482,6 +482,19 @@ class ScriptedDebugProvider(LLMProvider):
                 ],
             )
 
+        if "tasks_list_my_tasks" in available_tools:
+            return LLMResponse(
+                finish_reason="tool_calls",
+                model="scripted-debug",
+                tool_calls=[
+                    AgentToolCall(
+                        call_id="debug_tasks",
+                        tool_name="tasks_list_my_tasks",
+                        arguments={"completed": False},
+                    )
+                ],
+            )
+
         if "calendar_list_events" in available_tools:
             return LLMResponse(
                 finish_reason="tool_calls",
@@ -500,6 +513,75 @@ class ScriptedDebugProvider(LLMProvider):
             )
 
         return LLMResponse(content="scripted_debug 没有找到可调用工具。", finish_reason="stop", model="scripted-debug")
+
+
+def build_local_risk_demo_tasks() -> list[dict[str, object]]:
+    """构造 M5 风险巡检本地任务样本。"""
+
+    now = int(time.time())
+    return [
+        {
+            "item_id": "task_overdue_demo",
+            "title": "完成客户方案评审",
+            "owner": "张三",
+            "due_date": str(now - 30 * 60 * 60),
+            "status": "todo",
+            "extra": {
+                "task_id": "task_overdue_demo",
+                "updated_at": str(now - 2 * 24 * 60 * 60),
+                "url": "https://example.feishu.cn/task/task_overdue_demo",
+            },
+        },
+        {
+            "item_id": "task_stale_demo",
+            "title": "补齐上线风险清单",
+            "owner": "李四",
+            "due_date": str(now + 3 * 24 * 60 * 60),
+            "status": "todo",
+            "extra": {
+                "task_id": "task_stale_demo",
+                "updated_at": str(now - 5 * 24 * 60 * 60),
+                "url": "https://example.feishu.cn/task/task_stale_demo",
+            },
+        },
+        {
+            "item_id": "task_due_soon_demo",
+            "title": "确认明日演示数据",
+            "owner": "王五",
+            "due_date": str(now + 6 * 60 * 60),
+            "status": "todo",
+            "extra": {
+                "task_id": "task_due_soon_demo",
+                "updated_at": str(now - 2 * 60 * 60),
+                "url": "https://example.feishu.cn/task/task_due_soon_demo",
+            },
+        },
+        {
+            "item_id": "task_missing_owner_demo",
+            "title": "整理会议遗留问题",
+            "owner": "",
+            "due_date": str(now + 2 * 24 * 60 * 60),
+            "status": "todo",
+            "extra": {
+                "task_id": "task_missing_owner_demo",
+                "updated_at": str(now - 1 * 60 * 60),
+                "url": "https://example.feishu.cn/task/task_missing_owner_demo",
+            },
+        },
+        {
+            "item_id": "task_done_demo",
+            "title": "已完成的历史任务",
+            "owner": "赵六",
+            "due_date": str(now - 2 * 24 * 60 * 60),
+            "status": "completed",
+            "extra": {
+                "task_id": "task_done_demo",
+                "updated_at": str(now - 1 * 24 * 60 * 60),
+                "completed_at": str(now - 1 * 24 * 60 * 60),
+                "url": "https://example.feishu.cn/task/task_done_demo",
+            },
+        },
+    ]
 
 
 def build_debug_card_arguments(user_content: str, context_payload: dict[str, str]) -> dict[str, object]:

@@ -8,6 +8,22 @@
   - 输入为妙记或会议信息
   - 输出为结构化总结、Action Items 和回写结果
 
+#### T4.1 当前实现补强：联系人解析工具边界
+
+- 已更新文件：
+  - `core/router.py`
+  - `core/workflows.py`
+  - `tests/test_router.py`
+  - `tasks.md`
+- 已实现的核心能力：
+  - `minute.ready` 路由现在会显式暴露 `contact.get_current_user`
+  - `minute.ready` 路由现在会显式暴露 `contact.search_user`
+  - `MANUAL_WORKFLOW_TOOLS["post_meeting_followup"]` 已同步加入这两个工具，确保手动 `message.command -> post_meeting_followup` 和自动事件路由保持一致
+  - `PostMeetingFollowupWorkflow` 的工具边界与仓库安全规范重新对齐：当负责人是“我”或具体姓名时，后续 Agent 可以先解析 open_id，而不是编造负责人
+- 当前验证方式：
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_router` 验证 `minute.ready` 和手动 `post_meeting_followup` 两条路由都包含联系人解析工具
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/agent_demo.py --event-type minute.ready --backend local --llm-provider scripted_debug --max-iterations 3` 验证本地会后链路仍能进入 `post_meeting_followup`
+
 ### T4.2 实现纪要清洗
 
 - 优先级：`P0`
@@ -69,4 +85,3 @@
   - 对未 ready 状态支持重试
 
 ---
-

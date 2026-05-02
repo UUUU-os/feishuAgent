@@ -81,6 +81,7 @@ class CardActionRouterTest(unittest.TestCase):
             trace_id="trace_demo",
             source_card="pre_meeting_brief",
             calendar_event_id="event_demo",
+            created_at=1700000000,
         )
 
         result = CardActionRouter().route(action_input)
@@ -89,7 +90,42 @@ class CardActionRouterTest(unittest.TestCase):
         assert result.agent_input is not None
         self.assertEqual(
             result.agent_input.payload["idempotency_key"],
-            "card:pre_meeting_brief:event_demo:refresh_pre_meeting_brief",
+            "card_action:pre_meeting_brief:event_demo:refresh_pre_meeting_brief:bucket:56666666",
+        )
+
+    def test_refresh_pre_meeting_uses_callback_event_id_for_idempotency(self) -> None:
+        action_input = build_card_action_input(
+            action="refresh_pre_meeting_brief",
+            trace_id="trace_demo",
+            event_id="evt_demo",
+            source_card="pre_meeting_brief",
+            calendar_event_id="event_demo",
+        )
+
+        result = CardActionRouter().route(action_input)
+
+        self.assertIsNotNone(result.agent_input)
+        assert result.agent_input is not None
+        self.assertEqual(
+            result.agent_input.payload["idempotency_key"],
+            "card_action:pre_meeting_brief:event_demo:refresh_pre_meeting_brief:event:evt_demo",
+        )
+
+    def test_refresh_pre_meeting_ignores_legacy_fixed_button_idempotency_key(self) -> None:
+        action_input = build_card_action_input(
+            action="refresh_pre_meeting_brief",
+            trace_id="trace_demo",
+            event_id="evt_demo",
+            source_card="pre_meeting_brief",
+            calendar_event_id="event_demo",
+            value={
+                "idempotency_key": "card:pre_meeting_brief:event_demo:refresh_pre_meeting_brief",
+            },
+        )
+
+        self.assertEqual(
+            action_input.idempotency_key,
+            "card_action:pre_meeting_brief:event_demo:refresh_pre_meeting_brief:event:evt_demo",
         )
 
     def test_workflow_router_supports_card_refresh_event(self) -> None:

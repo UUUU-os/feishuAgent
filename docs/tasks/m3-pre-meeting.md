@@ -279,6 +279,7 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - 已通过 `python3 -m py_compile core/*.py scripts/pre_meeting_summary_demo.py scripts/pre_meeting_retrieval_demo.py scripts/workflow_runner_demo.py` 验证语法正确
   - 已通过 `python3 scripts/pre_meeting_summary_demo.py` 验证会前摘要、上次结论、当前问题、待读资料、风险点和证据来源可正常生成
   - 已通过 `python3 scripts/workflow_runner_demo.py` 验证 T3.5 已接入 `PreMeetingBriefWorkflow`，并能输出更新后的 `meeting_brief_draft` 与 `pre_meeting_card_payload`
+  - 已补充单测 `tests/test_pre_meeting_summary.py`，固定保护 `last_decisions`、`current_questions`、`must_read_resources`、`risks` 和摘要文案的关键回归点
 
 ### T3.6 实现知识检索 Agent 工具
 
@@ -377,6 +378,7 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - `render_pre_meeting_card_payload()` 现在同时产出旧版最小发送 payload 和完整卡片 JSON
   - `im.send_card` 工具新增可选 `card` 参数；传入完整 card 时直接发送，未传时仍使用旧的通用卡片构造逻辑
   - `im.send_card` 的 `facts` 兼容字符串列表和 `{label, value}` 对象列表，避免旧工具把字典直接渲染成 Python 字面量
+  - `build_card_action_button()` 现在只保留按钮动作和会议标识，不再把固定 workflow 幂等键写进卡片 value，避免同一张卡片第二次刷新被永久判重
 - 当前实现边界：
   - 当前模板以飞书通用 interactive card JSON 为目标，不引入卡片 DSL 或外部模板引擎
   - 发送完整 T3.7 模板需要调用 `im.send_card` 时传入 `card=pre_meeting_card_payload.card`；旧调用只传 `title/summary/facts` 仍然可用
@@ -401,11 +403,14 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - `WorkflowRouter.build_idempotency_key()` 会直接复用触发器已生成的完整 `idempotency_key`，避免路由层再次追加工作流前缀
   - 触发后仍进入 `WorkflowRouter -> PreMeetingBriefWorkflow -> Agent Loop`，不会绕过固定工作流骨架
   - `scripts/pre_meeting_trigger_demo.py` 使用本地 scripted provider 演练定时触发，并在同一事件重复运行时验证幂等跳过
+  - 卡片刷新场景新增显式只读上下文补全过程：`build_pre_meeting_brief_artifacts(..., storage=...)` 会优先补当前 payload 中的嵌套事件详情，再从项目记忆和本地历史 `pre_meeting_brief` 结果中回填会议标题、描述、参与人、附件与相关资源
+  - 这层补全发生在 `PreMeetingBriefWorkflow.prepare_context()` 的确定性阶段，不调用飞书写接口，也不绕过 `ToolRegistry`
 - 当前实现边界：
   - 当前是 scheduler/cron 可调用的触发构造层，尚未接入真实后台定时进程
   - demo 不发送真实飞书卡片，`allow_write=False` 会移除 `im.send_card`
 - 当前验证方式：
   - 已通过 `python3 scripts/pre_meeting_trigger_demo.py` 验证：命中 1 条会前事件，第一次执行 `success`，第二次执行 `skipped`，且返回的幂等键不会重复追加 `pre_meeting_brief:`
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_pre_meeting_topic tests.test_pre_meeting_retrieval tests.test_pre_meeting_summary` 验证主题识别、资源召回、摘要分栏和“卡片刷新从历史结果补会议详情”的回归场景
 - 验收标准：
   - 能通过定时或模拟触发运行整个工作流
   - 不重复发送相同卡片

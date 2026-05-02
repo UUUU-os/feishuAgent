@@ -41,6 +41,8 @@
 
 当前开发重点在 [M3：会前知识卡片工作流](docs/tasks/m3-pre-meeting.md)。
 
+按照 [MeetFlow 当前代码改造思路](docs/current-code-improvement-plan.md) 的这一轮补强已经完成主链路修复：会前卡片按钮 value 不再写死 workflow 幂等键，回调层会按“本次点击”生成幂等键并兼容老卡片；`minute.ready` 和手动 `post_meeting_followup` 已补齐 `contact.get_current_user` / `contact.search_user`；会前刷新场景新增显式的只读上下文补全过程，会从当前 payload、项目记忆和本地历史工作流结果中补回会议标题、参与人、附件与相关资源；`allow_write` 不再挂在共享 loop 实例上，而是通过单次 `run()` 显式透传。对应修改文件包括 `cards/pre_meeting.py`、`core/card_actions.py`、`core/router.py`、`core/agent.py`、`core/agent_loop.py`、`core/workflows.py`、`core/pre_meeting.py`、`core/storage.py` 以及新增的 M3/M4 回归测试文件。本轮使用 `/home/tanyd/anaconda3/envs/meetflow/bin/python` 运行 `py_compile`、24 条针对性 `unittest`、以及 `scripts/agent_demo.py --event-type meeting.soon/minute.ready` 两条本地链路，结果均通过。
+
 同时，基于当前 Agent Runtime 已完成一版结构化日志与观测增强，详细实现记录见
 [M2.8：业务侧垂直 Agent Runtime](docs/tasks/m2_8-agent-runtime.md) 中的
 `T2.8-O1 Agent 运行观测与结构化日志增强`。本次新增 `core/observability.py`
@@ -76,6 +78,14 @@ M5 风险巡检与提醒工作流的仓库级详细改造计划已整理到
 按 `core/risk_scan.py`、`cards/risk_scan.py`、`scripts/risk_scan_demo.py`、
 `core/storage.py`、`core/workflows.py`、`adapters/feishu_tools.py`、
 `core/policy.py` 拆解了具体改造点、数据契约、补丁顺序、测试文件和验收命令。
+当前已按该方案完成 M5 第二版核心改造：新增 `core/risk_scan.py`、
+`cards/risk_scan.py`、`scripts/risk_scan_demo.py` 以及四组单测；
+`RiskScanWorkflow` 已新增 `post_process_result()`，可从 `tasks.list_my_tasks`
+工具结果生成 `risk_scan.scan_result`、`notification_decision` 和 `card_payload`；
+`core/storage.py` 新增 `risk_notifications` 表，`core/policy.py` 和
+`adapters/feishu_tools.py` 已增强风险卡片发送边界。验证命令包括
+`py_compile`、M5 单测、本地风险 demo、`agent_demo.py --event-type risk.scan.tick`
+和全量 `unittest discover`，结果均通过。
 
 M3 的核心边界是“轻量 RAG + 结构化元数据 + 增量更新”：
 

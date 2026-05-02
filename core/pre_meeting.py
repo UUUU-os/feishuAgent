@@ -7,6 +7,7 @@ from typing import Any
 
 from cards.pre_meeting import build_pre_meeting_card, build_pre_meeting_card_sections
 from core.models import BaseModel, EvidenceRef, Resource, WorkflowContext
+from core.storage import MeetFlowStorage
 
 
 @dataclass(slots=True)
@@ -193,10 +194,16 @@ class PreMeetingBriefArtifacts(BaseModel):
     stage_plan: list[str] = field(default_factory=list)
 
 
-def build_pre_meeting_brief_artifacts(context: WorkflowContext) -> PreMeetingBriefArtifacts:
+def build_pre_meeting_brief_artifacts(
+    context: WorkflowContext,
+    storage: MeetFlowStorage | None = None,
+) -> PreMeetingBriefArtifacts:
     """从 `WorkflowContext` 构造 T3.1 约定的会前工作流输入输出壳。"""
 
-    workflow_input = build_pre_meeting_brief_input(context)
+    workflow_input = hydrate_pre_meeting_brief_input(
+        build_pre_meeting_brief_input(context),
+        storage=storage,
+    )
     topic_signal = identify_meeting_topic(workflow_input)
     retrieval_query = build_retrieval_query(workflow_input, topic_signal)
     retrieval_result = recall_related_resources(workflow_input, retrieval_query)
@@ -245,6 +252,221 @@ def build_pre_meeting_brief_input(context: WorkflowContext) -> PreMeetingBriefIn
         memory_snapshot=dict(context.memory_snapshot),
         raw_payload=dict(payload),
     )
+
+
+def hydrate_pre_meeting_brief_input(
+    workflow_input: PreMeetingBriefInput,
+    storage: MeetFlowStorage | None = None,
+) -> PreMeetingBriefInput:
+    """显式补全会前刷新场景的确定性上下文。
+
+    这里不调用飞书读接口，只复用：
+    - 当前 payload 中已有的嵌套事件详情
+    - 项目记忆里的会议线索
+    - 本地历史工作流结果中保存过的上下文 payload
+    """
+
+    candidate_sources = collect_pre_meeting_context_sources(workflow_input, storage=storage)
+    merged_payload = merge_context_sources(candidate_sources)
+    participant_candidates = list(workflow_input.participants) or extract_candidate_participants(candidate_sources)
+    attachment_candidates = list(workflow_input.attachments) or extract_candidate_attachments(candidate_sources)
+    related_resources = list(workflow_input.related_resources) or extract_candidate_related_resources(candidate_sources)
+
+    return PreMeetingBriefInput(
+        meeting_id=workflow_input.meeting_id,
+        calendar_event_id=workflow_input.calendar_event_id,
+        project_id=workflow_input.project_id,
+        meeting_title=workflow_input.meeting_title or first_non_empty(merged_payload, "summary", "title", "meeting_title", "calendar_summary"),
+        meeting_description=workflow_input.meeting_description or first_non_empty(merged_payload, "description", "meeting_description", "desc"),
+        start_time=workflow_input.start_time or first_non_empty(merged_payload, "start_time", "startTime", "start"),
+        end_time=workflow_input.end_time or first_non_empty(merged_payload, "end_time", "endTime", "end"),
+        timezone=workflow_input.timezone or first_non_empty(merged_payload, "timezone", "time_zone"),
+        organizer=workflow_input.organizer or first_non_empty(merged_payload, "organizer", "organizer_name", "creator_name"),
+        participants=participant_candidates,
+        attachments=attachment_candidates,
+        related_resources=related_resources,
+        memory_snapshot=dict(workflow_input.memory_snapshot),
+        raw_payload=merged_payload,
+    )
+
+
+def collect_pre_meeting_context_sources(
+    workflow_input: PreMeetingBriefInput,
+    storage: MeetFlowStorage | None = None,
+) -> list[dict[str, Any]]:
+    """收集会前上下文补全可用的只读来源。"""
+
+    sources: list[dict[str, Any]] = []
+    if workflow_input.raw_payload:
+        sources.append(dict(workflow_input.raw_payload))
+    sources.extend(extract_nested_event_sources(workflow_input.raw_payload))
+    sources.extend(extract_memory_event_sources(workflow_input.memory_snapshot, workflow_input.calendar_event_id, workflow_input.meeting_id))
+    stored_payload = extract_stored_pre_meeting_payload(workflow_input, storage=storage)
+    if stored_payload:
+        sources.append(stored_payload)
+        sources.extend(extract_nested_event_sources(stored_payload))
+    return [source for source in sources if source]
+
+
+def extract_nested_event_sources(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """从 payload 中抽出可能包含完整会议详情的嵌套对象。"""
+
+    nested_keys = (
+        "calendar_event",
+        "calendarEvent",
+        "event",
+        "meeting",
+        "meeting_context",
+        "event_detail",
+        "event_payload",
+    )
+    sources: list[dict[str, Any]] = []
+    for key in nested_keys:
+        candidate = payload.get(key)
+        if isinstance(candidate, dict):
+            sources.append(dict(candidate))
+    return sources
+
+
+def extract_memory_event_sources(
+    memory_snapshot: dict[str, Any],
+    calendar_event_id: str,
+    meeting_id: str,
+) -> list[dict[str, Any]]:
+    """从项目记忆里找和当前会议匹配的上下文片段。"""
+
+    normalized_calendar_event_id = str(calendar_event_id or "").strip()
+    normalized_meeting_id = str(meeting_id or "").strip()
+    candidate_keys = (
+        "calendar_events",
+        "events",
+        "meetings",
+        "recent_meetings",
+        "upcoming_events",
+    )
+    sources: list[dict[str, Any]] = []
+    for key in candidate_keys:
+        raw_items = memory_snapshot.get(key)
+        if not isinstance(raw_items, list):
+            continue
+        for item in raw_items:
+            if not isinstance(item, dict):
+                continue
+            item_calendar_event_id = first_non_empty(item, "calendar_event_id", "event_id", "eventId", "id")
+            item_meeting_id = first_non_empty(item, "meeting_id", "meetingId", "id")
+            if normalized_calendar_event_id and item_calendar_event_id == normalized_calendar_event_id:
+                sources.append(dict(item))
+                continue
+            if normalized_meeting_id and item_meeting_id == normalized_meeting_id:
+                sources.append(dict(item))
+    for key in ("latest_event", "last_meeting", "current_meeting"):
+        candidate = memory_snapshot.get(key)
+        if isinstance(candidate, dict):
+            sources.append(dict(candidate))
+    return sources
+
+
+def extract_stored_pre_meeting_payload(
+    workflow_input: PreMeetingBriefInput,
+    storage: MeetFlowStorage | None = None,
+) -> dict[str, Any]:
+    """从本地历史工作流结果读取最近一次同会议上下文。"""
+
+    if storage is None:
+        return {}
+    stored_payload = storage.find_latest_workflow_context_payload(
+        workflow_name="pre_meeting_brief",
+        meeting_id=workflow_input.meeting_id,
+        calendar_event_id=workflow_input.calendar_event_id,
+    )
+    if stored_payload:
+        return stored_payload
+    return storage.find_latest_workflow_context_payload(
+        workflow_name="pre_meeting_brief",
+        calendar_event_id=workflow_input.calendar_event_id,
+    ) or {}
+
+
+def merge_context_sources(sources: list[dict[str, Any]]) -> dict[str, Any]:
+    """按“后到来源填前面空白字段”的方式合并上下文来源。"""
+
+    merged: dict[str, Any] = {}
+    for source in reversed(sources):
+        merged.update(source)
+    for source in sources:
+        for key, value in source.items():
+            if key not in merged or is_empty_context_value(merged.get(key)):
+                merged[key] = value
+    return merged
+
+
+def extract_candidate_participants(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """从补全过程的候选来源中提取参与人。"""
+
+    for source in sources:
+        participants = source.get("participants") or source.get("attendees") or source.get("members")
+        normalized = normalize_dict_list(participants)
+        if normalized:
+            return normalized
+    return []
+
+
+def extract_candidate_attachments(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """从补全过程的候选来源中提取附件。"""
+
+    for source in sources:
+        attachments = (
+            source.get("attachments")
+            or source.get("files")
+            or source.get("documents")
+            or source.get("docs")
+        )
+        normalized = normalize_dict_list(attachments)
+        if normalized:
+            return normalized
+    return []
+
+
+def extract_candidate_related_resources(sources: list[dict[str, Any]]) -> list[Resource]:
+    """从补全过程的候选来源中提取相关资源。"""
+
+    for source in sources:
+        raw_resources = source.get("related_resources") or source.get("resources") or []
+        normalized = normalize_resource_candidates(raw_resources)
+        if normalized:
+            return normalized
+    return []
+
+
+def normalize_resource_candidates(value: Any) -> list[Resource]:
+    """把候选相关资源统一转成 `Resource`。"""
+
+    if not isinstance(value, list):
+        return []
+    resources: list[Resource] = []
+    for item in value:
+        if isinstance(item, Resource):
+            resources.append(item)
+            continue
+        if isinstance(item, dict):
+            resources.append(
+                Resource(
+                    resource_id=first_non_empty(item, "resource_id", "id", "document_id", "minute_token"),
+                    resource_type=first_non_empty(item, "resource_type", "type") or "unknown",
+                    title=first_non_empty(item, "title", "name") or "未命名资源",
+                    content=str(item.get("content", "") or item.get("summary", "") or ""),
+                    source_url=first_non_empty(item, "source_url", "url", "link"),
+                    source_meta=item.get("source_meta", {}) if isinstance(item.get("source_meta"), dict) else {},
+                    updated_at=first_non_empty(item, "updated_at", "update_time", "created_at"),
+                )
+            )
+    return resources
+
+
+def is_empty_context_value(value: Any) -> bool:
+    """判断上下文字段是否为空，便于补全过程填洞。"""
+
+    return value is None or value == "" or value == []
 
 
 def build_retrieval_query(
@@ -408,7 +630,7 @@ def recall_related_resources(
         candidate = score_resource_candidate(resource, retrieval_query)
         if candidate.score < 0.25 or not has_business_match(candidate):
             continue
-        dedupe_key = candidate.source_url or f"{candidate.resource_type}:{candidate.resource_id}:{candidate.title}"
+        dedupe_key = build_retrieved_resource_dedupe_key(candidate)
         if dedupe_key in seen_keys:
             continue
         seen_keys.add(dedupe_key)
@@ -602,6 +824,23 @@ def build_brief_items_from_retrieval(retrieval_result: RetrievalResult) -> list[
             )
         )
     return items
+
+
+def build_retrieved_resource_dedupe_key(resource: RetrievedResource) -> str:
+    """为召回结果构造稳定去重键。
+
+    日程附件、payload 资源和项目记忆有时会用不同 ID 指向同一份资料。优先
+    使用来源 URL；没有 URL 时退回到“资源类型 + 标题”，避免同一文档以
+    多种入口重复占据会前候选位。
+    """
+
+    title = str(resource.title or "").strip().lower()
+    if title:
+        return f"{resource.resource_type}:{title}"
+    source_url = str(resource.source_url or "").strip()
+    if source_url:
+        return source_url
+    return f"{resource.resource_type}:{resource.resource_id}"
 
 
 def rank_retrieved_resources_for_brief(resources: list[RetrievedResource]) -> list[RetrievedResource]:

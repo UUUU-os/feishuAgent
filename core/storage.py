@@ -79,6 +79,34 @@ class MeetFlowStorage:
                 """
                 )
 
+            # 记录风险提醒历史，用于 M5 巡检降噪和后续审计。
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS risk_notifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    risk_key TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
+                    risk_type TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    trace_id TEXT NOT NULL,
+                    recipient TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    notified_at INTEGER NOT NULL,
+                    suppressed_until INTEGER NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )
+                """
+            )
+            cursor.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_risk_notifications_key_time
+                ON risk_notifications (risk_key, notified_at)
+                """
+            )
+
             conn.commit()
 
         self.logger.info("本地存储初始化完成 db_path=%s", self.db_path)
@@ -125,6 +153,56 @@ class MeetFlowStorage:
         data = dict(row)
         data["payload_json"] = json.loads(data["payload_json"])
         return data
+
+    def find_latest_workflow_context_payload(
+        self,
+        workflow_name: str,
+        meeting_id: str = "",
+        calendar_event_id: str = "",
+        limit: int = 50,
+    ) -> dict[str, Any] | None:
+        """按会议维度回查最近一次工作流上下文 payload。
+
+        这个能力主要服务会前卡片刷新：
+        如果当前回调 payload 只带 `meeting_id/calendar_event_id`，可以从本地
+        已保存的工作流结果里补回最近一次已知的会议标题、参与人和附件，
+        避免确定性阶段只拿到一个很薄的点击事件。
+        """
+
+        normalized_workflow = str(workflow_name or "").strip()
+        normalized_meeting_id = str(meeting_id or "").strip()
+        normalized_calendar_event_id = str(calendar_event_id or "").strip()
+        if not normalized_workflow or (not normalized_meeting_id and not normalized_calendar_event_id):
+            return None
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT trace_id, payload_json, created_at
+                FROM workflow_results
+                WHERE workflow_name = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (normalized_workflow, max(int(limit or 50), 1)),
+            ).fetchall()
+
+        for row in rows:
+            try:
+                payload_json = json.loads(str(row["payload_json"] or "{}"))
+            except json.JSONDecodeError:
+                continue
+            payload = self._extract_context_payload_from_workflow_result(payload_json)
+            if not payload:
+                continue
+            result_meeting_id = self._first_non_empty(payload, "meeting_id", "meetingId")
+            result_calendar_event_id = self._first_non_empty(payload, "calendar_event_id", "event_id", "eventId")
+            meeting_matches = not normalized_meeting_id or result_meeting_id == normalized_meeting_id
+            calendar_matches = not normalized_calendar_event_id or result_calendar_event_id == normalized_calendar_event_id
+            if meeting_matches and calendar_matches:
+                return payload
+        return None
 
     def record_idempotency_key(
         self,
@@ -196,6 +274,39 @@ class MeetFlowStorage:
             )
             conn.commit()
 
+    @staticmethod
+    def _extract_context_payload_from_workflow_result(payload_json: dict[str, Any]) -> dict[str, Any]:
+        """从工作流结果 payload 中提取最适合回放的上下文 payload。"""
+
+        workflow_payload = payload_json.get("payload")
+        if not isinstance(workflow_payload, dict):
+            return {}
+        context = workflow_payload.get("context")
+        if not isinstance(context, dict):
+            return {}
+        raw_context = context.get("raw_context")
+        if isinstance(raw_context, dict):
+            raw_payload = raw_context.get("payload")
+            if isinstance(raw_payload, dict) and raw_payload:
+                return dict(raw_payload)
+        event = context.get("event")
+        if isinstance(event, dict):
+            event_payload = event.get("payload")
+            if isinstance(event_payload, dict) and event_payload:
+                return dict(event_payload)
+        return {}
+
+    @staticmethod
+    def _first_non_empty(data: dict[str, Any], *keys: str) -> str:
+        """按顺序读取字典中的首个非空字符串。"""
+
+        for key in keys:
+            value = data.get(key)
+            if value is None or value == "":
+                continue
+            return str(value)
+        return ""
+
     def get_task_mapping(self, item_id: str) -> dict[str, Any] | None:
         """读取行动项和任务之间的映射关系。"""
 
@@ -207,6 +318,93 @@ class MeetFlowStorage:
             ).fetchone()
 
         return dict(row) if row is not None else None
+
+    def record_risk_notification(
+        self,
+        risk_key: str,
+        task_id: str,
+        risk_type: str,
+        severity: str,
+        status: str,
+        trace_id: str,
+        recipient: str,
+        summary: str,
+        payload: dict[str, Any],
+        notified_at: int,
+        suppressed_until: int,
+    ) -> None:
+        """记录一次风险提醒或降噪决策。
+
+        这里保存的是“是否提醒”的业务事实，不保存完整飞书任务 raw payload，
+        避免风险巡检表变成新的敏感数据聚集点。
+        """
+
+        now = int(time.time())
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO risk_notifications (
+                    risk_key,
+                    task_id,
+                    risk_type,
+                    severity,
+                    status,
+                    trace_id,
+                    recipient,
+                    summary,
+                    payload_json,
+                    notified_at,
+                    suppressed_until,
+                    created_at,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    risk_key,
+                    task_id,
+                    risk_type,
+                    severity,
+                    status,
+                    trace_id,
+                    recipient,
+                    summary,
+                    json.dumps(payload, ensure_ascii=False),
+                    notified_at,
+                    suppressed_until,
+                    now,
+                    now,
+                ),
+            )
+            conn.commit()
+
+    def get_latest_risk_notification(self, risk_key: str) -> dict[str, Any] | None:
+        """读取某个风险键最近一次提醒记录。"""
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """
+                SELECT * FROM risk_notifications
+                WHERE risk_key = ?
+                ORDER BY notified_at DESC, id DESC
+                LIMIT 1
+                """,
+                (risk_key,),
+            ).fetchone()
+
+        if row is None:
+            return None
+        data = dict(row)
+        data["payload_json"] = json.loads(data["payload_json"])
+        return data
+
+    def has_recent_risk_notification(self, risk_key: str, now: int) -> bool:
+        """判断某个风险是否仍在降噪窗口内。"""
+
+        latest = self.get_latest_risk_notification(risk_key)
+        if latest is None:
+            return self.is_idempotency_key_processed(risk_key)
+        return int(latest.get("suppressed_until", 0) or 0) > now
 
     def save_project_memory(self, project_id: str, data: dict[str, Any]) -> Path:
         """将项目长期记忆保存为 JSON 文件。"""

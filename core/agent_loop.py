@@ -37,7 +37,6 @@ class MeetFlowAgentLoop:
     max_tool_result_chars: int = 4000
     policy: AgentPolicy | None = None
     storage: MeetFlowStorage | None = None
-    allow_write: bool = False
     logger: logging.Logger = field(init=False)
 
     def __post_init__(self) -> None:
@@ -49,6 +48,7 @@ class MeetFlowAgentLoop:
         required_tools: list[str],
         workflow_goal: str = "",
         generation_settings: GenerationSettings | None = None,
+        allow_write: bool = False,
     ) -> AgentRunResult:
         """执行一次完整 Agent Loop。"""
 
@@ -88,6 +88,7 @@ class MeetFlowAgentLoop:
                         context=context,
                         state=state,
                         tool_calls=response.tool_calls,
+                        allow_write=allow_write,
                     )
                     emit_structured_event(
                         "agent_loop_iteration_finished",
@@ -198,6 +199,7 @@ class MeetFlowAgentLoop:
         context: WorkflowContext,
         state: AgentLoopState,
         tool_calls: list[Any],
+        allow_write: bool,
     ) -> None:
         """执行模型请求的工具调用，并把结果追加回消息列表。"""
 
@@ -218,7 +220,7 @@ class MeetFlowAgentLoop:
                     context=context,
                     tool=tool,
                     tool_call=tool_call,
-                    allow_write=self.allow_write,
+                    allow_write=allow_write,
                     storage=self.storage,
                 )
                 emit_structured_event(
@@ -227,7 +229,7 @@ class MeetFlowAgentLoop:
                     workflow_type=context.workflow_type,
                     tool_name=tool.internal_name,
                     side_effect=tool.side_effect,
-                    allow_write=self.allow_write,
+                    allow_write=allow_write,
                     status=decision.status,
                     reason=decision.reason,
                     required_fields=decision.required_fields,

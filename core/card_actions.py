@@ -225,12 +225,93 @@ class CardActionRouter:
 
 
 def build_card_action_idempotency_key(source_card: str, calendar_event_id: str, action: str) -> str:
-    """构造卡片动作幂等键，避免重复点击造成重复执行。"""
+    """构造卡片动作幂等键，兼容旧调用方。"""
+
+    return build_card_action_request_idempotency_key(
+        source_card=source_card,
+        calendar_event_id=calendar_event_id,
+        action=action,
+    )
+
+
+def build_card_action_request_idempotency_key(
+    source_card: str,
+    calendar_event_id: str,
+    action: str,
+    event_id: str = "",
+    created_at: int = 0,
+    bucket_seconds: int = 30,
+) -> str:
+    """构造“本次卡片点击级”的幂等键。
+
+    设计目标不是把整场会议永久去重，而是：
+    - 同一条飞书回调重放时能识别为同一次点击
+    - 同一张卡片后续再次真实点击时仍能重新进入 Agent 主链路
+    """
 
     normalized_source = str(source_card or "card").strip() or "card"
     normalized_event_id = str(calendar_event_id or "unknown").strip() or "unknown"
     normalized_action = str(action or "unknown").strip() or "unknown"
-    return f"card:{normalized_source}:{normalized_event_id}:{normalized_action}"
+    normalized_callback_event_id = str(event_id or "").strip()
+    if normalized_callback_event_id:
+        return (
+            f"card_action:{normalized_source}:{normalized_event_id}:"
+            f"{normalized_action}:event:{normalized_callback_event_id}"
+        )
+
+    bucket_base = int(created_at or time.time())
+    bucket_size = max(int(bucket_seconds or 30), 1)
+    time_bucket = bucket_base // bucket_size
+    return (
+        f"card_action:{normalized_source}:{normalized_event_id}:"
+        f"{normalized_action}:bucket:{time_bucket}"
+    )
+
+
+def is_legacy_card_action_idempotency_key(
+    idempotency_key: str,
+    source_card: str,
+    calendar_event_id: str,
+    action: str,
+) -> bool:
+    """判断是否为旧版“渲染时固定写死”的卡片幂等键。"""
+
+    legacy_key = (
+        f"card:{str(source_card or 'card').strip() or 'card'}:"
+        f"{str(calendar_event_id or 'unknown').strip() or 'unknown'}:"
+        f"{str(action or 'unknown').strip() or 'unknown'}"
+    )
+    return str(idempotency_key or "").strip() == legacy_key
+
+
+def resolve_card_action_idempotency_key(
+    action: str,
+    source_card: str,
+    calendar_event_id: str,
+    meeting_id: str,
+    event_id: str = "",
+    explicit_key: str = "",
+    created_at: int = 0,
+) -> str:
+    """解析最终卡片动作幂等键，兼容旧卡片 value 协议。"""
+
+    normalized_explicit_key = str(explicit_key or "").strip()
+    stable_target_id = calendar_event_id or meeting_id
+    if normalized_explicit_key and not is_legacy_card_action_idempotency_key(
+        idempotency_key=normalized_explicit_key,
+        source_card=source_card,
+        calendar_event_id=stable_target_id,
+        action=action,
+    ):
+        return normalized_explicit_key
+
+    return build_card_action_request_idempotency_key(
+        source_card=source_card,
+        calendar_event_id=stable_target_id,
+        action=action,
+        event_id=event_id,
+        created_at=created_at,
+    )
 
 
 def build_card_action_input(
@@ -256,13 +337,15 @@ def build_card_action_input(
     final_source_card = source_card or str(final_value.get("source_card", "") or "")
     final_calendar_event_id = calendar_event_id or str(final_value.get("calendar_event_id", "") or "")
     final_meeting_id = meeting_id or str(final_value.get("meeting_id", "") or "")
-    final_idempotency_key = idempotency_key or str(final_value.get("idempotency_key", "") or "")
-    if not final_idempotency_key and action:
-        final_idempotency_key = build_card_action_idempotency_key(
-            source_card=final_source_card or "pre_meeting_brief",
-            calendar_event_id=final_calendar_event_id or final_meeting_id,
-            action=action,
-        )
+    final_idempotency_key = resolve_card_action_idempotency_key(
+        action=str(action or "").strip(),
+        source_card=final_source_card or "pre_meeting_brief",
+        calendar_event_id=final_calendar_event_id,
+        meeting_id=final_meeting_id,
+        event_id=str(event_id or "").strip(),
+        explicit_key=idempotency_key or str(final_value.get("idempotency_key", "") or ""),
+        created_at=created_at,
+    )
 
     return CardActionInput(
         action=str(action or "").strip(),
