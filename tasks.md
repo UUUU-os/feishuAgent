@@ -39,9 +39,32 @@
 
 ## 当前重点
 
-当前开发重点在 [M3：会前知识卡片工作流](docs/tasks/m3-pre-meeting.md)。
+当前开发重点已切到 [M4：会后总结与任务落地工作流](docs/tasks/m4-post-meeting.md) 的 Agent 化收口。
 
-M3 的核心边界是“轻量 RAG + 结构化元数据 + 增量更新”：
+M4 的当前核心边界是让 `minute.ready` 回到 MeetFlow 主 Agent 链路，而不是由会后脚本直接串联所有逻辑：
+
+```text
+AgentInput
+  -> WorkflowRouter
+  -> WorkflowContextBuilder
+  -> MeetFlowAgentLoop
+  -> ToolRegistry
+  -> AgentPolicy
+  -> FeishuClient / Storage
+```
+
+当前 M4 Agent 化重点：
+
+- `PostMeetingFollowupWorkflow.prepare_context()` 暴露 M4 结构化上下文
+- 注册 `post_meeting.*` 工具给 Agent Loop 使用
+- 用 `scripted_debug` 验证读妙记、构造 artifacts、RAG、人员解析、任务参数准备、发卡和待确认 registry 保存
+- 所有写操作继续经过 `AgentPolicy`
+
+最近进展：
+
+- 2026-05-02：修复 M4 待确认卡片按钮重复/交叉点击问题。修改 `core/confirmation_commands.py`，新增 `claim_pending_action_status()`；修改 `core/card_callback.py`，确认创建前进入 `creating`、拒绝前进入 `rejecting`，并由 `guard_pending_action_transition()` 拦截 `created` / `reject_create_task` / `creating` / `rejecting` 状态下的旧按钮点击。补充 `tests/test_post_meeting_card_callback.py` 用例，验证创建处理中再次点击拒绝不会改写状态，且回写卡片不再包含拒绝按钮。同步更新 [M4 任务文档](docs/tasks/m4-post-meeting.md) 和 [架构说明](architecture.md)。验证通过：`python3 -m py_compile core/card_callback.py core/confirmation_commands.py tests/test_post_meeting_card_callback.py`；`python3 -m unittest tests.test_post_meeting_card_callback`（11 个用例通过）。
+
+M3 的核心边界是“轻量 RAG + 结构化元数据 + 增量更新”，并继续作为 M4 相关背景资料召回能力复用：
 
 RAGFlow 代码阅读中可借鉴的 RAG 设计已整理到 [RAGFlow 代码阅读笔记](docs/ragflow-design-notes.md)，作为后续增强 M3 检索、chunk 元数据、rerank 和索引任务的参考。
 

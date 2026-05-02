@@ -44,6 +44,7 @@ class AgentPolicyConfig:
     min_action_item_confidence: float = 0.75
     require_task_owner: bool = True
     require_task_due_date: bool = True
+    require_human_confirmation_for_tasks: bool = True
     require_idempotency_for_writes: bool = True
     reminder_dedupe_seconds: int = 24 * 60 * 60
 
@@ -114,6 +115,7 @@ class AgentPolicy:
 
         if tool.side_effect == "create_task":
             task_decision = self._authorize_create_task(
+                context=context,
                 tool=tool,
                 arguments=patched_arguments,
                 idempotency_key=idempotency_key,
@@ -140,16 +142,29 @@ class AgentPolicy:
 
     def _authorize_create_task(
         self,
+        context: WorkflowContext,
         tool: AgentTool,
         arguments: dict[str, Any],
         idempotency_key: str,
     ) -> PolicyDecision:
-        """检查任务创建是否满足自动化条件。"""
+        """检查任务创建是否满足受控创建条件。"""
 
         missing_fields: list[str] = []
         confidence = float(arguments.get("confidence", 1.0) or 0.0)
         assignee_ids = arguments.get("assignee_ids") or []
         due_timestamp_ms = str(arguments.get("due_timestamp_ms", "") or "")
+
+        if self.config.require_human_confirmation_for_tasks and not self._has_human_task_confirmation(
+            context=context,
+        ):
+            return PolicyDecision(
+                status="needs_confirmation",
+                reason="任务创建必须先经过人工确认，M4 主链路只能生成待确认任务。",
+                tool_name=tool.internal_name,
+                idempotency_key=idempotency_key,
+                patched_arguments=arguments,
+                required_fields=["human_confirmation"],
+            )
 
         if confidence < self.config.min_action_item_confidence:
             return PolicyDecision(
@@ -178,10 +193,25 @@ class AgentPolicy:
 
         return PolicyDecision(
             status="allow",
-            reason="任务创建满足自动化条件。",
+            reason="任务创建已通过人工确认和字段完整性检查。",
             tool_name=tool.internal_name,
             idempotency_key=idempotency_key,
             patched_arguments=arguments,
+        )
+
+    def _has_human_task_confirmation(self, context: WorkflowContext) -> bool:
+        """判断本次任务创建是否来自明确的人类确认入口。
+
+        M4 不再允许 Agent 仅凭置信度自动建任务。只有卡片回调、群消息监听器或
+        后续 WebSocket 监听器写入的确认标记，才表示用户已经审核过该任务。
+        """
+
+        raw_confirmation = context.raw_context.get("human_confirmation")
+        if not isinstance(raw_confirmation, dict):
+            return False
+        return (
+            raw_confirmation.get("confirmed") is True
+            and str(raw_confirmation.get("action") or "") == "confirm_create_task"
         )
 
     def _authorize_risk_reminder(

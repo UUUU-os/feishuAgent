@@ -71,13 +71,19 @@ class MeetFlowStorage:
                 CREATE TABLE IF NOT EXISTS task_mappings (
                     item_id TEXT PRIMARY KEY,
                     task_id TEXT NOT NULL,
+                    meeting_id TEXT NOT NULL DEFAULT '',
+                    minute_token TEXT NOT NULL DEFAULT '',
+                    title TEXT NOT NULL DEFAULT '',
                     owner TEXT NOT NULL,
                     due_date TEXT NOT NULL,
                     status TEXT NOT NULL,
+                    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+                    source_url TEXT NOT NULL DEFAULT '',
                     updated_at INTEGER NOT NULL
                 )
                 """
                 )
+            self._ensure_task_mapping_columns(cursor)
 
             conn.commit()
 
@@ -170,6 +176,11 @@ class MeetFlowStorage:
         owner: str,
         due_date: str,
         status: str,
+        meeting_id: str = "",
+        minute_token: str = "",
+        title: str = "",
+        evidence_refs: list[dict[str, Any]] | None = None,
+        source_url: str = "",
     ) -> None:
         """保存行动项和飞书任务之间的映射关系。"""
 
@@ -179,18 +190,28 @@ class MeetFlowStorage:
                 INSERT OR REPLACE INTO task_mappings (
                     item_id,
                     task_id,
+                    meeting_id,
+                    minute_token,
+                    title,
                     owner,
                     due_date,
                     status,
+                    evidence_refs_json,
+                    source_url,
                     updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     item_id,
                     task_id,
+                    meeting_id,
+                    minute_token,
+                    title,
                     owner,
                     due_date,
                     status,
+                    json.dumps(evidence_refs or [], ensure_ascii=False),
+                    source_url,
                     int(time.time()),
                 ),
             )
@@ -206,7 +227,30 @@ class MeetFlowStorage:
                 (item_id,),
             ).fetchone()
 
-        return dict(row) if row is not None else None
+        if row is None:
+            return None
+        data = dict(row)
+        if "evidence_refs_json" in data:
+            data["evidence_refs"] = json.loads(data.get("evidence_refs_json") or "[]")
+        return data
+
+    def _ensure_task_mapping_columns(self, cursor: sqlite3.Cursor) -> None:
+        """为旧版本 task_mappings 表补齐 M4/M5 对接字段。"""
+
+        existing_columns = {
+            row[1]
+            for row in cursor.execute("PRAGMA table_info(task_mappings)").fetchall()
+        }
+        column_specs = {
+            "meeting_id": "TEXT NOT NULL DEFAULT ''",
+            "minute_token": "TEXT NOT NULL DEFAULT ''",
+            "title": "TEXT NOT NULL DEFAULT ''",
+            "evidence_refs_json": "TEXT NOT NULL DEFAULT '[]'",
+            "source_url": "TEXT NOT NULL DEFAULT ''",
+        }
+        for column_name, column_spec in column_specs.items():
+            if column_name not in existing_columns:
+                cursor.execute(f"ALTER TABLE task_mappings ADD COLUMN {column_name} {column_spec}")
 
     def save_project_memory(self, project_id: str, data: dict[str, Any]) -> Path:
         """将项目长期记忆保存为 JSON 文件。"""

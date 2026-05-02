@@ -475,24 +475,28 @@ class FeishuClient:
     ) -> dict[str, Any]:
         """通过关键词搜索飞书用户。
 
-        对应 lark-cli `contact +search-user` 的底层接口：
-        GET /open-apis/search/v1/user
+        对应接口：
+        POST /open-apis/contact/v3/users/search
         """
 
         if not query.strip():
             raise FeishuAPIError("搜索用户时 query 不能为空")
 
         params: dict[str, Any] = {
-            "query": query.strip(),
+            "user_id_type": "open_id",
             "page_size": page_size,
         }
         if page_token:
             params["page_token"] = page_token
 
-        response_json = self.get(
-            path="search/v1/user",
+        payload = {"query": query.strip()}
+
+        response_json = self._request(
+            method="POST",
+            path="contact/v3/users/search",
             params=params,
-            identity=identity or "user",
+            payload=payload,
+            identity=identity or "tenant",
         )
         data = response_json.get("data", {})
         return data if isinstance(data, dict) else {}
@@ -1473,6 +1477,32 @@ class FeishuClient:
             identity=identity,
         )
 
+    def update_card_message(
+        self,
+        message_id: str,
+        card: dict[str, Any],
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """更新一条已发送的飞书卡片消息。
+
+        M4 按钮回调的真实客户端兼容性更稳定的做法，是在后端收到点击事件后，
+        直接调用消息更新接口替换原消息，而不是只依赖回调响应里的 `card` 字段。
+        """
+
+        if not message_id:
+            raise FeishuAPIError("message_id 不能为空")
+        payload = {
+            "msg_type": "interactive",
+            "content": json.dumps(card, ensure_ascii=False),
+        }
+        response_json = self._request(
+            method="PATCH",
+            path=f"im/v1/messages/{message_id}",
+            payload=payload,
+            identity=identity,
+        )
+        return response_json.get("data", {})
+
     def send_message(
         self,
         receive_id: str,
@@ -1520,6 +1550,78 @@ class FeishuClient:
             path="im/v1/messages",
             params={"receive_id_type": receive_id_type},
             payload=payload,
+            identity=identity,
+        )
+        return response_json.get("data", {})
+
+    def list_chat_messages(
+        self,
+        chat_id: str,
+        start_time: int | str | None = None,
+        end_time: int | str | None = None,
+        sort_type: str = "ByCreateTimeAsc",
+        page_size: int = 50,
+        page_token: str = "",
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """读取群聊消息列表。
+
+        用于本地确认监听器轮询群消息。飞书接口要求通过 `container_id`
+        指定会话，时间字段使用秒级时间戳字符串。
+        """
+
+        if not chat_id:
+            raise FeishuAPIError("chat_id 不能为空")
+        params: dict[str, Any] = {
+            "container_id_type": "chat",
+            "container_id": chat_id,
+            "sort_type": sort_type,
+            "page_size": max(1, min(int(page_size), 50)),
+        }
+        if start_time:
+            params["start_time"] = str(start_time)
+        if end_time:
+            params["end_time"] = str(end_time)
+        if page_token:
+            params["page_token"] = page_token
+        response_json = self._request(
+            method="GET",
+            path="im/v1/messages",
+            params=params,
+            identity=identity,
+        )
+        return response_json.get("data", {})
+
+    def list_message_reactions(
+        self,
+        message_id: str,
+        reaction_type: str = "",
+        page_size: int = 50,
+        page_token: str = "",
+        user_id_type: str = "open_id",
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """读取某条消息上的表情反应记录。
+
+        Reaction 绑定在 `message_id` 上，因此 M4 反应确认模式会把每个待确认
+        任务发送成独立消息，再用 message_id 反查对应的 Action Item。
+        """
+
+        if not message_id:
+            raise FeishuAPIError("message_id 不能为空")
+        params: dict[str, Any] = {
+            "message_id": message_id,
+            "page_size": max(1, min(int(page_size), 50)),
+            "user_id_type": user_id_type,
+        }
+        if reaction_type:
+            params["reaction_type"] = reaction_type
+        if page_token:
+            params["page_token"] = page_token
+        response_json = self._request(
+            method="GET",
+            path=f"im/v1/messages/{message_id}/reactions",
+            params=params,
             identity=identity,
         )
         return response_json.get("data", {})

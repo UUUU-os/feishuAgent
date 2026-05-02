@@ -1,0 +1,266 @@
+{
+  "action_62d05507716e": {
+    "created_at": 1777722724,
+    "item_id": "action_62d05507716e",
+    "source": {
+      "chat_id": "oc_3e432398cc43063fda2b2d322bb6dead",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "message_id": "om_x100b506b5f0d8ca4b25e37eabf21c62",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "receive_id_type": "chat_id"
+    },
+    "status": "created",
+    "updated_at": 1777725723,
+    "value": {
+      "calendar_event_id": "",
+      "confidence": 0.7,
+      "due_date": "",
+      "evidence_refs": [
+        {
+          "snippet": "3. 文档发送：将个人阶段成果小结的飞书文档模板发送到群里，供成员按模板创建个人文档并记录开发心路历程 @王恂",
+          "source_id": "obcn7xk3bg1olx8lb811fq4i",
+          "source_type": "feishu_minute",
+          "source_url": "https://bytedance.larkoffice.com/minutes/obcn7xk3bg1olx8lb811fq4i",
+          "updated_at": ""
+        }
+      ],
+      "extra": {
+        "confirm_reason": "缺少截止时间；置信度低于阈值 0.75",
+        "missing_fields": [
+          "due_date"
+        ]
+      },
+      "item_id": "action_62d05507716e",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "meeting_topic": "",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "owner": "王恂",
+      "priority": "medium",
+      "project_id": "meetflow",
+      "title": "文档发送：将个人阶段成果小结的飞书文档模板发送到群里，供成员按模板创建个人文档并记录开发心路历程"
+    }
+  },
+  "action_9742539104e5": {
+    "created_at": 1777722724,
+    "item_id": "action_9742539104e5",
+    "source": {
+      "chat_id": "oc_3e432398cc43063fda2b2d322bb6dead",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "message_id": "om_x100b506b5f61d0a4b2ccea04453a6cf",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "receive_id_type": "chat_id"
+    },
+    "status": "created",
+    "updated_at": 1777725722,
+    "value": {
+      "calendar_event_id": "",
+      "confidence": 0.8,
+      "due_date": "今天或最晚明天",
+      "evidence_refs": [
+        {
+          "snippet": "1. 仓库创建填写：以组为单位创建 GitHub 代码仓库，将项目设置为 public，并于今天或最晚明天将仓库地址填写到问卷中（来自王恂） @所有参赛同学",
+          "source_id": "obcn7xk3bg1olx8lb811fq4i",
+          "source_type": "feishu_minute",
+          "source_url": "https://bytedance.larkoffice.com/minutes/obcn7xk3bg1olx8lb811fq4i",
+          "updated_at": ""
+        }
+      ],
+      "extra": {
+        "confirm_reason": "缺少可解析负责人",
+        "missing_fields": [
+          "owner_resolution"
+        ]
+      },
+      "item_id": "action_9742539104e5",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "meeting_topic": "",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "owner": "所有参赛同学",
+      "priority": "high",
+      "project_id": "meetflow",
+      "title": "仓库创建填写：以组为单位创建 GitHub 代码仓库，将项目设置为 public，并于今天或最晚明天将仓库地址填写到问卷中（来自王恂）"
+    }
+  },
+  "action_98a8d6d2805e": {
+    "created_at": 1777725620,
+    "item_id": "action_98a8d6d2805e",
+    "source": {
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "mode": "agent_loop",
+      "trace_id": ""
+    },
+    "status": "pending",
+    "updated_at": 1777725620,
+    "value": {
+      "calendar_event_id": "",
+      "confidence": 0.8,
+      "due_date": "下周",
+      "evidence_refs": [
+        {
+          "snippet": "所有参赛同学下周补充会后体验反馈",
+          "source_id": "obcn7xk3bg1olx8lb811fq4i",
+          "source_type": "minute",
+          "source_url": "https://bytedance.larkoffice.com/minutes/obcn7xk3bg1olx8lb811fq4i",
+          "updated_at": ""
+        }
+      ],
+      "extra": {
+        "confirm_reason": "缺少可解析负责人",
+        "missing_fields": [
+          "owner_resolution"
+        ]
+      },
+      "item_id": "action_98a8d6d2805e",
+      "meeting_id": "",
+      "meeting_topic": "",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "owner": "所有参赛同学",
+      "priority": "medium",
+      "project_id": "meetflow",
+      "title": "下周补充会后体验反馈"
+    }
+  },
+  "action_a0376dc045f8": {
+    "created_at": 1777725159,
+    "item_id": "action_a0376dc045f8",
+    "result": {
+      "message": "已创建任务：链接分享：将多维表格以数据表为数据源、通过 Web coding 方式生成个性化页面的产品发布会信息链接发送给大家",
+      "status": "success",
+      "task_mapping": {
+        "due_date": "2026-05-04",
+        "evidence_refs": [
+          {
+            "snippet": "1. 链接分享：将多维表格以数据表为数据源、通过 Web coding 方式生成个性化页面的产品发布会信息链接发送给大家 @吴星辉",
+            "source_id": "obcnb2q4nap98l5ny5as2n11",
+            "source_type": "feishu_minute",
+            "source_url": "https://bytedance.larkoffice.com/minutes/obcnb2q4nap98l5ny5as2n11",
+            "updated_at": ""
+          }
+        ],
+        "item_id": "action_a0376dc045f8",
+        "meeting_id": "obcnb2q4nap98l5ny5as2n11",
+        "minute_token": "obcnb2q4nap98l5ny5as2n11",
+        "owner": "李健文",
+        "source_url": "https://bytedance.larkoffice.com/minutes/obcnb2q4nap98l5ny5as2n11",
+        "status": "todo",
+        "task_id": "dbaa178d-771b-48e1-a471-3781041e4790",
+        "title": "链接分享：将多维表格以数据表为数据源、通过 Web coding 方式生成个性化页面的产品发布会信息链接发送给大家"
+      }
+    },
+    "source": {
+      "chat_id": "oc_3e432398cc43063fda2b2d322bb6dead",
+      "meeting_id": "obcnb2q4nap98l5ny5as2n11",
+      "message_id": "om_x100b506aa048fca4b2600105a65a5fb",
+      "minute_token": "obcnb2q4nap98l5ny5as2n11",
+      "receive_id_type": "chat_id"
+    },
+    "status": "created",
+    "updated_at": 1777725184,
+    "value": {
+      "calendar_event_id": "",
+      "confidence": 0.7,
+      "due_date": "2026-05-04",
+      "evidence_refs": [
+        {
+          "snippet": "1. 链接分享：将多维表格以数据表为数据源、通过 Web coding 方式生成个性化页面的产品发布会信息链接发送给大家 @吴星辉",
+          "source_id": "obcnb2q4nap98l5ny5as2n11",
+          "source_type": "feishu_minute",
+          "source_url": "https://bytedance.larkoffice.com/minutes/obcnb2q4nap98l5ny5as2n11",
+          "updated_at": ""
+        }
+      ],
+      "extra": {
+        "confirm_reason": "缺少截止时间；置信度低于阈值 0.75",
+        "missing_fields": [
+          "due_date"
+        ]
+      },
+      "item_id": "action_a0376dc045f8",
+      "meeting_id": "obcnb2q4nap98l5ny5as2n11",
+      "meeting_topic": "",
+      "minute_token": "obcnb2q4nap98l5ny5as2n11",
+      "owner": "李健文",
+      "priority": "medium",
+      "project_id": "meetflow",
+      "title": "链接分享：将多维表格以数据表为数据源、通过 Web coding 方式生成个性化页面的产品发布会信息链接发送给大家"
+    }
+  },
+  "action_c4ca5322928a": {
+    "created_at": 1777722724,
+    "item_id": "action_c4ca5322928a",
+    "source": {
+      "chat_id": "oc_3e432398cc43063fda2b2d322bb6dead",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "message_id": "om_x100b506b5f7b08a0b3f717f9cb5ba6d",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "receive_id_type": "chat_id"
+    },
+    "status": "reject_create_task",
+    "updated_at": 1777725723,
+    "value": {
+      "calendar_event_id": "",
+      "confidence": 0.8,
+      "due_date": "今天到明天",
+      "evidence_refs": [
+        {
+          "snippet": "2. 文档创建提交：按照模板创建个人阶段成果小结的飞书文档，命名为姓名 + 个人阶段成果小结，于今天到明天将文档链接填写到问卷中（来自王恂） @所有参赛同学",
+          "source_id": "obcn7xk3bg1olx8lb811fq4i",
+          "source_type": "feishu_minute",
+          "source_url": "https://bytedance.larkoffice.com/minutes/obcn7xk3bg1olx8lb811fq4i",
+          "updated_at": ""
+        }
+      ],
+      "extra": {
+        "confirm_reason": "缺少可解析负责人",
+        "missing_fields": [
+          "owner_resolution"
+        ]
+      },
+      "item_id": "action_c4ca5322928a",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "meeting_topic": "",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "owner": "所有参赛同学",
+      "priority": "high",
+      "project_id": "meetflow",
+      "title": "文档创建提交：按照模板创建个人阶段成果小结的飞书文档，命名为姓名 + 个人阶段成果小结，于今天到明天将文档链接填写到问卷中（来自王恂）"
+    }
+  },
+  "action_f181b834e4bb": {
+    "created_at": 1777725620,
+    "item_id": "action_f181b834e4bb",
+    "source": {
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "mode": "agent_loop",
+      "trace_id": ""
+    },
+    "status": "pending",
+    "updated_at": 1777725620,
+    "value": {
+      "calendar_event_id": "",
+      "confidence": 0.95,
+      "due_date": "明天",
+      "evidence_refs": [
+        {
+          "snippet": "张三明天整理 M4 Agent 化验证报告",
+          "source_id": "obcn7xk3bg1olx8lb811fq4i",
+          "source_type": "minute",
+          "source_url": "https://bytedance.larkoffice.com/minutes/obcn7xk3bg1olx8lb811fq4i",
+          "updated_at": ""
+        }
+      ],
+      "extra": {
+        "confirm_reason": "",
+        "missing_fields": []
+      },
+      "item_id": "action_f181b834e4bb",
+      "meeting_id": "",
+      "meeting_topic": "",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "owner": "张三",
+      "priority": "high",
+      "project_id": "meetflow",
+      "title": "明天整理 M4 Agent 化验证报告"
+    }
+  }
+}

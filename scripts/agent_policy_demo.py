@@ -59,7 +59,7 @@ def main() -> int:
         max_iterations=2,
     )
     result = loop.run(
-        context=build_demo_context(),
+        context=build_demo_context(human_confirmed=args.scenario == "valid_task"),
         required_tools=["tasks.create_task", "im.send_card"],
         workflow_goal="验证写工具必须先经过 AgentPolicy。",
         generation_settings=GenerationSettings(model="scripted-policy"),
@@ -116,9 +116,22 @@ def build_demo_registry() -> ToolRegistry:
     return registry
 
 
-def build_demo_context() -> WorkflowContext:
+def build_demo_context(human_confirmed: bool = False) -> WorkflowContext:
     """构造带幂等键的工作流上下文。"""
 
+    raw_context = {
+        "decision": {
+            "workflow_type": "post_meeting_followup",
+            "idempotency_key": "post_meeting_followup:policy_demo",
+        }
+    }
+    if human_confirmed:
+        raw_context["human_confirmation"] = {
+            "confirmed": True,
+            "source": "agent_policy_demo",
+            "action": "confirm_create_task",
+            "item_id": "policy_demo",
+        }
     return WorkflowContext(
         workflow_type="post_meeting_followup",
         trace_id="policy_demo",
@@ -132,12 +145,7 @@ def build_demo_context() -> WorkflowContext:
             trace_id="policy_demo",
         ),
         project_id="meetflow",
-        raw_context={
-            "decision": {
-                "workflow_type": "post_meeting_followup",
-                "idempotency_key": "post_meeting_followup:policy_demo",
-            }
-        },
+        raw_context=raw_context,
     )
 
 

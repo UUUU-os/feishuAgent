@@ -284,6 +284,7 @@ class ChromaKnowledgeVectorIndex:
         self.embedding_function = build_embedding_function(embedding_settings)
         self._collection: Any | None = None
         self._available: bool | None = None
+        self._last_error: str = ""
 
     def is_available(self) -> bool:
         """判断 ChromaDB 是否可用。"""
@@ -306,8 +307,10 @@ class ChromaKnowledgeVectorIndex:
                 metadata={"hnsw:space": "cosine"},
             )
             self._available = True
-        except Exception:
+            self._last_error = ""
+        except Exception as error:
             self._available = False
+            self._last_error = f"{type(error).__name__}: {error}"
         return bool(self._available)
 
     def upsert_document(self, document: KnowledgeDocument, chunks: list[KnowledgeChunk]) -> dict[str, Any]:
@@ -373,7 +376,8 @@ class ChromaKnowledgeVectorIndex:
         """获取 Chroma collection，不可用时抛错给调用方回退。"""
 
         if not self.is_available() or self._collection is None:
-            raise RuntimeError("ChromaDB 不可用，无法执行向量检索。")
+            detail = f" 原因：{self._last_error}" if self._last_error else ""
+            raise RuntimeError(f"ChromaDB 不可用，无法执行向量检索。{detail}")
         return self._collection
 
 
