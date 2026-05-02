@@ -56,6 +56,26 @@ Policy/幂等/审计要求和测试步骤已整理到
 [飞书群聊卡片按钮交互实施方案](docs/feishu-card-interaction-plan.md)。
 对应的文件级代码改动草案、核心类函数签名、实现顺序和验收标准已整理到
 [飞书卡片交互代码改动草案](docs/feishu-card-interaction-code-change-draft.md)。
+当前已完成飞书卡片按钮交互 MVP：新增 `core/card_actions.py`、
+`adapters/feishu_event_handler.py`、`scripts/card_action_demo.py`、
+`scripts/feishu_event_server.py` 和对应单测；会前卡片已带 `刷新背景`、
+`生成待办草案`、`发给我` 三个按钮，`refresh_pre_meeting_brief` 可转换为
+`AgentInput(event_type="card.refresh_pre_meeting")`。实现记录见
+[M2.8：业务侧垂直 Agent Runtime](docs/tasks/m2_8-agent-runtime.md) 中的
+`T2.17 实现飞书群聊卡片按钮交互 MVP`。
+公网 HTTPS 隧道接收飞书卡片回调的联调方法，以及后续与飞书官方 SDK/长连接
+方式兼容的边界设计，已整理到
+[飞书卡片交互公网回调接入说明](docs/feishu-card-public-callback-guide.md)。
+
+M5 风险巡检与提醒工作流的仓库级详细改造计划已整理到
+[M5 风险巡检与提醒工作流详细改造计划](docs/m5-risk-scan-implementation-plan.md)，
+建议先实现 `core/risk_scan.py`、`cards/risk_scan.py`、`scripts/risk_scan_demo.py`
+和 `tests/test_risk_scan.py`，优先用 mock 任务跑通规则扫描、卡片预览和降噪。
+第二版代码施工方案已整理到
+[M5 风险巡检第二版代码改造方案](docs/m5-risk-scan-code-change-plan.md)，
+按 `core/risk_scan.py`、`cards/risk_scan.py`、`scripts/risk_scan_demo.py`、
+`core/storage.py`、`core/workflows.py`、`adapters/feishu_tools.py`、
+`core/policy.py` 拆解了具体改造点、数据契约、补丁顺序、测试文件和验收命令。
 
 M3 的核心边界是“轻量 RAG + 结构化元数据 + 增量更新”：
 

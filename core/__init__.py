@@ -22,6 +22,14 @@ from .context import (
     extract_task_id,
     resource_from_payload,
 )
+from .card_actions import (
+    CardActionError,
+    CardActionInput,
+    CardActionResult,
+    CardActionRouter,
+    build_card_action_idempotency_key,
+    build_card_action_input,
+)
 from .logging import (
     bind_trace_id,
     configure_logging,
@@ -119,7 +127,7 @@ from .pre_meeting import (
     recall_related_resources,
     render_pre_meeting_card_payload,
 )
-from cards import build_pre_meeting_card, build_pre_meeting_card_sections
+from cards import build_pre_meeting_card, build_pre_meeting_card_actions, build_pre_meeting_card_sections
 from .pre_meeting_trigger import (
     PreMeetingTriggerPlan,
     build_manual_pre_meeting_input,
@@ -175,6 +183,10 @@ __all__ = [
     "AgentRunResult",
     "AgentToolCall",
     "AgentToolResult",
+    "CardActionError",
+    "CardActionInput",
+    "CardActionResult",
+    "CardActionRouter",
     "IndexJob",
     "CalendarAttendee",
     "CalendarEvent",
@@ -238,6 +250,8 @@ __all__ = [
     "build_event_writer_settings",
     "build_tool_result_content",
     "build_agent_input",
+    "build_card_action_idempotency_key",
+    "build_card_action_input",
     "build_result_summary",
     "build_runtime_context_message",
     "build_system_prompt",
@@ -252,6 +266,7 @@ __all__ = [
     "build_post_meeting_plan_draft",
     "build_pre_meeting_brief_artifacts",
     "build_pre_meeting_card",
+    "build_pre_meeting_card_actions",
     "build_pre_meeting_card_sections",
     "build_pre_meeting_brief_input",
     "build_manual_pre_meeting_input",

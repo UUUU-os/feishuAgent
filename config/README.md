@@ -68,6 +68,10 @@ export DEEPSEEK_API_KEY="你的 DeepSeek Key"
 - `MEETFLOW_FEISHU_USER_ACCESS_TOKEN_EXPIRES_AT`
 - `MEETFLOW_FEISHU_USER_REFRESH_TOKEN`
 - `MEETFLOW_FEISHU_USER_REFRESH_TOKEN_EXPIRES_AT`
+- `MEETFLOW_FEISHU_EVENT_VERIFICATION_TOKEN`
+- `MEETFLOW_FEISHU_EVENT_ENCRYPT_KEY`
+- `MEETFLOW_FEISHU_EVENT_SERVER_HOST`
+- `MEETFLOW_FEISHU_EVENT_SERVER_PORT`
 - `MEETFLOW_LLM_PROVIDER`
 - `MEETFLOW_LLM_MODEL`
 - `MEETFLOW_LLM_API_BASE`
@@ -95,6 +99,28 @@ export DEEPSEEK_API_KEY="你的 DeepSeek Key"
 - `MEETFLOW_OBSERVABILITY_MAX_FIELD_CHARS`
 - `MEETFLOW_OBSERVABILITY_MASK_IDS`
 - `MEETFLOW_OBSERVABILITY_DAILY_ROTATE`
+
+## 飞书事件回调配置
+
+群聊卡片按钮交互需要在飞书开发者后台配置回调地址，并把对应的
+verification token 写入本地配置或环境变量。
+
+建议本地配置：
+
+```json
+"feishu": {
+  "event_verification_token": "replace-with-event-verification-token",
+  "event_encrypt_key": "",
+  "event_server_host": "0.0.0.0",
+  "event_server_port": 8765
+}
+```
+
+注意：
+
+- `event_verification_token` 和 `event_encrypt_key` 属于私密配置，只能写入 `settings.local.json` 或环境变量。
+- `settings.example.json` 只能保留占位符。
+- MVP 暂不处理加密回调；如果飞书后台开启了加密，需要先补充解密逻辑。
 
 ## Observability 配置
 

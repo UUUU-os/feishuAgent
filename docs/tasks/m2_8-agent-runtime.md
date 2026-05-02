@@ -763,4 +763,78 @@ WorkflowRunner
   - 真正接飞书前可以先用 `--plan-only` 和 `--backend local` 做安全演练
   - 需要真实演示时，只需切换为 `--backend feishu --llm-provider deepseek`
 
+### T2.17 实现飞书群聊卡片按钮交互 MVP
+
+- 优先级：`P0`
+- 目标：让飞书群聊卡片按钮点击可以被 MeetFlow 后端解析、路由，并转换成内部 Agent 输入
+- 对应设计文档：
+  - `docs/feishu-card-interaction-plan.md`
+  - `docs/feishu-card-interaction-code-change-draft.md`
+
+#### T2.17 当前实现细节
+
+- 已创建文件：
+  - `core/card_actions.py`
+  - `adapters/feishu_event_handler.py`
+  - `scripts/card_action_demo.py`
+  - `scripts/feishu_event_server.py`
+  - `tests/test_card_actions.py`
+  - `tests/test_feishu_event_handler.py`
+- 已更新文件：
+  - `cards/pre_meeting.py`
+  - `cards/__init__.py`
+  - `adapters/__init__.py`
+  - `config/loader.py`
+  - `config/settings.example.json`
+  - `config/README.md`
+  - `core/__init__.py`
+  - `core/router.py`
+- 已实现的核心模型：
+  - `CardActionInput`：飞书卡片按钮点击转换后的内部输入，包含 `action`、点击人、群、消息、会议、幂等键和原始 value
+  - `CardActionResult`：卡片动作处理结果，包含状态、toast 文案、可选 `AgentInput` 和响应模式
+- 已实现的核心类：
+  - `CardActionRouter`：把 `refresh_pre_meeting_brief`、`create_task_draft`、`send_summary_to_me` 路由到受控结果
+  - `FeishuEventHandler`：处理飞书 challenge、verification token 校验、`card.action.trigger` payload 解析和 toast 响应构造
+- 已实现的核心函数：
+  - `build_card_action_input()`：构造统一卡片动作输入，供 handler、demo 和测试复用
+  - `build_card_action_idempotency_key()`：生成 `card:{source_card}:{calendar_event_id}:{action}` 形式的幂等键
+  - `FeishuEventHandler.parse_card_action()`：解析飞书卡片点击 payload，兼容 dict 或 JSON 字符串形式的 `action.value`
+  - `FeishuEventHandler.build_callback_response()`：把内部结果转换为飞书回调 toast
+- 已接入的业务行为：
+  - 会前卡片模板新增三个按钮：`刷新背景`、`生成待办草案`、`发给我`
+  - 按钮 value 使用稳定协议，包含 `action`、`workflow_type`、`meeting_id`、`calendar_event_id`、`source_card` 和 `idempotency_key`
+  - `WorkflowRouter` 新增 `card.refresh_pre_meeting -> pre_meeting_brief` 路由
+  - `refresh_pre_meeting_brief` 会生成 `AgentInput(event_type="card.refresh_pre_meeting")`，复用已有 Agent 主链路
+  - `create_task_draft` 和 `send_summary_to_me` MVP 阶段只返回 `needs_confirmation`，不直接产生写副作用
+- 已新增本地服务：
+  - `scripts/feishu_event_server.py --host 0.0.0.0 --port 8765`
+  - 支持 `GET /healthz`
+  - 支持 `POST /feishu/events`
+  - 支持 `POST /feishu/card/actions`
+  - 默认只解析、路由并返回 toast；传 `--execute-agent` 后才异步执行 Agent
+  - `--allow-write` 必须显式开启后，后台 Agent 才允许写工具
+- 已新增配置：
+  - `feishu.event_verification_token`
+  - `feishu.event_encrypt_key`
+  - `feishu.event_server_host`
+  - `feishu.event_server_port`
+  - 对应环境变量已写入 `config/README.md`
+- 当前结构化日志：
+  - `card_action_received`
+  - `card_action_routed`
+  - `card_action_finished`
+  - `card_action_failed`
+  - 点击人、群 ID、消息 ID 会经过观测层脱敏处理
+- 当前验证方式：
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile adapters/feishu_event_handler.py core/card_actions.py scripts/card_action_demo.py scripts/feishu_event_server.py cards/pre_meeting.py core/router.py tests/test_card_actions.py tests/test_feishu_event_handler.py`
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_card_actions tests.test_feishu_event_handler tests.test_observability`
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest discover -s tests -p 'test_*.py'`
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/card_action_demo.py --action refresh_pre_meeting_brief` 验证模拟 payload 能生成 `CardActionInput`、`CardActionResult` 和 `AgentInput`
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/pre_meeting_card_demo.py` 验证会前卡片 JSON 中包含三个带 `value.action` 的按钮
+- 当前边界：
+  - MVP 尚未实现飞书加密回调解密；如果后台开启 encrypt，需要补充解密逻辑
+  - MVP 先返回 toast，默认不更新原卡片
+  - HTTP 服务默认不执行 Agent；真实联调确认回调进入后，再使用 `--execute-agent`
+  - 写操作仍必须经过 `AgentPolicy` 和 `--allow-write`，不能由卡片按钮直接绕过
+
 ---

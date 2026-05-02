@@ -144,6 +144,20 @@ def build_default_route_rules() -> list[RouteRule]:
             ],
         ),
         RouteRule(
+            event_type="card.refresh_pre_meeting",
+            workflow_type="pre_meeting_brief",
+            reason="用户在飞书群聊卡片中点击刷新会前背景，需要重新读取上下文并生成会前卡片。",
+            required_tools=[
+                "calendar.list_events",
+                "knowledge.search",
+                "knowledge.fetch_chunk",
+                "docs.fetch_resource",
+                "minutes.fetch_resource",
+                "tasks.list_my_tasks",
+                "im.send_card",
+            ],
+        ),
+        RouteRule(
             event_type="minute.ready",
             workflow_type="post_meeting_followup",
             reason="妙记已生成，需要读取妙记内容，抽取行动项，并按策略创建任务或发送确认卡。",

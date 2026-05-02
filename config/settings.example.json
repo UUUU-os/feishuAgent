@@ -19,7 +19,11 @@
     "user_refresh_token": "",
     "user_refresh_token_expires_at": 0,
     "bot_name": "MeetFlow Bot",
-    "default_chat_id": "oc_d3e31969e4b527ee929db9cfb1493bb6"
+    "default_chat_id": "oc_d3e31969e4b527ee929db9cfb1493bb6",
+    "event_verification_token": "replace-with-event-verification-token",
+    "event_encrypt_key": "",
+    "event_server_host": "0.0.0.0",
+    "event_server_port": 8765
   },
   "llm": {
     "provider": "openai-compatible",

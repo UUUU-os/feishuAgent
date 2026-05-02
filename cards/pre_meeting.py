@@ -41,6 +41,12 @@ def build_pre_meeting_card(brief: Any) -> dict[str, Any]:
                 },
             ]
         )
+    elements.extend(
+        [
+            {"tag": "hr"},
+            build_pre_meeting_card_actions(brief),
+        ]
+    )
 
     return {
         "config": {
@@ -54,6 +60,71 @@ def build_pre_meeting_card(brief: Any) -> dict[str, Any]:
             },
         },
         "elements": elements,
+    }
+
+
+def build_pre_meeting_card_actions(brief: Any) -> dict[str, Any]:
+    """构造会前卡片按钮区。
+
+    按钮 value 使用 MeetFlow 自己的稳定协议。飞书回调进入后端后，会被
+    解析为 `CardActionInput`，再进入受控 Agent 主链路。
+    """
+
+    meeting_id = safe_text(getattr(brief, "meeting_id", ""))
+    calendar_event_id = safe_text(getattr(brief, "calendar_event_id", ""))
+    return {
+        "tag": "action",
+        "actions": [
+            build_card_action_button(
+                text="刷新背景",
+                action="refresh_pre_meeting_brief",
+                button_type="primary",
+                meeting_id=meeting_id,
+                calendar_event_id=calendar_event_id,
+            ),
+            build_card_action_button(
+                text="生成待办草案",
+                action="create_task_draft",
+                button_type="default",
+                meeting_id=meeting_id,
+                calendar_event_id=calendar_event_id,
+            ),
+            build_card_action_button(
+                text="发给我",
+                action="send_summary_to_me",
+                button_type="default",
+                meeting_id=meeting_id,
+                calendar_event_id=calendar_event_id,
+            ),
+        ],
+    }
+
+
+def build_card_action_button(
+    text: str,
+    action: str,
+    button_type: str,
+    meeting_id: str,
+    calendar_event_id: str,
+) -> dict[str, Any]:
+    """构造单个飞书卡片按钮，避免模板里散落 action value 字段。"""
+
+    stable_event_id = calendar_event_id or meeting_id or "unknown"
+    return {
+        "tag": "button",
+        "text": {
+            "tag": "plain_text",
+            "content": text,
+        },
+        "type": button_type,
+        "value": {
+            "action": action,
+            "workflow_type": "pre_meeting_brief",
+            "meeting_id": meeting_id,
+            "calendar_event_id": calendar_event_id,
+            "source_card": "pre_meeting_brief",
+            "idempotency_key": f"card:pre_meeting_brief:{stable_event_id}:{action}",
+        },
     }
 
 

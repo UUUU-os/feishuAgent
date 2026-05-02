@@ -4,6 +4,25 @@
 
 目标是先做一个 MVP：MeetFlow 能接收飞书群聊卡片按钮点击，解析 action，走内部路由和安全策略，最终能返回 toast，并可选择触发已有 Agent 主链路。
 
+## 0. 当前实现状态
+
+当前已完成第一版 MVP：
+
+- 已新增 `core/card_actions.py`，包含 `CardActionInput`、`CardActionResult`、`CardActionRouter`。
+- 已新增 `adapters/feishu_event_handler.py`，支持 challenge、verification token 校验、`card.action.trigger` 解析和 toast 响应。
+- 已新增 `scripts/card_action_demo.py`，可本地模拟飞书卡片按钮点击。
+- 已新增 `scripts/feishu_event_server.py`，提供 `GET /healthz`、`POST /feishu/events`、`POST /feishu/card/actions`。
+- 已在 `cards/pre_meeting.py` 给会前卡片增加 `刷新背景`、`生成待办草案`、`发给我` 三个按钮。
+- 已在 `core/router.py` 增加 `card.refresh_pre_meeting -> pre_meeting_brief` 路由。
+- 已新增 `tests/test_card_actions.py` 和 `tests/test_feishu_event_handler.py`。
+
+当前仍未完成：
+
+- 飞书加密回调解密。
+- 更新原卡片。
+- 卡片动作 SQLite 幂等审计表。
+- 真实飞书测试群按钮点击联调。
+
 ## 1. MVP 边界
 
 第一版只做三件事：
