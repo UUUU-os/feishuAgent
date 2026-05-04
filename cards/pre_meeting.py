@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from cards.layout import build_interactive_card, divider, lark_md_div, markdown
+
 
 def build_pre_meeting_card(brief: Any) -> dict[str, Any]:
     """构造会前背景卡片的飞书 interactive card JSON。
@@ -12,49 +14,24 @@ def build_pre_meeting_card(brief: Any) -> dict[str, Any]:
     """
 
     sections = build_pre_meeting_card_sections(brief)
-    elements: list[dict[str, Any]] = [
-        {
-            "tag": "markdown",
-            "content": build_overview_markdown(brief),
-        },
-        {"tag": "hr"},
-    ]
+    elements: list[dict[str, Any]] = [markdown(build_overview_markdown(brief)), divider()]
     for section in sections:
         if not section["items"]:
             continue
-        elements.append(
-            {
-                "tag": "div",
-                "text": {
-                    "tag": "lark_md",
-                    "content": render_section_markdown(section),
-                },
-            }
-        )
+        elements.append(lark_md_div(render_section_markdown(section)))
     if getattr(brief, "evidence_refs", None):
         elements.extend(
             [
-                {"tag": "hr"},
-                {
-                    "tag": "markdown",
-                    "content": render_evidence_markdown(brief.evidence_refs),
-                },
+                divider(),
+                markdown(render_evidence_markdown(brief.evidence_refs)),
             ]
         )
 
-    return {
-        "config": {
-            "wide_screen_mode": True,
-        },
-        "header": {
-            "template": choose_header_template(brief),
-            "title": {
-                "tag": "plain_text",
-                "content": f"MeetFlow 会前背景卡：{safe_text(getattr(brief, 'topic', ''))}",
-            },
-        },
-        "elements": elements,
-    }
+    return build_interactive_card(
+        title=f"MeetFlow 会前背景卡：{safe_text(getattr(brief, 'topic', ''))}",
+        template=choose_header_template(brief),
+        elements=elements,
+    )
 
 
 def build_pre_meeting_card_sections(brief: Any) -> list[dict[str, Any]]:

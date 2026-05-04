@@ -19,7 +19,8 @@
     "user_refresh_token": "",
     "user_refresh_token_expires_at": 0,
     "bot_name": "MeetFlow Bot",
-    "default_chat_id": ""
+    "default_chat_id": "",
+    "brand": "feishu"
   },
   "llm": {
     "provider": "openai-compatible",

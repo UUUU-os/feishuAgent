@@ -59,6 +59,28 @@ DUE_DATE_PATTERNS = [
 ]
 
 MIN_ACTION_ITEM_CONFIDENCE = 0.75
+POST_MEETING_QUERY_STOPWORDS = {
+    "会议",
+    "同步",
+    "讨论",
+    "确认",
+    "负责",
+    "跟进",
+    "推进",
+    "完成",
+    "需要",
+    "待办",
+    "行动项",
+    "今天",
+    "明天",
+    "后天",
+    "本周",
+    "下周",
+    "deadline",
+    "todo",
+    "action",
+    "items",
+}
 
 AMBIGUOUS_ACTION_PATTERNS = [
     re.compile(pattern)
@@ -181,6 +203,22 @@ class PostMeetingArtifacts(BaseModel):
     card_payloads: dict[str, Any] = field(default_factory=dict)
     stage_plan: list[str] = field(default_factory=list)
     extra: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class RelatedKnowledgeQueryPlan(BaseModel):
+    """M4 相关知识检索 query 的可审计计划。
+
+    M4 的检索意图是“用会后产出反查背景资料”，不是把完整纪要再搜一遍。
+    因此 query 需要优先保留项目/主题/结论中的业务名词，过滤负责人、日期和
+    动词类噪声，避免 BM25 被泛词带偏。
+    """
+
+    query: str
+    terms: list[str] = field(default_factory=list)
+    term_sources: dict[str, list[str]] = field(default_factory=dict)
+    dropped_terms: list[str] = field(default_factory=list)
+    source_weights: dict[str, float] = field(default_factory=dict)
 
 
 def clean_meeting_transcript(raw_text: str) -> CleanedTranscript:
@@ -984,9 +1022,11 @@ def enrich_post_meeting_related_resources(
     继续发送普通会后卡片，不应阻断任务创建。
     """
 
-    query = build_post_meeting_related_resource_query(artifacts)
+    query_plan = build_post_meeting_related_resource_query_plan(artifacts)
+    query = query_plan.query
     if not query:
         artifacts.extra["related_knowledge_status"] = "skipped_empty_query"
+        artifacts.extra["related_knowledge_query_plan"] = query_plan.to_dict()
         return artifacts
     result = knowledge_store.search_chunks(
         query=query,
@@ -1001,6 +1041,7 @@ def enrich_post_meeting_related_resources(
     hits = list(getattr(result, "hits", []) or [])
     hits = dedupe_related_knowledge_hits(hits, limit=top_n)
     artifacts.extra["related_knowledge_query"] = query
+    artifacts.extra["related_knowledge_query_plan"] = query_plan.to_dict()
     artifacts.extra["related_knowledge_hits"] = hits
     artifacts.extra["related_knowledge_status"] = "hit" if hits else "empty"
     artifacts.extra["related_knowledge_reason"] = getattr(result, "reason", "")
@@ -1011,14 +1052,137 @@ def enrich_post_meeting_related_resources(
 def build_post_meeting_related_resource_query(artifacts: PostMeetingArtifacts) -> str:
     """为会后背景资料召回构造稳定查询。"""
 
+    return build_post_meeting_related_resource_query_plan(artifacts).query
+
+
+def build_post_meeting_related_resource_query_plan(artifacts: PostMeetingArtifacts) -> RelatedKnowledgeQueryPlan:
+    """为会后 RAG 生成可解释的关键词 query。
+
+    生成策略：
+    1. 主题和项目权重最高，确保检索范围贴近业务域；
+    2. 关键结论次之，用于补充方案名、系统名和明确决策；
+    3. 行动项只提取任务标题里的对象名，不保留负责人、日期等执行噪声；
+    4. 开放问题权重最低，只在问题中包含业务名词时参与召回。
+    """
+
     workflow_input = artifacts.workflow_input
-    parts: list[str] = [
-        workflow_input.topic,
-        workflow_input.project_id,
-    ]
-    parts.extend(item.content for item in artifacts.decisions[:4])
-    parts.extend(item.title for item in artifacts.action_items[:4])
-    return " ".join(unique_non_empty([part.strip() for part in parts if part])).strip()
+    source_weights = {
+        "topic": 3.0,
+        "project_id": 2.6,
+        "decision": 2.2,
+        "action_item": 1.6,
+        "open_question": 1.0,
+        "related_resource": 1.4,
+    }
+    candidates: list[tuple[str, str, float]] = []
+    candidates.extend(build_query_term_candidates(workflow_input.topic, "topic", source_weights["topic"]))
+    candidates.extend(build_query_term_candidates(workflow_input.project_id, "project_id", source_weights["project_id"]))
+    for item in artifacts.decisions[:5]:
+        candidates.extend(build_query_term_candidates(item.content, "decision", source_weights["decision"]))
+    for item in artifacts.action_items[:6]:
+        candidates.extend(build_query_term_candidates(item.title, "action_item", source_weights["action_item"]))
+    for item in artifacts.open_questions[:3]:
+        candidates.extend(build_query_term_candidates(item.content, "open_question", source_weights["open_question"]))
+    for resource in workflow_input.related_resources[:4]:
+        candidates.extend(build_query_term_candidates(resource.title, "related_resource", source_weights["related_resource"]))
+
+    ranked_terms, term_sources, dropped_terms = rank_related_query_terms(candidates)
+    query = " ".join(ranked_terms[:14])[:240].strip()
+    return RelatedKnowledgeQueryPlan(
+        query=query,
+        terms=ranked_terms[:14],
+        term_sources=term_sources,
+        dropped_terms=dropped_terms[:30],
+        source_weights=source_weights,
+    )
+
+
+def build_query_term_candidates(text: str, source: str, weight: float) -> list[tuple[str, str, float]]:
+    """从一段会后产出文本中提取候选检索词。"""
+
+    normalized = normalize_query_source_text(text)
+    if not normalized:
+        return []
+    terms: list[tuple[str, str, float]] = []
+    for token in re.findall(r"[A-Za-z][A-Za-z0-9_-]{1,40}|[\u4e00-\u9fa5][\u4e00-\u9fa5A-Za-z0-9_-]{1,24}", normalized):
+        clean = normalize_query_term(token)
+        if clean:
+            terms.append((clean, source, weight))
+    # 保留较短的中文业务短语，弥补没有中文分词依赖时只靠长串不易召回的问题。
+    for phrase in re.split(r"[\s,，;；:：。！？?、（）()\[\]【】]+", normalized):
+        clean = normalize_query_term(phrase)
+        if clean and 2 <= len(clean) <= 18:
+            terms.append((clean, source, weight + 0.2))
+    return terms
+
+
+def normalize_query_source_text(text: str) -> str:
+    """去掉会后 query 文本中的执行噪声，保留业务对象。"""
+
+    normalized = safe_text(text)
+    normalized = re.sub(r"`[^`]+`", " ", normalized)
+    normalized = re.sub(r"https?://\S+", " ", normalized)
+    normalized = re.sub(r"@\S+", " ", normalized)
+    normalized = re.sub(r"(?:负责人|owner|截止|deadline|ddl)[:：]?\s*[^,，；;。]*", " ", normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r"\b20\d{2}[-/]\d{1,2}[-/]\d{1,2}\b|\b\d{1,2}[-/]\d{1,2}\b", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized.strip()
+
+
+def normalize_query_term(term: str) -> str:
+    """规范化单个 query term，并过滤泛词。"""
+
+    clean = safe_text(term).strip(" -_，,；;：:。.!?？、（）()[]【】")
+    clean = clean.lower() if re.fullmatch(r"[A-Za-z0-9_-]+", clean) else clean
+    if len(clean) <= 1:
+        return ""
+    if clean.casefold() in POST_MEETING_QUERY_STOPWORDS:
+        return ""
+    if re.fullmatch(r"\d+", clean):
+        return ""
+    if re.fullmatch(r"(?:今天|明天|后天|本周|下周|周[一二三四五六日天]|月底).*", clean):
+        return ""
+    return clean
+
+
+def rank_related_query_terms(candidates: list[tuple[str, str, float]]) -> tuple[list[str], dict[str, list[str]], list[str]]:
+    """按来源权重、出现次数和长度惩罚排序 query term。"""
+
+    scores: dict[str, float] = {}
+    sources: dict[str, list[str]] = {}
+    dropped: list[str] = []
+    for term, source, weight in candidates:
+        if not term:
+            continue
+        if is_low_value_query_term(term):
+            dropped.append(term)
+            continue
+        length_bonus = 0.25 if 3 <= len(term) <= 16 else 0.0
+        scores[term] = scores.get(term, 0.0) + weight + length_bonus
+        sources.setdefault(term, [])
+        if source not in sources[term]:
+            sources[term].append(source)
+    ranked = sorted(scores, key=lambda item: (-scores[item], len(item), item))
+    return ranked, {term: sources[term] for term in ranked}, unique_non_empty(dropped)
+
+
+def is_low_value_query_term(term: str) -> bool:
+    """过滤会后检索中常见但无法指向背景资料的低价值词。"""
+
+    clean = term.casefold()
+    if clean in POST_MEETING_QUERY_STOPWORDS:
+        return True
+    if len(clean) > 28:
+        return True
+    if re.fullmatch(r"(?:负责人|截止时间|置信度|优先级|任务|字段完整|待确认).*", term):
+        return True
+    return False
+
+
+def safe_text(value: Any) -> str:
+    """把任意输入转成安全的非空白字符串。"""
+
+    return str(value or "").strip()
 
 
 def dedupe_related_knowledge_hits(hits: list[Any], limit: int) -> list[Any]:

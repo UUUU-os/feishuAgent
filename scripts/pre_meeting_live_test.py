@@ -48,6 +48,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--identity", default="", choices=["tenant", "user"], help="飞书身份；不传则读取配置默认值。")
     parser.add_argument("--start-time", default="", help="查询开始时间，秒级时间戳。")
     parser.add_argument("--end-time", default="", help="查询结束时间，秒级时间戳。")
+    parser.add_argument(
+        "--date",
+        default="",
+        help="按本地日期查询整天日程：today / tomorrow / YYYY-MM-DD。传入后优先于 --lookahead-hours。",
+    )
     parser.add_argument("--lookahead-hours", type=int, default=24, help="未显式传时间范围时，默认向后查询多少小时。")
     parser.add_argument("--project-id", default="meetflow", help="项目 ID。")
     parser.add_argument("--doc", action="append", default=[], help="需要纳入本次会前知识索引的飞书文档 URL 或 token，可传多次。")
@@ -117,7 +122,13 @@ def main() -> int:
             minutes=args.minute,
             identity=identity,
         )
-        index_summaries = index_supporting_resources(knowledge_store, resources, force=args.force_index)
+        index_summaries = index_supporting_resources(
+            knowledge_store,
+            resources,
+            force=args.force_index,
+            client=client,
+            identity=identity,
+        )
     except FeishuAuthError as error:
         logger.error("飞书鉴权失败：%s", error)
         print(
@@ -215,9 +226,34 @@ def resolve_time_window(args: argparse.Namespace, timezone_name: str) -> tuple[s
     if args.start_time and args.end_time:
         return args.start_time, args.end_time
     timezone = ZoneInfo(timezone_name or "Asia/Shanghai")
+    if args.date:
+        start = resolve_query_date(args.date, timezone)
+        end = start + timedelta(days=1)
+        return str(int(start.timestamp())), str(int(end.timestamp()))
     start = datetime.now(timezone)
     end = start + timedelta(hours=max(1, int(args.lookahead_hours or 24)))
     return str(int(start.timestamp())), str(int(end.timestamp()))
+
+
+def resolve_query_date(value: str, timezone: ZoneInfo) -> datetime:
+    """把 today/tomorrow/YYYY-MM-DD 解析成本地零点。
+
+    真实联调时用户常说“今天下午的会议”，整天窗口比“从现在起 24 小时”
+    更符合排查直觉，也能覆盖刚开始不久但仍想测试的日程。
+    """
+
+    normalized = str(value or "").strip().lower()
+    now = datetime.now(timezone)
+    if normalized in {"today", "今天"}:
+        target = now.date()
+    elif normalized in {"tomorrow", "明天"}:
+        target = (now + timedelta(days=1)).date()
+    else:
+        try:
+            target = datetime.strptime(normalized, "%Y-%m-%d").date()
+        except ValueError as error:
+            raise FeishuAPIError("--date 只支持 today / tomorrow / YYYY-MM-DD，例如 --date today") from error
+    return datetime(target.year, target.month, target.day, tzinfo=timezone)
 
 
 def select_target_event(
@@ -238,7 +274,14 @@ def select_target_event(
         identity=identity,  # type: ignore[arg-type]
     )
     if not events:
-        raise FeishuAPIError("给定时间窗口内没有可用于测试的会议，请扩大查询时间范围。")
+        raise FeishuAPIError(
+            "给定时间窗口内没有可用于测试的会议。"
+            f"calendar_id={calendar_id} identity={identity} "
+            f"window={format_timestamp_for_error(start_time)}-{format_timestamp_for_error(end_time)}。"
+            "如果会议是你个人日历创建的，请确认使用 --identity user；"
+            "如果是今天某个时间段的会议，建议加 --date today；"
+            "也可以先运行 scripts/calendar_live_test.py --identity user --debug-calendar 确认日历可见。"
+        )
     if event_id:
         for item in events:
             if item.event_id == event_id:
@@ -249,8 +292,25 @@ def select_target_event(
         if matched:
             return sorted(matched, key=lambda item: safe_event_timestamp(item.start_time))[0]
         available = "；".join(item.summary or item.event_id for item in events[:10])
-        raise FeishuAPIError(f"没有找到标题包含 {event_title!r} 的会议；当前窗口会议：{available}")
+        raise FeishuAPIError(
+            f"没有找到标题包含 {event_title!r} 的会议；"
+            f"calendar_id={calendar_id} identity={identity} "
+            f"window={format_timestamp_for_error(start_time)}-{format_timestamp_for_error(end_time)}；"
+            f"当前窗口会议：{available}"
+        )
     return sorted(events, key=lambda item: safe_event_timestamp(item.start_time))[0]
+
+
+def format_timestamp_for_error(value: str, timezone_name: str = "Asia/Shanghai") -> str:
+    """把秒级时间戳格式化到错误消息里，避免用户只能看到一串数字。"""
+
+    try:
+        timestamp = int(str(value or "0"))
+    except ValueError:
+        return str(value or "")
+    if timestamp > 10_000_000_000:
+        timestamp = timestamp // 1000
+    return datetime.fromtimestamp(timestamp, ZoneInfo(timezone_name)).strftime("%Y-%m-%d %H:%M")
 
 
 def fetch_supporting_resources(
@@ -287,6 +347,8 @@ def index_supporting_resources(
     knowledge_store: KnowledgeIndexStore,
     resources: list[Resource],
     force: bool = False,
+    client: FeishuClient | None = None,
+    identity: str = "user",
 ) -> list[dict[str, Any]]:
     """按当前 embedding 指纹索引本次测试资源。
 
@@ -297,6 +359,12 @@ def index_supporting_resources(
     summaries: list[dict[str, Any]] = []
     for resource in resources:
         result = knowledge_store.index_resource(resource, force=force)
+        subscription = ensure_rag_event_subscription(
+            knowledge_store=knowledge_store,
+            client=client,
+            resource=resource,
+            identity=identity,
+        )
         summaries.append(
             {
                 "resource_id": resource.resource_id,
@@ -306,9 +374,65 @@ def index_supporting_resources(
                 "skipped": result.skipped,
                 "chunk_count": result.document.chunk_count,
                 "knowledge_namespace": result.document.metadata.get("knowledge_namespace", ""),
+                "event_subscription": subscription,
             }
         )
     return summaries
+
+
+def ensure_rag_event_subscription(
+    *,
+    knowledge_store: KnowledgeIndexStore,
+    client: FeishuClient | None,
+    resource: Resource,
+    identity: str,
+) -> dict[str, Any]:
+    """用户首次添加文档到 RAG 后，优先建立云文档长连接事件订阅。
+
+    订阅失败不阻断会前卡片，因为权限、文件类型或开放平台事件配置可能尚未
+    就绪；失败会落到 `knowledge_event_subscriptions`，后续仍由定时扫描兜底。
+    """
+
+    if client is None:
+        return {"status": "skipped", "reason": "missing_client"}
+    if not is_subscribable_knowledge_resource(resource):
+        return {"status": "skipped", "reason": "unsupported_resource_type"}
+    existing = knowledge_store.get_event_subscription(resource.resource_id)
+    if existing and existing.get("status") == "succeeded":
+        return {"status": "succeeded", "reason": "already_subscribed", "file_token": existing.get("file_token", "")}
+    file_token = str(resource.source_meta.get("document_id") or resource.resource_id or "").strip()
+    file_type = client.detect_drive_file_type(resource.source_url, default=resource.source_meta.get("file_type", "docx"))
+    try:
+        client.subscribe_drive_file(file_token=file_token, file_type=file_type, identity=identity)  # type: ignore[arg-type]
+    except FeishuAPIError as error:
+        knowledge_store.save_event_subscription(
+            resource_id=resource.resource_id,
+            resource_type=resource.resource_type,
+            source_url=resource.source_url,
+            file_token=file_token,
+            file_type=file_type,
+            status="failed",
+            last_error=str(error),
+        )
+        return {"status": "failed", "file_token": file_token, "file_type": file_type, "error": str(error)}
+    knowledge_store.save_event_subscription(
+        resource_id=resource.resource_id,
+        resource_type=resource.resource_type,
+        source_url=resource.source_url,
+        file_token=file_token,
+        file_type=file_type,
+        status="succeeded",
+    )
+    return {"status": "succeeded", "file_token": file_token, "file_type": file_type}
+
+
+def is_subscribable_knowledge_resource(resource: Resource) -> bool:
+    """判断资源是否适合注册飞书云文档事件。"""
+
+    normalized = str(resource.resource_type or "").lower()
+    if normalized not in {"feishu_document", "doc", "docx", "document", "wiki", "sheet", "bitable"}:
+        return False
+    return bool(resource.resource_id)
 
 
 def build_trigger_event(event: CalendarEvent, project_id: str, resources: list[Resource]) -> dict[str, Any]:
