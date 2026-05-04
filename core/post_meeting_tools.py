@@ -236,6 +236,7 @@ def enrich_related_knowledge_tool_result(
     return {
         "status": enriched.extra.get("related_knowledge_status", "unknown"),
         "query": enriched.extra.get("related_knowledge_query", ""),
+        "query_plan": enriched.extra.get("related_knowledge_query_plan", {}),
         "reason": enriched.extra.get("related_knowledge_reason", ""),
         "related_knowledge": enriched.extra.get("related_knowledge_hits", []),
         "artifacts": enriched.to_dict(),

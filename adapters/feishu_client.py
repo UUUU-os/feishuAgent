@@ -271,6 +271,7 @@ class FeishuClient:
         self,
         path: str,
         payload: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
         identity: IdentityMode | None = None,
     ) -> dict[str, Any]:
         """发送 POST 请求。"""
@@ -278,6 +279,7 @@ class FeishuClient:
         return self._request(
             method="POST",
             path=path,
+            params=params,
             payload=payload,
             identity=identity,
         )
@@ -586,6 +588,25 @@ class FeishuClient:
         items = response_json.get("data", {}).get("items", [])
         return [self.to_calendar_event(item) for item in items]
 
+    def subscribe_calendar_event_changes(
+        self,
+        calendar_id: str,
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """订阅指定日历下的日程变更事件。
+
+        `calendar.calendar.event.changed_v4` 不是添加开放平台事件后自动覆盖所有
+        用户日历；飞书要求应用先用用户身份对具体 calendar_id 建立订阅关系。
+        观察台和后台 daemon 都应在启动时调用一次，接口本身具备幂等语义。
+        """
+
+        resolved_calendar_id = self.resolve_calendar_id(calendar_id, identity=identity)
+        return self.post(
+            path=f"calendar/v4/calendars/{resolved_calendar_id}/events/subscription",
+            payload={},
+            identity=identity or "user",
+        )
+
     def to_calendar_info(self, item: dict[str, Any]) -> CalendarInfo:
         """将飞书日历基础信息对象转换为统一 `CalendarInfo` 模型。"""
 
@@ -686,6 +707,76 @@ class FeishuClient:
             raise FeishuAPIError("文档 token 中不应包含路径、查询参数或片段标识")
 
         return raw_document
+
+    @staticmethod
+    def detect_drive_file_type(document: str, default: str = "docx") -> str:
+        """从飞书文档链接推断 drive 订阅所需 file_type。
+
+        云文档事件订阅接口要求调用方传入 `file_type`。用户第一次添加文档
+        链接时通常给的是 URL，因此这里从路径中提取类型；裸 token 无法可靠
+        判断时使用默认值，调用方也可以显式传入。
+        """
+
+        raw_document = str(document or "").strip()
+        marker_to_type = {
+            "/docx/": "docx",
+            "/doc/": "doc",
+            "/sheets/": "sheet",
+            "/base/": "bitable",
+            "/bitable/": "bitable",
+            "/wiki/": "wiki",
+        }
+        for marker, file_type in marker_to_type.items():
+            if marker in raw_document:
+                return file_type
+        return default
+
+    def subscribe_drive_file(
+        self,
+        file_token: str,
+        file_type: str,
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """订阅单个云文档事件。
+
+        飞书云文档事件不是全量空间级监听，必须先对具体文件 token 建立订阅。
+        这一步应在用户第一次把文档加入 RAG 时执行；后续长连接收到事件后，
+        再由后台 worker 拉取最新内容并刷新索引。
+        """
+
+        token = str(file_token or "").strip()
+        final_file_type = self.normalize_drive_file_type(file_type)
+        if not token:
+            raise FeishuAPIError("订阅云文档事件需要 file_token")
+        return self.post(
+            path=f"drive/v1/files/{token}/subscribe",
+            params={"file_type": final_file_type},
+            payload={},
+            identity=identity,
+        )
+
+    @staticmethod
+    def normalize_drive_file_type(file_type: str) -> str:
+        """规范化云文档事件订阅的 file_type。"""
+
+        normalized = str(file_type or "").strip().lower()
+        aliases = {
+            "feishu_document": "docx",
+            "document": "docx",
+            "docx": "docx",
+            "doc": "doc",
+            "sheet": "sheet",
+            "sheets": "sheet",
+            "spreadsheet": "sheet",
+            "bitable": "bitable",
+            "base": "bitable",
+        }
+        if normalized == "wiki":
+            # wiki 链接通常指向知识库节点，事件订阅需要底层云文档 token；
+            # 当前读取链路仍使用 wiki token，因此订阅阶段按 docx 尝试，
+            # 失败时调用方会记录 last_error 并继续依赖定时兜底。
+            return "docx"
+        return aliases.get(normalized, normalized or "docx")
 
     def fetch_document_resource(
         self,

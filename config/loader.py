@@ -44,6 +44,7 @@ class FeishuSettings:
     user_refresh_token_expires_at: int
     bot_name: str
     default_chat_id: str
+    brand: str = "feishu"
 
 
 @dataclass(slots=True)
@@ -176,6 +177,7 @@ ENV_MAPPING: dict[str, tuple[str, str, Any]] = {
     "MEETFLOW_FEISHU_USER_REFRESH_TOKEN_EXPIRES_AT": ("feishu", "user_refresh_token_expires_at", int),
     "MEETFLOW_FEISHU_BOT_NAME": ("feishu", "bot_name", str),
     "MEETFLOW_FEISHU_DEFAULT_CHAT_ID": ("feishu", "default_chat_id", str),
+    "MEETFLOW_FEISHU_BRAND": ("feishu", "brand", str),
     "MEETFLOW_LLM_PROVIDER": ("llm", "provider", str),
     "MEETFLOW_LLM_MODEL": ("llm", "model", str),
     "MEETFLOW_LLM_API_BASE": ("llm", "api_base", str),

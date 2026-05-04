@@ -123,43 +123,19 @@
   "action_a0376dc045f8": {
     "created_at": 1777725159,
     "item_id": "action_a0376dc045f8",
-    "result": {
-      "message": "已创建任务：链接分享：将多维表格以数据表为数据源、通过 Web coding 方式生成个性化页面的产品发布会信息链接发送给大家",
-      "status": "success",
-      "task_mapping": {
-        "due_date": "2026-05-04",
-        "evidence_refs": [
-          {
-            "snippet": "1. 链接分享：将多维表格以数据表为数据源、通过 Web coding 方式生成个性化页面的产品发布会信息链接发送给大家 @吴星辉",
-            "source_id": "obcnb2q4nap98l5ny5as2n11",
-            "source_type": "feishu_minute",
-            "source_url": "https://bytedance.larkoffice.com/minutes/obcnb2q4nap98l5ny5as2n11",
-            "updated_at": ""
-          }
-        ],
-        "item_id": "action_a0376dc045f8",
-        "meeting_id": "obcnb2q4nap98l5ny5as2n11",
-        "minute_token": "obcnb2q4nap98l5ny5as2n11",
-        "owner": "李健文",
-        "source_url": "https://bytedance.larkoffice.com/minutes/obcnb2q4nap98l5ny5as2n11",
-        "status": "todo",
-        "task_id": "dbaa178d-771b-48e1-a471-3781041e4790",
-        "title": "链接分享：将多维表格以数据表为数据源、通过 Web coding 方式生成个性化页面的产品发布会信息链接发送给大家"
-      }
-    },
     "source": {
       "chat_id": "oc_3e432398cc43063fda2b2d322bb6dead",
       "meeting_id": "obcnb2q4nap98l5ny5as2n11",
-      "message_id": "om_x100b506aa048fca4b2600105a65a5fb",
+      "message_id": "om_x100b50b591bcb4a4b484934d15b19ad",
       "minute_token": "obcnb2q4nap98l5ny5as2n11",
       "receive_id_type": "chat_id"
     },
     "status": "created",
-    "updated_at": 1777725184,
+    "updated_at": 1777868279,
     "value": {
       "calendar_event_id": "",
       "confidence": 0.7,
-      "due_date": "2026-05-04",
+      "due_date": "",
       "evidence_refs": [
         {
           "snippet": "1. 链接分享：将多维表格以数据表为数据源、通过 Web coding 方式生成个性化页面的产品发布会信息链接发送给大家 @吴星辉",
@@ -179,7 +155,7 @@
       "meeting_id": "obcnb2q4nap98l5ny5as2n11",
       "meeting_topic": "",
       "minute_token": "obcnb2q4nap98l5ny5as2n11",
-      "owner": "李健文",
+      "owner": "吴星辉",
       "priority": "medium",
       "project_id": "meetflow",
       "title": "链接分享：将多维表格以数据表为数据源、通过 Web coding 方式生成个性化页面的产品发布会信息链接发送给大家"

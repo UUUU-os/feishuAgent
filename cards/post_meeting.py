@@ -3,6 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+from cards.layout import build_interactive_card, build_schema2_card, divider, lark_md_div, markdown
+
 
 def build_post_meeting_summary_card(artifacts: Any) -> dict[str, Any]:
     """构造会后总结卡片的飞书 interactive card JSON。
@@ -26,57 +28,22 @@ def build_post_meeting_summary_card(artifacts: Any) -> dict[str, Any]:
     related_resources = collect_related_resources(artifacts)
 
     elements: list[dict[str, Any]] = [
-        {"tag": "markdown", "content": build_summary_overview_markdown(artifacts)},
-        {"tag": "hr"},
-        {
-            "tag": "div",
-            "text": {
-                "tag": "lark_md",
-                "content": render_text_section("关键结论", decisions, "暂无明确结论"),
-            },
-        },
-        {
-            "tag": "div",
-            "text": {
-                "tag": "lark_md",
-                "content": render_action_items_markdown("字段完整候选（仍需确认）", ready_items, "暂无字段完整任务"),
-            },
-        },
-        {
-            "tag": "div",
-            "text": {
-                "tag": "lark_md",
-                "content": render_action_items_markdown("待确认任务", pending_items, "暂无待确认任务"),
-            },
-        },
-        {
-            "tag": "div",
-            "text": {
-                "tag": "lark_md",
-                "content": render_text_section("开放问题", open_questions, "暂无开放问题"),
-            },
-        },
+        markdown(build_summary_overview_markdown(artifacts)),
+        divider(),
+        lark_md_div(render_text_section("关键结论", decisions, "暂无明确结论")),
+        lark_md_div(render_action_items_markdown("字段完整候选（仍需确认）", ready_items, "暂无字段完整任务")),
+        lark_md_div(render_action_items_markdown("待确认任务", pending_items, "暂无待确认任务")),
+        lark_md_div(render_text_section("开放问题", open_questions, "暂无开放问题")),
     ]
     elements.extend(render_related_resource_elements(related_resources))
     if source_url:
-        elements.append(
-            {
-                "tag": "markdown",
-                "content": f"**原始资料**：{render_link('查看会议纪要', source_url)}",
-            }
-        )
+        elements.append(markdown(f"**原始资料**：{render_link('查看会议纪要', source_url)}"))
 
-    return {
-        "config": {"wide_screen_mode": True},
-        "header": {
-            "template": choose_summary_header_template(ready_items, pending_items),
-            "title": {
-                "tag": "plain_text",
-                "content": f"MeetFlow 会后总结：{safe_text(getattr(summary, 'topic', '')) or '待识别会议'}",
-            },
-        },
-        "elements": elements,
-    }
+    return build_interactive_card(
+        title=f"MeetFlow 会后总结：{safe_text(getattr(summary, 'topic', '')) or '待识别会议'}",
+        template=choose_summary_header_template(ready_items, pending_items),
+        elements=elements,
+    )
 
 
 def build_pending_action_items_card(artifacts: Any) -> dict[str, Any]:
@@ -97,36 +64,19 @@ def build_pending_action_items_card(artifacts: Any) -> dict[str, Any]:
             if getattr(item, "needs_confirm", False)
         ]
     elements: list[dict[str, Any]] = [
-        {
-            "tag": "markdown",
-            "content": f"**会议**：{safe_text(getattr(summary, 'topic', '')) or '待识别会议'}",
-        },
-        {
-            "tag": "markdown",
-            "content": f"**待确认任务数**：{len(pending_items)}\n"
-            "可直接在卡片中补充负责人/截止时间，然后点击按钮完成处理。",
-        },
+        markdown(f"**会议**：{safe_text(getattr(summary, 'topic', '')) or '待识别会议'}"),
+        markdown(f"**待确认任务数**：{len(pending_items)}\n可直接在卡片中补充负责人/截止时间，然后点击按钮完成处理。"),
     ]
     if pending_items:
         elements.extend(render_pending_item_review_elements(pending_items))
     else:
-        elements.append({"tag": "markdown", "content": "暂无待确认任务。"})
+        elements.append(markdown("暂无待确认任务。"))
 
-    return {
-        "schema": "2.0",
-        "config": {
-            "update_multi": True,
-        },
-        "header": {
-            "template": "orange" if pending_items else "green",
-            "title": {"tag": "plain_text", "content": "MeetFlow 待确认任务"},
-        },
-        "body": {
-            "direction": "vertical",
-            "padding": "12px 12px 12px 12px",
-            "elements": elements,
-        },
-    }
+    return build_schema2_card(
+        title="MeetFlow 待确认任务",
+        template="orange" if pending_items else "green",
+        elements=elements,
+    )
 
 
 def build_pending_action_item_reaction_card(artifacts: Any, item: Any) -> dict[str, Any]:
@@ -162,14 +112,11 @@ def build_pending_action_item_reaction_card(artifacts: Any, item: Any) -> dict[s
             f"- 需要补字段时回复：`确认创建 {item_id} 负责人=姓名 截止=明天`",
         ]
     )
-    return {
-        "config": {"wide_screen_mode": True},
-        "header": {
-            "template": "orange",
-            "title": {"tag": "plain_text", "content": "MeetFlow 待确认任务"},
-        },
-        "elements": [{"tag": "markdown", "content": "\n".join(lines)}],
-    }
+    return build_interactive_card(
+        title="MeetFlow 待确认任务",
+        template="orange",
+        elements=[markdown("\n".join(lines))],
+    )
 
 
 def build_pending_action_item_button_card(
@@ -232,7 +179,7 @@ def build_pending_action_item_button_card(
     if task_url:
         detail_lines.append(f"[查看任务详情]({task_url})")
 
-    body_elements: list[dict[str, Any]] = [{"tag": "markdown", "content": "\n".join(detail_lines)}]
+    body_elements: list[dict[str, Any]] = [markdown("\n".join(detail_lines))]
     if mode != "resolved":
         body_elements.append(
             build_pending_action_item_schema2_form(
@@ -245,26 +192,13 @@ def build_pending_action_item_button_card(
                 mode=mode,
             )
         )
-    return {
-        "schema": "2.0",
-        "config": {
-            # 允许后端通过消息更新接口刷新整张共享卡片，否则按钮点击后即便后端
-            # 收到回调，也可能因为飞书不允许更新共享卡片而导致前端状态不变化。
-            "update_multi": True,
-        },
-        "header": {
-            "template": header_template,
-            "title": {
-                "tag": "plain_text",
-                "content": f"{'MeetFlow 任务结果' if mode == 'resolved' else 'MeetFlow 待确认任务'}：{title[:22]}",
-            },
-        },
-        "body": {
-            "direction": "vertical",
-            "padding": "12px 12px 12px 12px",
-            "elements": body_elements,
-        },
-    }
+    # 允许后端通过消息更新接口刷新整张共享卡片，否则按钮点击后即便后端收到
+    # 回调，也可能因为飞书不允许更新共享卡片而导致前端状态不变化。
+    return build_schema2_card(
+        title=f"{'MeetFlow 任务结果' if mode == 'resolved' else 'MeetFlow 待确认任务'}：{title[:22]}",
+        template=header_template,
+        elements=body_elements,
+    )
 
 
 def build_pending_action_item_schema2_form(
