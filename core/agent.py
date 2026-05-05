@@ -3,11 +3,12 @@ from __future__ import annotations
 import time
 import logging
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Any, Callable
 
 from adapters.feishu_client import FeishuClient, OAuthTokenBundle
 from adapters.feishu_tools import create_feishu_tool_registry
 from config.loader import Settings
+from core.assistant_memory import apply_user_reply_to_pending_action, build_assistant_session, build_resumed_tool_call
 from core.agent_loop import MeetFlowAgentLoop
 from core.context import WorkflowContextBuilder
 from core.llm import GenerationSettings, LLMProvider, create_llm_provider
@@ -71,8 +72,18 @@ class MeetFlowAgent:
 
         try:
             decision = self.router.route(agent_input)
+            session = self._prepare_assistant_session(agent_input=agent_input, decision=decision, trace_id=trace_id)
             self._emit_workflow_started(agent_input=agent_input, decision=decision, allow_write=allow_write)
             self._emit_route_decision(trace_id=trace_id, decision=decision)
+            resumed = self._try_resume_pending_action(
+                agent_input=agent_input,
+                decision=decision,
+                trace_id=trace_id,
+            )
+            if resumed is not None:
+                self._save_result(resumed)
+                self._emit_workflow_finished(result=resumed, started_at=started_at)
+                return resumed
             if decision.status != "ready":
                 result = self._build_terminal_result(
                     trace_id=trace_id,
@@ -96,6 +107,8 @@ class MeetFlowAgent:
                 return result
 
             context = self.context_builder.build(agent_input=agent_input, decision=decision)
+            if session is not None:
+                context.raw_context["assistant_session"] = session.to_dict()
             required_tools = self._filter_required_tools(
                 required_tools=decision.required_tools,
                 allow_write=allow_write,
@@ -113,6 +126,8 @@ class MeetFlowAgent:
             )
             result.payload["decision"] = decision.to_dict()
             result.payload["effective_required_tools"] = required_tools
+            if isinstance(result.payload.get("agent_trace"), dict):
+                result.payload["agent_trace"]["route_decision"] = decision.to_dict()
 
             self._mark_idempotency(decision, result)
             self._save_result(result)
@@ -155,6 +170,114 @@ class MeetFlowAgent:
             else:
                 self.logger.info("写工具未开放，已从本次工具集中移除 tool=%s", tool_name)
         return read_only_tools
+
+    def _prepare_assistant_session(
+        self,
+        *,
+        agent_input: AgentInput,
+        decision: AgentDecision,
+        trace_id: str,
+    ) -> Any:
+        """创建或更新多轮助手会话。
+
+        会话 ID 会写回 payload，后续 ContextBuilder 和 AgentLoop 可以把 pending
+        action 与这次业务现场关联起来。
+        """
+
+        if self.storage is None:
+            return None
+        session = build_assistant_session(
+            actor=agent_input.actor,
+            source=agent_input.source,
+            workflow_type=decision.workflow_type,
+            payload=agent_input.payload,
+            trace_id=trace_id,
+        )
+        agent_input.payload.setdefault("assistant_session_id", session.session_id)
+        self.storage.save_assistant_session(session)
+        return session
+
+    def _try_resume_pending_action(
+        self,
+        *,
+        agent_input: AgentInput,
+        decision: AgentDecision,
+        trace_id: str,
+    ) -> AgentRunResult | None:
+        """用户补字段后恢复最近的 pending action。
+
+        该恢复步骤只合并字段并生成可重新审核的工具调用描述，不在这里绕过
+        AgentPolicy 直接写飞书。真实执行可以由卡片确认或后续显式写入入口触发。
+        """
+
+        if self.storage is None:
+            return None
+        payload = agent_input.payload
+        should_resume = bool(payload.get("resume_pending_action") or payload.get("pending_action_id"))
+        if agent_input.event_type == "message.command" and str(payload.get("text") or payload.get("message") or "").strip():
+            should_resume = should_resume or bool(payload.get("assistant_session_id"))
+        if not should_resume:
+            return None
+
+        action_id = str(payload.get("pending_action_id") or "").strip()
+        action = self.storage.get_pending_action(action_id) if action_id else None
+        if action is None:
+            action = self.storage.find_latest_pending_action(
+                session_id=str(payload.get("assistant_session_id") or "").strip(),
+                actor=agent_input.actor,
+                workflow_type=decision.workflow_type if decision.workflow_type != "manual_qa" else "",
+            )
+        if action is None:
+            return None
+
+        reply = str(payload.get("reply") or payload.get("text") or payload.get("message") or "").strip()
+        patched = apply_user_reply_to_pending_action(
+            action,
+            reply,
+            actor_open_id=agent_input.actor,
+        )
+        self.storage.save_pending_action(patched)
+        if reply:
+            self.storage.mark_clarification_answered(patched.action_id, reply)
+
+        resumed_tool_call = build_resumed_tool_call(patched) if patched.status == "ready_to_resume" else None
+        payload_result = {
+            "pending_action": patched.to_dict(),
+            "resumed_tool_call": resumed_tool_call.to_dict() if resumed_tool_call else None,
+            "auto_resume": patched.status == "ready_to_resume",
+            "decision": decision.to_dict(),
+            "agent_trace": {
+                "trace_id": trace_id,
+                "workflow_type": patched.workflow_type or decision.workflow_type,
+                "route_decision": decision.to_dict(),
+                "status": "pending_action_resumed",
+                "final_answer_summary": patched.recovery_prompt[:500],
+                "assistant_plan": [
+                    "识别用户补字段消息",
+                    "恢复最近 pending action",
+                    "合并字段并准备重新进入 Policy",
+                ],
+                "tool_calls": [],
+                "policy_decisions": [],
+                "side_effects": [],
+            },
+        }
+        if patched.status == "ready_to_resume":
+            final_answer = "信息已补齐，已恢复刚才暂停的动作，下一步将重新经过 AgentPolicy 审核。"
+            status = "success"
+        else:
+            final_answer = patched.recovery_prompt
+            status = "needs_confirmation"
+        return AgentRunResult(
+            trace_id=trace_id,
+            workflow_type=patched.workflow_type or decision.workflow_type,
+            status=status,
+            summary=final_answer,
+            final_answer=final_answer,
+            next_actions=[patched.recovery_prompt],
+            payload=payload_result,
+            created_at=int(time.time()),
+        )
 
     def _resolve_workflow_runner(self, decision: AgentDecision) -> WorkflowRunner:
         """读取当前工作流对应的确定性骨架。"""
@@ -211,7 +334,20 @@ class MeetFlowAgent:
             status=status,
             summary=summary,
             final_answer=summary,
-            payload={"decision": decision.to_dict()},
+            payload={
+                "decision": decision.to_dict(),
+                "agent_trace": {
+                    "trace_id": trace_id,
+                    "workflow_type": decision.workflow_type,
+                    "route_decision": decision.to_dict(),
+                    "status": status,
+                    "final_answer_summary": summary[:500],
+                    "assistant_plan": [],
+                    "tool_calls": [],
+                    "policy_decisions": [],
+                    "side_effects": [],
+                },
+            },
             created_at=int(time.time()),
         )
 

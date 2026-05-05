@@ -177,6 +177,17 @@ def build_default_route_rules() -> list[RouteRule]:
             ],
         ),
         RouteRule(
+            event_type="card.post_meeting_task_review",
+            workflow_type="post_meeting_followup",
+            reason="用户在会后待确认任务卡片中确认、修改或拒绝任务，需要恢复 pending action 并进入受控确认链路。",
+            required_tools=[
+                "contact.get_current_user",
+                "contact.search_user",
+                "post_meeting.prepare_task",
+                "tasks.list_my_tasks",
+            ],
+        ),
+        RouteRule(
             event_type="risk.scan.tick",
             workflow_type="risk_scan",
             reason="定时风险巡检触发，需要读取任务状态并生成低噪声风险提醒。",

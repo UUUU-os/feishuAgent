@@ -19,7 +19,7 @@ class MigrationRunnerTest(unittest.TestCase):
             applied = runner.apply_pending()
             runner.verify()
 
-            self.assertGreaterEqual(len(applied), 5)
+            self.assertGreaterEqual(len(applied), 7)
             status = runner.status()
             self.assertEqual(status["pending_count"], 0)
 
@@ -55,6 +55,11 @@ class MigrationRunnerTest(unittest.TestCase):
                     "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'workflow_jobs'"
                 ).fetchone()
             self.assertIsNotNone(row)
+            with sqlite3.connect(db_path) as conn:
+                row = conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'pending_actions'"
+                ).fetchone()
+            self.assertIsNotNone(row)
 
     def test_migration_is_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -63,7 +68,7 @@ class MigrationRunnerTest(unittest.TestCase):
             first = runner.apply_pending()
             second = runner.apply_pending()
 
-            self.assertGreaterEqual(len(first), 5)
+            self.assertGreaterEqual(len(first), 7)
             self.assertEqual(second, [])
 
     def test_verify_reports_missing_required_table(self) -> None:

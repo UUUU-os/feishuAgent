@@ -6,6 +6,14 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.assistant_memory import build_clarification_question, create_pending_action_from_policy_decision
+from core.eval_trace import (
+    build_assistant_plan,
+    build_trace_from_state,
+    hash_arguments,
+    sanitize_value,
+    summarize_tool_result_data,
+)
 from core.llm import GenerationSettings, LLMProvider
 from core.logging import get_logger
 from core.models import AgentLoopState, AgentMessage, AgentRunResult, AgentToolResult, WorkflowContext
@@ -178,6 +186,14 @@ class MeetFlowAgentLoop:
             extra={
                 "required_tools": required_tools,
                 "workflow_goal": workflow_goal,
+                "started_at": int(time.time()),
+                "assistant_plan": build_assistant_plan(
+                    workflow_type=context.workflow_type,
+                    required_tools=required_tools,
+                    workflow_goal=workflow_goal,
+                ),
+                "tool_call_traces": [],
+                "policy_decisions": [],
             },
         )
         state.append_message(
@@ -214,8 +230,13 @@ class MeetFlowAgentLoop:
         )
 
         for tool_call in tool_calls:
+            tool = self.tool_registry.get(tool_call.tool_name)
+            schema_valid = True
+            try:
+                tool.validate_arguments(tool_call.arguments)
+            except Exception:
+                schema_valid = False
             if self.policy is not None:
-                tool = self.tool_registry.get(tool_call.tool_name)
                 decision = self.policy.authorize_tool_call(
                     context=context,
                     tool=tool,
@@ -235,7 +256,45 @@ class MeetFlowAgentLoop:
                     required_fields=decision.required_fields,
                     idempotency_key=decision.idempotency_key,
                 )
+                state.extra.setdefault("policy_decisions", []).append(
+                    {
+                        "tool_name": tool.internal_name,
+                        "side_effect": tool.side_effect,
+                        "status": decision.status,
+                        "reason": decision.reason,
+                        "required_fields": list(decision.required_fields),
+                        "idempotency_key_present": bool(decision.idempotency_key),
+                        "allow_write": allow_write,
+                    }
+                )
                 if not decision.is_allowed():
+                    pending_action_id = ""
+                    if decision.status == "needs_confirmation":
+                        pending_action_id = self._persist_pending_action(
+                            context=context,
+                            tool_name=tool.internal_name,
+                            tool_arguments=tool_call.arguments,
+                            decision=decision,
+                        )
+                    now = int(time.time())
+                    state.extra.setdefault("tool_call_traces", []).append(
+                        {
+                            "call_id": tool_call.call_id,
+                            "tool_name": tool.internal_name,
+                            "llm_tool_name": tool.llm_name,
+                            "arguments": sanitize_value(tool_call.arguments),
+                            "arguments_hash": hash_arguments(tool_call.arguments),
+                            "schema_valid": schema_valid,
+                            "status": decision.status,
+                            "result_summary": {
+                                "policy_status": decision.status,
+                                "required_fields": list(decision.required_fields),
+                                "pending_action_id": pending_action_id,
+                            },
+                            "started_at": now,
+                            "finished_at": now,
+                        }
+                    )
                     state.append_tool_result(
                         AgentToolResult(
                             call_id=tool_call.call_id,
@@ -245,7 +304,10 @@ class MeetFlowAgentLoop:
                                 f"工具 {tool.internal_name} 被 AgentPolicy 拦截："
                                 f"{decision.reason}"
                             ),
-                            data={"policy_decision": decision.to_dict()},
+                            data={
+                                "policy_decision": decision.to_dict(),
+                                "pending_action_id": pending_action_id,
+                            },
                             error_message=decision.reason,
                             started_at=int(time.time()),
                             finished_at=int(time.time()),
@@ -253,13 +315,76 @@ class MeetFlowAgentLoop:
                     )
                     continue
                 tool_call.arguments = decision.patched_arguments
+                schema_valid = True
+                try:
+                    tool.validate_arguments(tool_call.arguments)
+                except Exception:
+                    schema_valid = False
 
             result = self.tool_registry.execute(tool_call)
             if len(result.content) > self.max_tool_result_chars:
                 result.content = result.content[: self.max_tool_result_chars] + "\n...（工具结果已截断）"
+            state.extra.setdefault("tool_call_traces", []).append(
+                {
+                    "call_id": result.call_id,
+                    "tool_name": result.tool_name,
+                    "llm_tool_name": tool.llm_name,
+                    "arguments": sanitize_value(tool_call.arguments),
+                    "arguments_hash": hash_arguments(tool_call.arguments),
+                    "schema_valid": schema_valid,
+                    "status": result.status,
+                    "result_summary": summarize_tool_result_data(result.data),
+                    "started_at": result.started_at,
+                    "finished_at": result.finished_at,
+                }
+            )
             state.append_tool_result(result)
 
         state.pending_tool_calls = []
+
+    def _persist_pending_action(
+        self,
+        *,
+        context: WorkflowContext,
+        tool_name: str,
+        tool_arguments: dict[str, Any],
+        decision: Any,
+    ) -> str:
+        """把需要人工补字段的工具调用落成可恢复动作。
+
+        这里不执行任何外部副作用，只保存“刚才想做什么、缺什么、怎么恢复”。
+        用户补充字段后，恢复路径仍会重新进入 Policy。
+        """
+
+        if self.storage is None:
+            return ""
+        raw_session = context.raw_context.get("assistant_session")
+        session_id = ""
+        if isinstance(raw_session, dict):
+            session_id = str(raw_session.get("session_id") or "").strip()
+        if not session_id:
+            session_id = f"asst_{context.trace_id}"
+        action = create_pending_action_from_policy_decision(
+            context=context,
+            session_id=session_id,
+            tool_name=tool_name,
+            tool_arguments=tool_arguments,
+            decision=decision,
+        )
+        question = build_clarification_question(action)
+        self.storage.save_pending_action(action)
+        self.storage.save_clarification_question(question)
+        emit_structured_event(
+            "pending_action_saved",
+            trace_id=context.trace_id,
+            workflow_type=context.workflow_type,
+            action_id=action.action_id,
+            session_id=session_id,
+            tool_name=tool_name,
+            missing_fields=action.missing_fields,
+            recovery_prompt=action.recovery_prompt,
+        )
+        return action.action_id
 
     def _build_run_result(
         self,
@@ -271,16 +396,31 @@ class MeetFlowAgentLoop:
     ) -> AgentRunResult:
         """把 loop 状态转换为 AgentRunResult。"""
 
+        side_effects = collect_side_effects(self.tool_registry, state)
+        agent_trace = build_trace_from_state(
+            context=context,
+            state=state,
+            status=status,
+            final_answer=final_answer,
+            side_effects=side_effects,
+        )
+        intelligence_signals = build_intelligence_signals(
+            state=state,
+            required_tools=list(state.extra.get("required_tools") or []),
+        )
         return AgentRunResult(
             trace_id=context.trace_id,
             workflow_type=context.workflow_type,
             status=status,
             summary=build_result_summary(context.workflow_type, status, final_answer),
             final_answer=final_answer,
-            side_effects=collect_side_effects(self.tool_registry, state),
+            side_effects=side_effects,
             loop_state=state,
             payload={
                 "context": context.to_dict(),
+                "assistant_plan": list(state.extra.get("assistant_plan") or []),
+                "intelligence_signals": intelligence_signals,
+                "agent_trace": agent_trace.to_dict(),
                 **(payload or {}),
             },
             created_at=int(time.time()),
@@ -293,9 +433,12 @@ def build_system_prompt(workflow_type: str, required_tools: list[str]) -> str:
     tools_text = "\n".join(f"- {tool}" for tool in required_tools) or "- 无"
     return (
         "你是 MeetFlow，一个飞书会议知识闭环垂直 Agent。\n"
-        "你必须基于工具结果和上下文回答，不要编造不存在的飞书数据。\n"
-        "如果需要外部信息，优先调用可用工具；如果工具失败，需要说明失败原因并给出降级建议。\n"
-        "写操作只表示请求执行，后续会由 AgentPolicy 决定是否允许自动执行。\n\n"
+        "你不是普通问答机器人，而是会议助手：需要理解会议上下文、选择工具、基于证据推进下一步。\n"
+        "你必须先形成简短计划，再根据可用工具逐步补证据；不要编造不存在的飞书数据。\n"
+        "如果缺负责人、截止时间、目标群或证据不足，要主动提出澄清问题，而不是盲目执行。\n"
+        "如果工具失败，需要说明失败原因、保留已知事实，并给出可恢复的下一步建议。\n"
+        "写操作只表示请求执行，后续会由 AgentPolicy 决定是否允许自动执行。\n"
+        "最终回答必须包含：已确认事实、证据/工具来源、阻塞点、建议下一步。\n\n"
         f"当前工作流：{workflow_type}\n"
         f"本次允许使用的内部工具：\n{tools_text}"
     )
@@ -353,3 +496,50 @@ def build_result_summary(workflow_type: str, status: str, final_answer: str) -> 
     if final_answer:
         return final_answer[:120]
     return f"{workflow_type} finished with status={status}"
+
+
+def build_intelligence_signals(state: AgentLoopState, required_tools: list[str]) -> dict[str, Any]:
+    """生成用于产品和评测的智能化行为信号。"""
+
+    tool_traces = list(state.extra.get("tool_call_traces") or [])
+    policy_decisions = list(state.extra.get("policy_decisions") or [])
+    called_tools = [str(item.get("tool_name", "")) for item in tool_traces if isinstance(item, dict)]
+    required_set = set(required_tools)
+    called_set = set(called_tools)
+    missing_required_tools = sorted(required_set - called_set)
+    blocked_tools = [
+        {
+            "tool_name": item.get("tool_name", ""),
+            "status": item.get("status", ""),
+            "required_fields": item.get("required_fields", []),
+        }
+        for item in policy_decisions
+        if isinstance(item, dict) and item.get("status") in {"blocked", "needs_confirmation"}
+    ]
+    return {
+        "planned_step_count": len(state.extra.get("assistant_plan") or []),
+        "tool_call_count": len(called_tools),
+        "called_tools": called_tools,
+        "missing_required_tools": missing_required_tools,
+        "blocked_tools": blocked_tools,
+        "needs_clarification": any(item.get("status") == "needs_confirmation" for item in policy_decisions if isinstance(item, dict)),
+        "used_tool_results": any(result.is_success() for result in state.tool_results),
+        "next_best_action": build_next_best_action(blocked_tools, missing_required_tools),
+    }
+
+
+def build_next_best_action(
+    blocked_tools: list[dict[str, Any]],
+    missing_required_tools: list[str],
+) -> str:
+    """根据运行轨迹给出下一步建议。"""
+
+    if blocked_tools:
+        first = blocked_tools[0]
+        fields = first.get("required_fields") or []
+        if fields:
+            return "请补充 " + "、".join(str(field) for field in fields) + " 后继续。"
+        return f"请确认工具 {first.get('tool_name', '')} 的执行条件后继续。"
+    if missing_required_tools:
+        return "建议补充调用缺失工具：" + "、".join(missing_required_tools)
+    return "可以基于当前工具结果输出结论或进入下一步工作流。"

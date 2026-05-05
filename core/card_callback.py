@@ -67,6 +67,7 @@ def handle_post_meeting_card_callback(
     if not action:
         return CardCallbackResult(status="ignored", message="未识别到卡片动作。")
 
+    sync_review_session_audit(storage=storage, settings=settings, action_value=action_value)
     state_guard = guard_pending_action_transition(settings=settings, action_value=action_value, action=action)
     if state_guard is not None:
         response_card = build_card_from_callback_value(
@@ -89,6 +90,7 @@ def handle_post_meeting_card_callback(
             action_value=action_value,
             card=response_card,
         )
+        sync_review_session_audit(storage=storage, settings=settings, action_value=action_value)
         state_guard.response_card = response_card
         return state_guard
 
@@ -142,6 +144,7 @@ def handle_post_meeting_card_callback(
             status="reject_create_task",
             result={"status": "success", "message": f"已拒绝创建任务 {item_id}。"},
         )
+        sync_review_session_audit(storage=storage, settings=settings, action_value=merged_action_value)
         append_card_callback_log(settings, payload=payload, action_value=action_value, status="rejected")
         apply_callback_card_update(
             client=client,
@@ -156,7 +159,9 @@ def handle_post_meeting_card_callback(
             response_card=response_card,
         )
     if action == "edit_task_fields":
-        return handle_edit_task_fields(action_value=action_value, payload=payload, settings=settings, client=client)
+        result = handle_edit_task_fields(action_value=action_value, payload=payload, settings=settings, client=client)
+        sync_review_session_audit(storage=storage, settings=settings, action_value=merge_cached_action_value(settings, action_value))
+        return result
     return CardCallbackResult(status="ignored", message=f"暂不支持的卡片动作：{action}")
 
 
@@ -277,6 +282,7 @@ def confirm_create_task_from_card(
         status="created",
         result={"status": "success", "message": f"已创建任务：{action_item.title}", "task_mapping": mapping},
     )
+    sync_review_session_audit(storage=storage, settings=settings, action_value=merged_action_value)
     append_card_callback_log(
         settings,
         payload=payload,
@@ -901,6 +907,52 @@ def build_card_from_callback_value(
         status_message=status_message,
         status_kind=status_kind,
         task_url=task_url,
+    )
+
+
+def sync_review_session_audit(
+    *,
+    storage: MeetFlowStorage,
+    settings: Settings,
+    action_value: dict[str, Any],
+) -> None:
+    """把 M4 卡片确认批次同步到 SQLite 审计表。
+
+    真实群聊里同一妙记可能重复发卡。JSON registry 负责当前状态判断，
+    SQLite review_sessions 负责把“这一批卡片确认到了哪一步”变成可查询事实。
+    """
+
+    review_session_id = str(action_value.get("review_session_id") or "").strip()
+    if not review_session_id:
+        return
+    records = load_pending_action_records(settings)
+    related_records = [
+        record
+        for record in records.values()
+        if isinstance(record, dict) and extract_record_review_session_id(record) == review_session_id
+    ]
+    pending_count = sum(1 for record in related_records if str(record.get("status") or "pending") == "pending")
+    created_count = sum(1 for record in related_records if str(record.get("status") or "") == "created")
+    rejected_count = sum(1 for record in related_records if str(record.get("status") or "") == "reject_create_task")
+    if related_records and pending_count == 0:
+        status = "completed"
+    else:
+        status = "pending"
+    storage.save_review_session(
+        review_session_id=review_session_id,
+        workflow_type="post_meeting_followup",
+        meeting_id=str(action_value.get("meeting_id") or ""),
+        minute_token=str(action_value.get("minute_token") or ""),
+        chat_id=str(action_value.get("chat_id") or ""),
+        status=status,
+        pending_count=pending_count,
+        created_count=created_count,
+        rejected_count=rejected_count,
+        payload={
+            "item_id": action_value.get("item_id", ""),
+            "latest_action": action_value.get("action", ""),
+            "related_record_count": len(related_records),
+        },
     )
 
 

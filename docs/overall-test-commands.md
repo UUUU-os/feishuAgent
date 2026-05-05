@@ -35,6 +35,21 @@ LLM Agent 评测体系的指标、报告 schema 和落地计划见
 cd /home/tanyd/ye/workhard/feishuAgent-main
 ```
 
+Python 环境约定：
+
+```text
+主业务环境：/home/tanyd/anaconda3/envs/meetflow/bin/python
+飞书 SDK 隔离环境：/home/tanyd/ye/workhard/feishuAgent-main/.venv-lark-oapi/bin/python
+```
+
+主业务环境用于 `core/`、`adapters/`、`scripts/meetflow_worker.py`、HTTP fallback
+和所有单元测试。飞书 SDK 隔离环境只用于 `scripts/feishu_event_sdk_server.py`，
+它单独安装 `lark-oapi` 和 `protobuf<4`，避免污染主环境。
+
+注意：不要用系统 `python3` 创建 `.venv-lark-oapi`。如果系统 Python 是 3.8，
+会触发 `dataclass(slots=True)` 兼容性错误；必须用主 `meetflow` 环境的
+Python 3.10 创建或重建。
+
 编译检查：
 
 ```bash
@@ -52,6 +67,7 @@ cd /home/tanyd/ye/workhard/feishuAgent-main
 
 ```bash
 /home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest \
+  tests.test_assistant_memory \
   tests.test_feishu_callback_dispatcher \
   tests.test_post_meeting_card_callback \
   tests.test_risk_scan \
@@ -67,6 +83,21 @@ cd /home/tanyd/ye/workhard/feishuAgent-main
 /home/tanyd/anaconda3/envs/meetflow/bin/python scripts/storage_migrate.py --status
 /home/tanyd/anaconda3/envs/meetflow/bin/python scripts/storage_migrate.py --verify
 /home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_migrations
+```
+
+多轮会话记忆 / pending action 恢复：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_assistant_memory
+```
+
+这组命令重点检查：
+
+```text
+AgentPolicy 返回 needs_confirmation 时是否落库 pending_actions
+clarification_questions 是否记录需要用户补充的字段
+用户补充负责人 / 截止时间后是否把 pending action 标记为 ready_to_resume
+恢复后的工具调用描述是否仍准备重新进入 AgentPolicy，而不是绕过策略直接写飞书
 ```
 
 Job queue / worker：
@@ -92,18 +123,75 @@ Job queue / worker：
   --write-report
 ```
 
+Agent 轨迹与智能度评测：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest \
+  tests.test_assistant_memory \
+  tests.test_eval_trace \
+  tests.test_eval_metrics \
+  tests.test_agent_eval_suite
+```
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/agent_eval_suite.py \
+  --suite agent_trajectory \
+  --provider scripted_debug \
+  --fail-under 0.95
+```
+
+写入 Agent 轨迹评测报告：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/agent_eval_suite.py \
+  --suite agent_trajectory \
+  --provider scripted_debug \
+  --fail-under 0.95 \
+  --write-report
+```
+
+这组命令重点检查：
+
+```text
+Agent 是否按预期调用工具
+是否满足先读后写、先解析负责人再建任务等顺序约束
+写操作是否有 Policy 轨迹
+未授权写操作是否被阻止
+评测报告中是否没有 token / secret / API key
+```
+
 ## 3. SDK / 回调入口检查
+
+准备或修复 SDK 隔离环境：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/setup_lark_oapi_venv.py
+```
+
+如果之前执行过 `python3 scripts/setup_lark_oapi_venv.py`，或遇到
+`.venv-lark-oapi/bin/python: No such file or directory`、Python 3.8 下的
+`dataclass(slots=True)` 兼容性错误，用主环境重建：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/setup_lark_oapi_venv.py --recreate
+```
+
+确认 SDK 隔离环境 Python 版本：
+
+```bash
+/home/tanyd/ye/workhard/feishuAgent-main/.venv-lark-oapi/bin/python -V
+```
 
 SDK import：
 
 ```bash
-.venv-lark-oapi/bin/python -c "import scripts.feishu_event_sdk_server; print('sdk server import ok')"
+/home/tanyd/ye/workhard/feishuAgent-main/.venv-lark-oapi/bin/python -c "import lark_oapi; import scripts.feishu_event_sdk_server; print('sdk server import ok')"
 ```
 
 SDK 回调 dry-run：
 
 ```bash
-.venv-lark-oapi/bin/python scripts/feishu_event_sdk_server.py \
+/home/tanyd/ye/workhard/feishuAgent-main/.venv-lark-oapi/bin/python scripts/feishu_event_sdk_server.py \
   --dry-run \
   --log-level debug
 ```
@@ -111,7 +199,7 @@ SDK 回调 dry-run：
 SDK 回调入队模式：
 
 ```bash
-.venv-lark-oapi/bin/python scripts/feishu_event_sdk_server.py \
+/home/tanyd/ye/workhard/feishuAgent-main/.venv-lark-oapi/bin/python scripts/feishu_event_sdk_server.py \
   --enqueue-agent \
   --agent-provider dry-run \
   --job-queue workflow \
@@ -276,6 +364,23 @@ kill <PID>
 确认创建 / 保存修改 / 拒绝创建 按钮
 ```
 
+M4 按钮确认闭环回归：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest \
+  tests.test_card_actions \
+  tests.test_post_meeting_card_callback
+```
+
+这组命令重点检查：
+
+```text
+confirm_create_task / edit_task_fields / reject_create_task 是否被 CardActionRouter 识别
+保存修改后点击确认是否能复用 registry 中已补字段
+review_session_id 是否进入幂等键和 SQLite review_sessions 审计
+重复发卡后旧卡是否被拦截，新卡是否可重新确认
+```
+
 ## 8. M5 风险巡检测试
 
 直接执行并允许发送：
@@ -396,4 +501,9 @@ git check-ignore -v config/settings.local.json .venv-lark-oapi storage/reports s
   先跑 scripted_debug
   再小样本真实 provider
   不允许把真实 API key 写入命令或文档
+
+改 Agent prompt / tool schema / Policy / AgentLoop：
+  跑 tests.test_eval_trace tests.test_eval_metrics tests.test_agent_eval_suite
+  跑 scripts/agent_eval_suite.py --suite agent_trajectory --provider scripted_debug --fail-under 0.95
+  再跑全量 unittest 和 e2e_replay
 ```

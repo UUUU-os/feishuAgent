@@ -164,6 +164,58 @@ class MigrationRunner:
                     "created_at",
                     "updated_at",
                 ),
+                "assistant_sessions": (
+                    "session_id",
+                    "actor",
+                    "source",
+                    "workflow_type",
+                    "status",
+                    "memory_json",
+                    "last_trace_id",
+                    "created_at",
+                    "updated_at",
+                ),
+                "pending_actions": (
+                    "action_id",
+                    "session_id",
+                    "trace_id",
+                    "workflow_type",
+                    "tool_name",
+                    "tool_arguments_json",
+                    "missing_fields_json",
+                    "status",
+                    "policy_reason",
+                    "idempotency_key",
+                    "recovery_prompt",
+                    "metadata_json",
+                    "created_at",
+                    "updated_at",
+                ),
+                "clarification_questions": (
+                    "question_id",
+                    "action_id",
+                    "session_id",
+                    "question",
+                    "missing_fields_json",
+                    "status",
+                    "answer",
+                    "created_at",
+                    "answered_at",
+                ),
+                "review_sessions": (
+                    "review_session_id",
+                    "workflow_type",
+                    "meeting_id",
+                    "minute_token",
+                    "chat_id",
+                    "status",
+                    "pending_count",
+                    "created_count",
+                    "rejected_count",
+                    "payload_json",
+                    "created_at",
+                    "updated_at",
+                ),
             }
             for table_name, columns in required_tables.items():
                 if not table_exists(conn, table_name):
@@ -265,6 +317,18 @@ def get_builtin_migrations() -> tuple[Migration, ...]:
             name="callback_review_session_fields",
             apply=_migration_0005_callback_review_session_fields,
             notes=("review_session_id", "confirmation_status", "confirmed_at"),
+        ),
+        Migration(
+            version=6,
+            name="assistant_memory_and_review_sessions",
+            apply=_migration_0006_assistant_memory_and_review_sessions,
+            notes=("assistant_sessions", "pending_actions", "clarification_questions", "review_sessions"),
+        ),
+        Migration(
+            version=7,
+            name="assistant_memory_schema_backfill",
+            apply=_migration_0007_assistant_memory_schema_backfill,
+            notes=("assistant_sessions_backfill", "pending_actions_backfill", "review_sessions_backfill"),
         ),
     )
 
@@ -427,3 +491,144 @@ def _migration_0005_callback_review_session_fields(conn: sqlite3.Connection) -> 
         "confirmed_at": "INTEGER NOT NULL DEFAULT 0",
     }.items():
         add_column_if_missing(conn, "task_mappings", column_name, column_sql)
+
+
+def _migration_0006_assistant_memory_and_review_sessions(conn: sqlite3.Connection) -> None:
+    """创建多轮会话、pending action 和 M4 review session 审计表。
+
+    这些表把“用户补字段后恢复动作”从日志文本升级成结构化状态。外部写操作
+    仍然由 ToolRegistry + AgentPolicy 执行，状态表只负责记忆和恢复现场。
+    """
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS assistant_sessions (
+            session_id TEXT PRIMARY KEY,
+            actor TEXT NOT NULL DEFAULT '',
+            source TEXT NOT NULL DEFAULT '',
+            workflow_type TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'active',
+            memory_json TEXT NOT NULL DEFAULT '{}',
+            last_trace_id TEXT NOT NULL DEFAULT '',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS pending_actions (
+            action_id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            trace_id TEXT NOT NULL,
+            workflow_type TEXT NOT NULL,
+            tool_name TEXT NOT NULL,
+            tool_arguments_json TEXT NOT NULL DEFAULT '{}',
+            missing_fields_json TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL DEFAULT 'pending',
+            policy_reason TEXT NOT NULL DEFAULT '',
+            idempotency_key TEXT NOT NULL DEFAULT '',
+            recovery_prompt TEXT NOT NULL DEFAULT '',
+            metadata_json TEXT NOT NULL DEFAULT '{}',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS clarification_questions (
+            question_id TEXT PRIMARY KEY,
+            action_id TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            question TEXT NOT NULL,
+            missing_fields_json TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL DEFAULT 'open',
+            answer TEXT NOT NULL DEFAULT '',
+            created_at INTEGER NOT NULL,
+            answered_at INTEGER NOT NULL DEFAULT 0
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS review_sessions (
+            review_session_id TEXT PRIMARY KEY,
+            workflow_type TEXT NOT NULL DEFAULT 'post_meeting_followup',
+            meeting_id TEXT NOT NULL DEFAULT '',
+            minute_token TEXT NOT NULL DEFAULT '',
+            chat_id TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'pending',
+            pending_count INTEGER NOT NULL DEFAULT 0,
+            created_count INTEGER NOT NULL DEFAULT 0,
+            rejected_count INTEGER NOT NULL DEFAULT 0,
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )
+        """
+    )
+    create_index_if_missing(
+        conn,
+        "idx_pending_actions_session_status",
+        """
+        CREATE INDEX IF NOT EXISTS idx_pending_actions_session_status
+        ON pending_actions(session_id, status, updated_at)
+        """,
+    )
+    create_index_if_missing(
+        conn,
+        "idx_review_sessions_meeting",
+        """
+        CREATE INDEX IF NOT EXISTS idx_review_sessions_meeting
+        ON review_sessions(meeting_id, minute_token, updated_at)
+        """,
+    )
+
+
+def _migration_0007_assistant_memory_schema_backfill(conn: sqlite3.Connection) -> None:
+    """补齐早期实验库中不完整的助手记忆表。
+
+    真实开发库可能已经由旧脚本创建过 `assistant_sessions` 或 `pending_actions`
+    的半成品表。version 6 对新库没问题，但旧库需要继续幂等补列。
+    """
+
+    _migration_0006_assistant_memory_and_review_sessions(conn)
+    for column_name, column_sql in {
+        "actor": "TEXT NOT NULL DEFAULT ''",
+        "source": "TEXT NOT NULL DEFAULT ''",
+        "workflow_type": "TEXT NOT NULL DEFAULT ''",
+        "status": "TEXT NOT NULL DEFAULT 'active'",
+        "memory_json": "TEXT NOT NULL DEFAULT '{}'",
+        "last_trace_id": "TEXT NOT NULL DEFAULT ''",
+        "created_at": "INTEGER NOT NULL DEFAULT 0",
+        "updated_at": "INTEGER NOT NULL DEFAULT 0",
+    }.items():
+        add_column_if_missing(conn, "assistant_sessions", column_name, column_sql)
+    for column_name, column_sql in {
+        "session_id": "TEXT NOT NULL DEFAULT ''",
+        "trace_id": "TEXT NOT NULL DEFAULT ''",
+        "workflow_type": "TEXT NOT NULL DEFAULT ''",
+        "tool_name": "TEXT NOT NULL DEFAULT ''",
+        "tool_arguments_json": "TEXT NOT NULL DEFAULT '{}'",
+        "missing_fields_json": "TEXT NOT NULL DEFAULT '[]'",
+        "status": "TEXT NOT NULL DEFAULT 'pending'",
+        "policy_reason": "TEXT NOT NULL DEFAULT ''",
+        "idempotency_key": "TEXT NOT NULL DEFAULT ''",
+        "recovery_prompt": "TEXT NOT NULL DEFAULT ''",
+        "metadata_json": "TEXT NOT NULL DEFAULT '{}'",
+        "created_at": "INTEGER NOT NULL DEFAULT 0",
+        "updated_at": "INTEGER NOT NULL DEFAULT 0",
+    }.items():
+        add_column_if_missing(conn, "pending_actions", column_name, column_sql)
+    for column_name, column_sql in {
+        "action_id": "TEXT NOT NULL DEFAULT ''",
+        "session_id": "TEXT NOT NULL DEFAULT ''",
+        "question": "TEXT NOT NULL DEFAULT ''",
+        "missing_fields_json": "TEXT NOT NULL DEFAULT '[]'",
+        "status": "TEXT NOT NULL DEFAULT 'open'",
+        "answer": "TEXT NOT NULL DEFAULT ''",
+        "created_at": "INTEGER NOT NULL DEFAULT 0",
+        "answered_at": "INTEGER NOT NULL DEFAULT 0",
+    }.items():
+        add_column_if_missing(conn, "clarification_questions", column_name, column_sql)

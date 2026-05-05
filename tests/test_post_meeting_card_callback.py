@@ -535,6 +535,50 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
             "post_meeting_card:minute_test_001:action_test_001:session_2",
         )
 
+    def test_reject_callback_updates_review_session_audit(self) -> None:
+        save_pending_action_values(
+            self.settings,
+            [
+                {
+                    "action": "reject_create_task",
+                    "item_id": "action_test_001",
+                    "title": "整理答辩材料",
+                    "review_session_id": "session_audit_001",
+                    "meeting_id": "meeting_test_001",
+                    "minute_token": "minute_test_001",
+                }
+            ],
+            source={"chat_id": "oc_test_chat", "review_session_id": "session_audit_001"},
+        )
+        payload = {
+            "event": {
+                "action": {
+                    "value": {
+                        "action": "reject_create_task",
+                        "item_id": "action_test_001",
+                        "review_session_id": "session_audit_001",
+                        "meeting_id": "meeting_test_001",
+                        "minute_token": "minute_test_001",
+                    }
+                }
+            }
+        }
+
+        result = handle_post_meeting_card_callback(
+            payload=payload,
+            settings=self.settings,
+            client=FakeFeishuClient(),
+            storage=self.storage,
+            policy=AgentPolicy(),
+        )
+
+        self.assertEqual(result.status, "success")
+        review_session = self.storage.get_review_session("session_audit_001")
+        self.assertIsNotNone(review_session)
+        assert review_session is not None
+        self.assertEqual(review_session["status"], "completed")
+        self.assertEqual(review_session["rejected_count"], 1)
+
     def test_normalize_due_date_override_accepts_slash_date(self) -> None:
         self.assertEqual(normalize_due_date_override("2025/5/3"), "2025-05-03")
         self.assertEqual(normalize_due_date_override("2025/05/03"), "2025-05-03")

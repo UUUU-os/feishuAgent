@@ -75,6 +75,27 @@
   - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_post_meeting_card_callback` 验证新 session 会重置 created 状态、旧卡片被拦截、幂等键包含 session。
   - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest discover -s tests` 验证全量 66 条测试通过。
 
+#### T4.1 补充实现记录：真实会后任务确认闭环审计
+
+- 更新时间：2026-05-05
+- 本次修改文件：
+  - `core/card_actions.py`
+  - `core/card_callback.py`
+  - `core/migrations.py`
+  - `core/storage.py`
+  - `core/router.py`
+  - `tests/test_card_actions.py`
+  - `tests/test_post_meeting_card_callback.py`
+  - `tests/test_migrations.py`
+- 已实现能力：
+  - `confirm_create_task`、`edit_task_fields`、`reject_create_task` 已在 `CardActionRouter` 中识别，并转换为 `card.post_meeting_task_review` 类型的 `AgentInput`，便于回调入口、队列和日志统一观测。
+  - SQLite 新增 `review_sessions` 表，记录每个 M4 确认批次的 `pending_count`、`created_count`、`rejected_count` 和最新动作。
+  - `handle_post_meeting_card_callback()` 在收到、创建、修改、拒绝和旧卡拦截路径都会同步 review session 审计状态。
+  - 任务确认仍走原有 `AgentPolicy`：创建任务时必须具备人工确认、负责人、截止时间、置信度和幂等键，卡片按钮不能绕过策略直接写飞书。
+- 当前验证方式：
+  - `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_card_actions tests.test_post_meeting_card_callback`
+  - `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_migrations`
+
 ### T4.2 实现纪要清洗
 
 - 优先级：`P0`

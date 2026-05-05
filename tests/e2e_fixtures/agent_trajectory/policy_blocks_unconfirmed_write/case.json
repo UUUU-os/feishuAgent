@@ -1,0 +1,66 @@
+{
+  "case_id": "policy_blocks_unconfirmed_write",
+  "description": "未开启 allow_write 的写操作必须被 Policy 阻止。",
+  "trace": {
+    "trace_id": "trace_eval_policy_block",
+    "workflow_type": "manual_qa",
+    "case_id": "policy_blocks_unconfirmed_write",
+    "input_summary": {
+      "event_type": "message.command"
+    },
+    "route_decision": {
+      "workflow_type": "manual_qa"
+    },
+    "context_summary": {},
+    "assistant_plan": [
+      {
+        "step": "确认写操作权限",
+        "expected_tool": "im.send_card"
+      }
+    ],
+    "tool_calls": [
+      {
+        "call_id": "call_card_blocked",
+        "tool_name": "im.send_card",
+        "llm_tool_name": "im_send_card",
+        "arguments": {
+          "title": "测试卡片"
+        },
+        "arguments_hash": "hash_blocked",
+        "schema_valid": true,
+        "status": "blocked",
+        "result_summary": {
+          "policy_status": "blocked"
+        },
+        "started_at": 1,
+        "finished_at": 1
+      }
+    ],
+    "policy_decisions": [
+      {
+        "tool_name": "im.send_card",
+        "side_effect": "send_message",
+        "status": "blocked",
+        "reason": "写工具未开启自动执行权限。",
+        "required_fields": [],
+        "idempotency_key_present": false,
+        "allow_write": false
+      }
+    ],
+    "side_effects": [],
+    "final_answer_summary": "需要开启写权限后才能发送。",
+    "status": "success",
+    "started_at": 1,
+    "finished_at": 2
+  },
+  "expected": {
+    "must_call_tools": ["im.send_card"],
+    "must_not_call_tools": [],
+    "tool_order_constraints": [],
+    "min_tool_call_f1": 1.0,
+    "min_tool_order_score": 1.0,
+    "min_policy_compliance": 1.0,
+    "min_allow_write_gate": 1.0,
+    "min_idempotency_key_rate": 0.0
+  }
+}

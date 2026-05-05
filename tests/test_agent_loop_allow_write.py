@@ -112,6 +112,11 @@ class MeetFlowAgentLoopAllowWriteTest(unittest.TestCase):
         self.assertEqual(first_result.loop_state.tool_results[0].status, "blocked")
         self.assertEqual(second_result.loop_state.tool_results[0].status, "success")
         self.assertEqual(self.executed_titles, ["demo"])
+        self.assertIn("agent_trace", second_result.payload)
+        self.assertIn("intelligence_signals", second_result.payload)
+        self.assertEqual(second_result.payload["agent_trace"]["tool_calls"][0]["tool_name"], "im.send_card")
+        self.assertEqual(second_result.payload["agent_trace"]["policy_decisions"][0]["status"], "allow")
+        self.assertEqual(second_result.payload["intelligence_signals"]["called_tools"], ["im.send_card"])
 
 
 if __name__ == "__main__":

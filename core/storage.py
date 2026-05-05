@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from config import StorageSettings
+from core.assistant_memory import AssistantSession, ClarificationQuestion, PendingAction
 from core.logging import get_logger
 from core.migrations import MigrationRunner
 from core.models import WorkflowResult
@@ -177,6 +178,322 @@ class MeetFlowStorage:
                 (idempotency_key,),
             ).fetchone()
         return row is not None
+
+    def save_assistant_session(self, session: AssistantSession) -> None:
+        """保存或更新助手会话。
+
+        会话只保存业务现场和非敏感摘要，不保存完整 token 或外部 API 原始响应。
+        """
+
+        now = int(time.time())
+        created_at = int(session.created_at or now)
+        updated_at = int(session.updated_at or now)
+        with sqlite3.connect(self.db_path) as conn:
+            table_columns = self._get_table_columns(conn, "assistant_sessions")
+            memory_json = json.dumps(session.memory, ensure_ascii=False)
+            legacy_state = {
+                "actor": session.actor,
+                "source": session.source,
+                "workflow_type": session.workflow_type,
+                "memory": session.memory,
+            }
+            values = {
+                "session_id": session.session_id,
+                "actor": session.actor,
+                "source": session.source,
+                "workflow_type": session.workflow_type,
+                "status": session.status,
+                "memory_json": memory_json,
+                "last_trace_id": session.last_trace_id,
+                "created_at": created_at,
+                "updated_at": updated_at,
+                # 兼容早期实验库遗留的 NOT NULL 字段。新代码以 actor/memory_json
+                # 为准，但旧字段仍需要写入非空值，否则真实联调库会插入失败。
+                "user_id": session.actor,
+                "chat_id": str(session.memory.get("chat_id") or ""),
+                "current_workflow": session.workflow_type,
+                "current_meeting_id": str(session.memory.get("meeting_id") or ""),
+                "current_project_id": str(session.memory.get("project_id") or ""),
+                "state_json": json.dumps(legacy_state, ensure_ascii=False),
+                "expires_at": updated_at + 30 * 24 * 60 * 60,
+            }
+            insert_columns = [column for column in values if column in table_columns]
+            update_columns = [
+                column
+                for column in insert_columns
+                if column not in {"session_id", "created_at"}
+            ]
+            placeholders = ", ".join("?" for _ in insert_columns)
+            update_clause = ",\n                    ".join(
+                f"{column} = excluded.{column}" for column in update_columns
+            )
+            conn.execute(
+                f"""
+                INSERT INTO assistant_sessions (
+                    {", ".join(insert_columns)}
+                ) VALUES ({placeholders})
+                ON CONFLICT(session_id) DO UPDATE SET
+                    {update_clause}
+                """,
+                tuple(values[column] for column in insert_columns),
+            )
+            conn.commit()
+
+    def get_assistant_session(self, session_id: str) -> dict[str, Any] | None:
+        """按 session_id 读取助手会话。"""
+
+        if not session_id:
+            return None
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM assistant_sessions WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+        return self._normalize_json_row(row, {"memory_json": "memory"})
+
+    def find_latest_assistant_session(self, actor: str = "", workflow_type: str = "") -> dict[str, Any] | None:
+        """按用户和工作流回查最近活跃会话，用于自然语言补字段。"""
+
+        clauses = ["status = 'active'"]
+        params: list[Any] = []
+        if actor:
+            clauses.append("actor = ?")
+            params.append(actor)
+        if workflow_type:
+            clauses.append("workflow_type = ?")
+            params.append(workflow_type)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                f"""
+                SELECT *
+                FROM assistant_sessions
+                WHERE {" AND ".join(clauses)}
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                params,
+            ).fetchone()
+        return self._normalize_json_row(row, {"memory_json": "memory"})
+
+    def save_pending_action(self, action: PendingAction) -> None:
+        """保存一个可恢复 pending action。"""
+
+        now = int(time.time())
+        created_at = int(action.created_at or now)
+        updated_at = int(action.updated_at or now)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO pending_actions (
+                    action_id, session_id, trace_id, workflow_type, tool_name,
+                    tool_arguments_json, missing_fields_json, status, policy_reason,
+                    idempotency_key, recovery_prompt, metadata_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(action_id) DO UPDATE SET
+                    session_id = excluded.session_id,
+                    trace_id = excluded.trace_id,
+                    workflow_type = excluded.workflow_type,
+                    tool_name = excluded.tool_name,
+                    tool_arguments_json = excluded.tool_arguments_json,
+                    missing_fields_json = excluded.missing_fields_json,
+                    status = excluded.status,
+                    policy_reason = excluded.policy_reason,
+                    idempotency_key = excluded.idempotency_key,
+                    recovery_prompt = excluded.recovery_prompt,
+                    metadata_json = excluded.metadata_json,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    action.action_id,
+                    action.session_id,
+                    action.trace_id,
+                    action.workflow_type,
+                    action.tool_name,
+                    json.dumps(action.tool_arguments, ensure_ascii=False),
+                    json.dumps(action.missing_fields, ensure_ascii=False),
+                    action.status,
+                    action.policy_reason,
+                    action.idempotency_key,
+                    action.recovery_prompt,
+                    json.dumps(action.metadata, ensure_ascii=False),
+                    created_at,
+                    updated_at,
+                ),
+            )
+            conn.commit()
+
+    def get_pending_action(self, action_id: str) -> PendingAction | None:
+        """读取 pending action 并恢复为模型。"""
+
+        if not action_id:
+            return None
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM pending_actions WHERE action_id = ?", (action_id,)).fetchone()
+        return self._pending_action_from_row(row)
+
+    def find_latest_pending_action(
+        self,
+        *,
+        session_id: str = "",
+        actor: str = "",
+        workflow_type: str = "",
+        statuses: set[str] | None = None,
+    ) -> PendingAction | None:
+        """查找最近一个仍可恢复的 pending action。"""
+
+        status_values = statuses or {"pending", "ready_to_resume"}
+        clauses = [f"pa.status IN ({','.join(['?'] * len(status_values))})"]
+        params: list[Any] = list(status_values)
+        if session_id:
+            clauses.append("pa.session_id = ?")
+            params.append(session_id)
+        if workflow_type:
+            clauses.append("pa.workflow_type = ?")
+            params.append(workflow_type)
+        if actor:
+            clauses.append("s.actor = ?")
+            params.append(actor)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                f"""
+                SELECT pa.*
+                FROM pending_actions pa
+                LEFT JOIN assistant_sessions s ON s.session_id = pa.session_id
+                WHERE {" AND ".join(clauses)}
+                ORDER BY pa.updated_at DESC
+                LIMIT 1
+                """,
+                params,
+            ).fetchone()
+        return self._pending_action_from_row(row)
+
+    def update_pending_action_status(self, action_id: str, status: str) -> None:
+        """更新 pending action 状态。"""
+
+        if not action_id:
+            return
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "UPDATE pending_actions SET status = ?, updated_at = ? WHERE action_id = ?",
+                (status, int(time.time()), action_id),
+            )
+            conn.commit()
+
+    def save_clarification_question(self, question: ClarificationQuestion) -> None:
+        """保存 pending action 对应的澄清问题。"""
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO clarification_questions (
+                    question_id, action_id, session_id, question, missing_fields_json,
+                    status, answer, created_at, answered_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    question.question_id,
+                    question.action_id,
+                    question.session_id,
+                    question.question,
+                    json.dumps(question.missing_fields, ensure_ascii=False),
+                    question.status,
+                    question.answer,
+                    int(question.created_at or time.time()),
+                    int(question.answered_at or 0),
+                ),
+            )
+            conn.commit()
+
+    def mark_clarification_answered(self, action_id: str, answer: str) -> None:
+        """用户补字段后关闭该 pending action 的澄清问题。"""
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                UPDATE clarification_questions
+                SET status = 'answered', answer = ?, answered_at = ?
+                WHERE action_id = ? AND status = 'open'
+                """,
+                (answer, int(time.time()), action_id),
+            )
+            conn.commit()
+
+    def save_review_session(
+        self,
+        review_session_id: str,
+        *,
+        workflow_type: str = "post_meeting_followup",
+        meeting_id: str = "",
+        minute_token: str = "",
+        chat_id: str = "",
+        status: str = "pending",
+        pending_count: int = 0,
+        created_count: int = 0,
+        rejected_count: int = 0,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        """保存 M4 人工确认会话审计。
+
+        review_session_id 让同一妙记重复发卡时能区分新旧批次，真实回调中旧卡
+        会被拦截，新卡可以重新创建本轮任务。
+        """
+
+        if not review_session_id:
+            return
+        now = int(time.time())
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO review_sessions (
+                    review_session_id, workflow_type, meeting_id, minute_token, chat_id,
+                    status, pending_count, created_count, rejected_count,
+                    payload_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(review_session_id) DO UPDATE SET
+                    workflow_type = excluded.workflow_type,
+                    meeting_id = excluded.meeting_id,
+                    minute_token = excluded.minute_token,
+                    chat_id = excluded.chat_id,
+                    status = excluded.status,
+                    pending_count = excluded.pending_count,
+                    created_count = excluded.created_count,
+                    rejected_count = excluded.rejected_count,
+                    payload_json = excluded.payload_json,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    review_session_id,
+                    workflow_type,
+                    meeting_id,
+                    minute_token,
+                    chat_id,
+                    status,
+                    int(pending_count or 0),
+                    int(created_count or 0),
+                    int(rejected_count or 0),
+                    json.dumps(payload or {}, ensure_ascii=False),
+                    now,
+                    now,
+                ),
+            )
+            conn.commit()
+
+    def get_review_session(self, review_session_id: str) -> dict[str, Any] | None:
+        """读取 M4 review session 审计记录。"""
+
+        if not review_session_id:
+            return None
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM review_sessions WHERE review_session_id = ?",
+                (review_session_id,),
+            ).fetchone()
+        return self._normalize_json_row(row, {"payload_json": "payload"})
 
     def save_task_mapping(
         self,
@@ -355,6 +672,62 @@ class MeetFlowStorage:
         except json.JSONDecodeError:
             data["evidence_refs"] = []
         return data
+
+    @staticmethod
+    def _normalize_json_row(row: sqlite3.Row | None, json_columns: dict[str, str]) -> dict[str, Any] | None:
+        """把带 JSON 字段的 SQLite 行转换为业务字典。"""
+
+        if row is None:
+            return None
+        data = dict(row)
+        for source_key, target_key in json_columns.items():
+            try:
+                data[target_key] = json.loads(data.get(source_key) or "{}")
+            except json.JSONDecodeError:
+                data[target_key] = {}
+        return data
+
+    @staticmethod
+    def _get_table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
+        """读取表字段集合，用于兼容本地开发库的历史 schema。"""
+
+        return {str(row[1]) for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()}
+
+    @staticmethod
+    def _pending_action_from_row(row: sqlite3.Row | None) -> PendingAction | None:
+        """把 pending_actions 行恢复为 PendingAction。"""
+
+        if row is None:
+            return None
+        data = dict(row)
+        try:
+            tool_arguments = json.loads(data.get("tool_arguments_json") or "{}")
+        except json.JSONDecodeError:
+            tool_arguments = {}
+        try:
+            missing_fields = json.loads(data.get("missing_fields_json") or "[]")
+        except json.JSONDecodeError:
+            missing_fields = []
+        try:
+            metadata = json.loads(data.get("metadata_json") or "{}")
+        except json.JSONDecodeError:
+            metadata = {}
+        return PendingAction(
+            action_id=str(data.get("action_id") or ""),
+            session_id=str(data.get("session_id") or ""),
+            trace_id=str(data.get("trace_id") or ""),
+            workflow_type=str(data.get("workflow_type") or ""),
+            tool_name=str(data.get("tool_name") or ""),
+            tool_arguments=tool_arguments if isinstance(tool_arguments, dict) else {},
+            missing_fields=[str(item) for item in (missing_fields if isinstance(missing_fields, list) else [])],
+            status=str(data.get("status") or "pending"),
+            policy_reason=str(data.get("policy_reason") or ""),
+            idempotency_key=str(data.get("idempotency_key") or ""),
+            recovery_prompt=str(data.get("recovery_prompt") or ""),
+            metadata=metadata if isinstance(metadata, dict) else {},
+            created_at=int(data.get("created_at") or 0),
+            updated_at=int(data.get("updated_at") or 0),
+        )
 
     def _ensure_task_mapping_columns(self, cursor: sqlite3.Cursor) -> None:
         """为旧版本 task_mappings 表补齐 M4/M5 对接字段。"""

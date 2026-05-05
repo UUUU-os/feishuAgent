@@ -1239,6 +1239,25 @@ storage/
 - 涉及多个负责人
 - 任务标题语义不明确
 
+### 10.4 Pending Action 恢复策略
+
+当 `AgentPolicy` 返回 `needs_confirmation` 时，系统不丢弃本次工具调用，而是把
+工具名、参数、缺失字段、策略原因和恢复提示写入 `pending_actions`，并关联到
+`assistant_sessions`。用户后续补充“负责人是我”“截止明天”等字段时，Agent 先恢复
+最近的 pending action，合并字段并标记为 `ready_to_resume`。
+
+恢复后的动作不能直接绕过安全边界执行。它必须重新进入：
+
+```text
+PendingAction
+  -> AgentPolicy
+  -> ToolRegistry
+  -> FeishuClient / Storage
+```
+
+M4 会后任务确认批次通过 `review_sessions` 审计。`review_session_id` 用于区分同一妙记
+重复发卡时的新旧确认批次，旧卡点击会被拦截，新卡确认仍继续走幂等和 Policy。
+
 ---
 
 ## 11. 首版 Demo 技术路线

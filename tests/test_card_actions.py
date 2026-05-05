@@ -142,6 +142,32 @@ class CardActionRouterTest(unittest.TestCase):
         self.assertEqual(decision.workflow_type, "pre_meeting_brief")
         self.assertIn("im.send_card", decision.required_tools)
 
+    def test_post_meeting_confirm_action_builds_review_agent_input(self) -> None:
+        action_input = build_card_action_input(
+            action="confirm_create_task",
+            trace_id="trace_m4",
+            event_id="evt_m4",
+            operator_open_id="ou_user",
+            chat_id="oc_group",
+            value={
+                "item_id": "action_001",
+                "review_session_id": "review_001",
+                "meeting_id": "meeting_001",
+                "minute_token": "minute_001",
+            },
+        )
+
+        result = CardActionRouter().route(action_input)
+
+        self.assertEqual(result.status, "accepted")
+        self.assertIsNotNone(result.agent_input)
+        assert result.agent_input is not None
+        self.assertEqual(result.agent_input.event_type, "card.post_meeting_task_review")
+        self.assertEqual(result.agent_input.payload["item_id"], "action_001")
+        self.assertEqual(result.agent_input.payload["review_session_id"], "review_001")
+        decision = WorkflowRouter().route(result.agent_input)
+        self.assertEqual(decision.workflow_type, "post_meeting_followup")
+
 
 if __name__ == "__main__":
     unittest.main()

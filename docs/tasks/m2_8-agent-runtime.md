@@ -842,3 +842,41 @@ WorkflowRunner
   - 写操作仍必须经过 `AgentPolicy` 和 `--allow-write`，不能由卡片按钮直接绕过
 
 ---
+
+### T2.18 实现多轮会话记忆与 pending action 恢复
+
+- 优先级：`P0`
+- 目标：让 MeetFlow 从“单次请求响应”升级为能记住被 Policy 暂停的动作，并在用户补充字段后恢复现场。
+
+#### T2.18 当前实现细节
+
+- 已创建文件：
+  - `core/assistant_memory.py`
+  - `tests/test_assistant_memory.py`
+- 已更新文件：
+  - `core/migrations.py`
+  - `core/storage.py`
+  - `core/agent_loop.py`
+  - `core/agent.py`
+  - `docs/overall-test-commands.md`
+- 已实现的核心模型：
+  - `AssistantSession`：按用户、来源、会议/妙记/任务维度维护可延续业务现场。
+  - `PendingAction`：保存被 `AgentPolicy` 拦截的工具名、参数、缺失字段、策略原因和恢复提示。
+  - `ClarificationQuestion`：保存一次 pending action 对应的用户澄清问题。
+- 已实现的核心流程：
+  - `MeetFlowAgent` 每次运行会创建或复用 `assistant_session_id`，并写入 `WorkflowContext.raw_context["assistant_session"]`。
+  - `MeetFlowAgentLoop` 在 `PolicyDecision.status == "needs_confirmation"` 时自动保存 `pending_actions` 和 `clarification_questions`。
+  - 用户下一轮通过 `message.command` 补充负责人 / 截止时间时，`MeetFlowAgent` 会恢复最近 pending action，调用 `apply_user_reply_to_pending_action()` 合并字段。
+  - 信息补齐后 pending action 标记为 `ready_to_resume`，并生成 `resumed_tool_call`；该调用仍要重新进入 `AgentPolicy` 和 `ToolRegistry`，不能直接绕过安全边界。
+- 数据库变更：
+  - migration `0006_assistant_memory_and_review_sessions`
+  - 新增 `assistant_sessions`
+  - 新增 `pending_actions`
+  - 新增 `clarification_questions`
+  - 新增 `review_sessions`
+- 当前验证方式：
+  - `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_assistant_memory`
+  - `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_migrations`
+  - `/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile core/*.py adapters/*.py cards/*.py scripts/*.py config/*.py`
+
+---

@@ -140,6 +140,8 @@ class CardActionRouter:
             return self._create_task_draft(action_input)
         if action == "send_summary_to_me":
             return self._send_summary_to_me(action_input)
+        if action in {"confirm_create_task", "edit_task_fields", "reject_create_task"}:
+            return self._post_meeting_task_review_action(action_input)
         return CardActionResult(
             status="blocked",
             action=action,
@@ -221,6 +223,55 @@ class CardActionRouter:
             message="已收到，私聊发送属于写操作，后续会在确认后只发送给点击人。",
             trace_id=action_input.trace_id,
             metadata={"operator_open_id": action_input.operator_open_id},
+        )
+
+    def _post_meeting_task_review_action(self, action_input: CardActionInput) -> CardActionResult:
+        """把 M4 待确认任务按钮转换为可恢复的 AgentInput。
+
+        真实创建任务仍由 `core.card_callback.handle_post_meeting_card_callback`
+        或后台 worker 执行；这里负责统一回调路由语义，让 dispatcher 能把
+        confirm/edit/reject 纳入 Agent 观测和队列。
+        """
+
+        value = dict(action_input.value or {})
+        item_id = str(value.get("item_id") or "").strip()
+        review_session_id = str(value.get("review_session_id") or "").strip()
+        workflow_type = action_input.workflow_type or "post_meeting_followup"
+        agent_input = AgentInput(
+            trigger_type="card_action",
+            event_type="card.post_meeting_task_review",
+            source="feishu_card",
+            actor=action_input.operator_open_id,
+            event_id=action_input.event_id,
+            trace_id=action_input.trace_id,
+            created_at=action_input.created_at or int(time.time()),
+            payload={
+                "workflow_type": workflow_type,
+                "action": action_input.action,
+                "item_id": item_id,
+                "review_session_id": review_session_id,
+                "meeting_id": action_input.meeting_id or str(value.get("meeting_id") or ""),
+                "calendar_event_id": action_input.calendar_event_id or str(value.get("calendar_event_id") or ""),
+                "minute_token": str(value.get("minute_token") or ""),
+                "chat_id": action_input.chat_id,
+                "open_message_id": action_input.open_message_id,
+                "operator_open_id": action_input.operator_open_id,
+                "source_card": action_input.source_card or "post_meeting_pending_action",
+                "idempotency_key": action_input.idempotency_key,
+                "card_value": value,
+            },
+        )
+        return CardActionResult(
+            status="accepted",
+            action=action_input.action,
+            message="已收到会后任务确认动作，正在进入受控确认链路。",
+            trace_id=action_input.trace_id,
+            agent_input=agent_input,
+            metadata={
+                "workflow_type": workflow_type,
+                "item_id": item_id,
+                "review_session_id": review_session_id,
+            },
         )
 
 
