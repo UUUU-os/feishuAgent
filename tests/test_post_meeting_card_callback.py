@@ -7,7 +7,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from cards.post_meeting import build_pending_action_item_button_card, build_pending_action_items_card
-from core.card_callback import handle_post_meeting_card_callback, normalize_due_date_override, workflow_context_from_callback_value
+from core.card_callback import (
+    handle_post_meeting_card_callback,
+    merge_action_values_preserving_cached,
+    normalize_due_date_override,
+    workflow_context_from_callback_value,
+)
 from core.confirmation_commands import bind_pending_action_message, load_pending_action_records, mark_pending_action_status, save_pending_action_values
 from core.models import ActionItem, AgentToolResult, EvidenceRef
 from core.policy import AgentPolicy
@@ -267,6 +272,74 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
         self.assertEqual(response["card"]["type"], "raw")
         self.assertEqual(len(client.updated_cards), 1)
         self.assertIn("已创建任务", str(client.updated_cards[0]["card"]))
+
+    def test_confirm_uses_cached_fields_when_button_value_is_stale_empty(self) -> None:
+        update_payload = {
+            "event": {
+                "context": {"open_message_id": "om_test_cached"},
+                "action": {
+                    "value": {"action": "edit_task_fields", "item_id": "action_test_001"},
+                    "form_value": {"owner_override": "李四", "due_date_override": "2026-05-01"},
+                },
+            }
+        }
+        edit_result = handle_post_meeting_card_callback(
+            payload=update_payload,
+            settings=self.settings,
+            client=FakeFeishuClient(),
+            storage=self.storage,
+            policy=AgentPolicy(),
+        )
+        self.assertEqual(edit_result.status, "success")
+
+        stale_confirm_payload = {
+            "event": {
+                "context": {"open_message_id": "om_test_cached"},
+                "action": {
+                    "value": {
+                        "action": "confirm_create_task",
+                        "item_id": "action_test_001",
+                        "title": "整理答辩材料",
+                        "owner": "",
+                        "due_date": "",
+                        "meeting_id": "meeting_test_001",
+                        "minute_token": "minute_test_001",
+                        "project_id": "meetflow",
+                        "evidence_refs": [
+                            {
+                                "source_type": "minute",
+                                "source_id": "minute_test_001",
+                                "source_url": "https://example.com/minute",
+                                "snippet": "张三负责整理答辩材料，明天前完成。",
+                            }
+                        ],
+                    }
+                },
+            }
+        }
+        with patch("adapters.create_feishu_tool_registry", return_value=FakeRegistry()):
+            result = handle_post_meeting_card_callback(
+                payload=stale_confirm_payload,
+                settings=self.settings,
+                client=FakeFeishuClient(),
+                storage=self.storage,
+                policy=AgentPolicy(),
+            )
+
+        self.assertEqual(result.status, "success")
+        mapping = result.data["task_mapping"]
+        self.assertEqual(mapping["owner"], "李四")
+        self.assertEqual(mapping["due_date"], "2026-05-01")
+
+    def test_merge_action_values_preserves_cached_non_empty_fields(self) -> None:
+        merged = merge_action_values_preserving_cached(
+            {"item_id": "action_test_001", "owner": "李四", "due_date": "2026-05-01"},
+            {"action": "confirm_create_task", "owner": "", "due_date": ""},
+        )
+
+        self.assertEqual(merged["owner"], "李四")
+        self.assertEqual(merged["due_date"], "2026-05-01")
+        self.assertEqual(merged["action"], "confirm_create_task")
 
     def test_reject_button_marks_rejected(self) -> None:
         client = FakeFeishuClient()

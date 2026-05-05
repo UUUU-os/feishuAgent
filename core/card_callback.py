@@ -129,9 +129,7 @@ def handle_post_meeting_card_callback(
                 )
                 state_guard.response_card = response_card
                 return state_guard
-        cached_value = load_pending_action_value(settings, item_id) or {}
-        merged_action_value = dict(cached_value)
-        merged_action_value.update(action_value)
+        merged_action_value = merge_cached_action_value(settings, action_value)
         response_card = build_card_from_callback_value(
             merged_action_value,
             mode="resolved",
@@ -173,9 +171,7 @@ def confirm_create_task_from_card(
     """从卡片回调中确认创建任务。"""
 
     item_id = str(action_value.get("item_id") or "")
-    cached_value = load_pending_action_value(settings, item_id) or {}
-    merged_action_value = dict(cached_value)
-    merged_action_value.update(action_value)
+    merged_action_value = merge_cached_action_value(settings, action_value)
     action_item = action_item_from_callback_value(merged_action_value)
     overrides = extract_edit_overrides(action_value)
     if overrides.get("owner"):
@@ -790,9 +786,36 @@ def merge_cached_action_value(settings: Settings, action_value: dict[str, Any]) 
 
     item_id = str(action_value.get("item_id") or "")
     cached = load_pending_action_value(settings, item_id) or {}
-    merged = dict(cached)
-    merged.update(action_value)
+    merged = merge_action_values_preserving_cached(cached, action_value)
     return merged
+
+
+def merge_action_values_preserving_cached(cached: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    """合并卡片按钮值，同时避免旧卡空字段覆盖用户已保存的修改。
+
+    飞书卡片更新后，用户可能仍点击到一张 callback value 中 owner/due_date 为空
+    的按钮；但 pending registry 已经保存了用户在“保存修改”阶段填写的字段。
+    这里让非空的新值覆盖旧值，空字符串/空列表/空字典不覆盖已有业务值。
+    """
+
+    merged = dict(cached or {})
+    for key, value in dict(incoming or {}).items():
+        if is_empty_callback_value(value) and not is_empty_callback_value(merged.get(key)):
+            continue
+        merged[key] = value
+    return merged
+
+
+def is_empty_callback_value(value: Any) -> bool:
+    """判断 callback 字段是否等价于空。"""
+
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value.strip() == ""
+    if isinstance(value, (list, tuple, dict, set)):
+        return len(value) == 0
+    return False
 
 
 def guard_pending_action_transition(settings: Settings, action_value: dict[str, Any], action: str) -> CardCallbackResult | None:

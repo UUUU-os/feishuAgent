@@ -69,6 +69,65 @@ M4 demo/live/watcher 脚本以及对应测试；新增统一回调适配层
 当前日志设计、新旧日志差异和测试方法已整理到
 [MeetFlow 当前日志设计说明](docs/agent-logging-current-design.md)。
 
+2026-05-05 已开始按
+[MeetFlow 工业化代码修改方案](docs/industrialization-code-change-plan.md)
+落地 P0 工程化能力。本轮新增 `core/migrations.py`、
+`scripts/storage_migrate.py` 和 `tests/test_migrations.py`，把
+`MeetFlowStorage.initialize()` 改造为“准备目录 -> 执行 migrations -> 校验 schema”，
+并新增 `schema_migrations` 与 `workflow_jobs` 表；新增 `core/jobs.py`、
+`scripts/meetflow_worker.py` 和 `tests/test_jobs.py`，支持后台任务入队、领取、
+重试、失败和死信状态；`scripts/meetflow_daemon.py` 已增加 `--enqueue`，
+可把 M3/M4/RAG 机会写入队列；`scripts/feishu_event_sdk_server.py` 和
+`scripts/feishu_event_server.py` 已增加 `--enqueue-agent`，保留原有同步/线程执行
+路径；`scripts/risk_scan_demo.py` 已增加 `--enqueue`，可让 M5 巡检由 worker 执行。
+新增配置 `jobs` 已接入 `config/loader.py` 与 `config/settings.example.json`。
+验证命令包括 `py_compile`、`tests.test_migrations tests.test_jobs`、全量
+`unittest discover -s tests`、`scripts/storage_migrate.py --status/--verify`、
+`scripts/meetflow_worker.py --once --dry-run` 和 SDK server import 检查，当前
+76 条单测全部通过。
+
+2026-05-05 修复 M4 待确认任务卡“保存修改后仍提示缺少负责人或截止时间”的问题。
+根因是确认创建时会先读取 pending registry，但随后用按钮 callback value 里的空
+`owner/due_date` 覆盖了用户刚保存的字段；同时 SDK 长连接归一化没有完整保留
+schema 2.0 表单的 `form_value`。本次修改 `core/card_callback.py`，新增
+`merge_action_values_preserving_cached()`，确保空字段不覆盖已保存的负责人/截止时间；
+修改 `adapters/feishu_callback_payloads.py`，在 `event.action`、`event.operator`
+和顶层 payload 间归一化并保留 `form_value/input_value`。新增回归测试覆盖
+“保存李四 + 2026-05-01 后点击旧空按钮仍能创建任务”和“SDK operator.form_value
+不丢失”。验证命令：
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_post_meeting_card_callback tests.test_feishu_callback_dispatcher`
+以及全量 `unittest discover -s tests`，当前 79 条测试全部通过。
+
+2026-05-05 新增第一版项目级离线评测系统，避免项目停留在“真实联调脚本集合”。
+本轮新增 `core/evaluation.py`、`scripts/e2e_replay.py`、`tests/test_e2e_replay.py`
+和 `tests/e2e_fixtures/**/case.json` 脱敏样本。评测 runner 支持统一读取
+fixture、执行 M3 会前卡片确定性产物、M4 会后行动项抽取、M5 风险扫描与
+M4 task mapping 来源富化、SQLite job queue 入队/领取/成功路径，并输出
+`score`、逐条断言、业务 artifacts 和可写入的 JSON 报告。当前内置 4 个
+case：`m3_pre_meeting_basic`、`m4_post_meeting_with_tasks`、
+`m5_risk_from_m4_mapping`、`job_queue_recovery`。验证命令：
+`/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/e2e_replay.py --all --fail-under 1.0`
+和 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_e2e_replay`，
+suite score 为 1.0。
+
+2026-05-05 新增长期维护的
+[MeetFlow 整体测试命令总表](docs/overall-test-commands.md)。该文档把基础编译、
+全量单测、migration/job queue、离线 E2E 评测、SDK/HTTP 回调、daemon/worker、
+M3/M4/M5 真实联调、SQLite 排查和提交前检查统一收敛到一个入口，并明确了
+“新增脚本、配置、migration、job_type、回调路径、评测 case 或真实联调入口时
+必须同步更新测试命令”的维护规则。`docs/current-version-test-commands.md`
+已增加指向该总表的说明。
+
+2026-05-05 新增
+[MeetFlow LLM Agent 评测系统方案](docs/llm-agent-evaluation-system-plan.md)。
+该方案在现有 `core/evaluation.py` 和 `scripts/e2e_replay.py` 的离线确定性评测
+基础上，设计了更能体现飞书会议 Agent 特色的指标体系：会议上下文理解、
+妙记行动项抽取、工具调用正确性、Policy 安全、证据引用、M4 到 M5 任务风险
+闭环、卡片回调交互、真实 LLM provider 稳定性和 fallback。方案同时定义了
+case schema、report schema、`core/llm_eval.py`、`scripts/llm_eval_suite.py`、
+`core/llm_fallback.py` 的后续改造边界，以及 PR/每日/发布前的质量门禁阈值。
+`docs/overall-test-commands.md` 已增加指向该方案的入口说明。
+
 飞书群聊卡片按钮交互的目标链路、按钮协议、回调服务、CardActionRouter、
 Policy/幂等/审计要求和测试步骤已整理到
 [飞书群聊卡片按钮交互实施方案](docs/feishu-card-interaction-plan.md)。

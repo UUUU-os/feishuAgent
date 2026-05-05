@@ -17,6 +17,7 @@ from adapters.feishu_client import FeishuClient
 from config import load_settings
 from core.agent import create_meetflow_agent
 from core.feishu_callback_dispatcher import FeishuCallbackDispatcher
+from core.jobs import JobQueue, enqueue_agent_input_job
 from core.llm import DryRunLLMProvider
 from core.logging import configure_logging, get_logger
 from core.observability import configure_structured_events, emit_structured_event, safe_error_message
@@ -36,14 +37,24 @@ class FeishuEventServerState:
         dispatcher: FeishuCallbackDispatcher,
         paths: set[str],
         execute_agent: bool,
+        enqueue_agent: bool,
         allow_write: bool,
         agent_provider: str,
+        job_queue: JobQueue | None = None,
+        job_queue_name: str = "workflow",
+        job_priority: int = 100,
+        job_max_attempts: int = 3,
     ) -> None:
         self.dispatcher = dispatcher
         self.paths = paths
         self.execute_agent = execute_agent
+        self.enqueue_agent = enqueue_agent
         self.allow_write = allow_write
         self.agent_provider = agent_provider
+        self.job_queue = job_queue
+        self.job_queue_name = job_queue_name
+        self.job_priority = job_priority
+        self.job_max_attempts = job_max_attempts
         self.logger = get_logger("meetflow.feishu_event_server")
 
 
@@ -74,7 +85,18 @@ class MeetFlowEventRequestHandler(BaseHTTPRequestHandler):
             result = state.dispatcher.dispatch_http_callback(payload)
             self._write_json(result.body)
 
-            if state.execute_agent and result.agent_input is not None:
+            if state.enqueue_agent and result.agent_input is not None and state.job_queue is not None:
+                job = enqueue_agent_input_job(
+                    state.job_queue,
+                    agent_input=result.agent_input,
+                    queue_name=state.job_queue_name,
+                    allow_write=state.allow_write,
+                    agent_provider=state.agent_provider,
+                    priority=state.job_priority,
+                    max_attempts=state.job_max_attempts,
+                )
+                state.logger.info("HTTP 回调已入队后台 Agent job_id=%s event_type=%s", job.job_id, result.agent_input.event_type)
+            elif state.execute_agent and result.agent_input is not None:
                 thread = threading.Thread(
                     target=run_agent_in_background,
                     args=(result.agent_input, state.allow_write, state.agent_provider),
@@ -163,7 +185,11 @@ def main() -> int:
     parser.add_argument("--host", default=settings.feishu.event_server_host, help="监听地址。")
     parser.add_argument("--port", type=int, default=settings.feishu.event_server_port, help="监听端口。")
     parser.add_argument("--execute-agent", action="store_true", help="收到卡片动作后异步执行 Agent。")
+    parser.add_argument("--enqueue-agent", action="store_true", help="收到卡片动作后写入 workflow_jobs，由 worker 执行。")
     parser.add_argument("--allow-write", action="store_true", help="允许后台 Agent 执行写工具。")
+    parser.add_argument("--job-queue", default="workflow", help="AgentInput 入队队列名，默认 workflow。")
+    parser.add_argument("--job-priority", type=int, default=100, help="入队优先级，数值越小越先执行。")
+    parser.add_argument("--job-max-attempts", type=int, default=0, help="入队最大尝试次数；不传使用配置 jobs.max_attempts。")
     parser.add_argument(
         "--agent-provider",
         choices=["configured", "dry-run"],
@@ -187,16 +213,22 @@ def main() -> int:
         ),
         paths=paths,
         execute_agent=args.execute_agent,
+        enqueue_agent=args.enqueue_agent,
         allow_write=args.allow_write,
         agent_provider=args.agent_provider,
+        job_queue=JobQueue(settings.storage) if args.enqueue_agent else None,
+        job_queue_name=args.job_queue,
+        job_priority=args.job_priority,
+        job_max_attempts=args.job_max_attempts or settings.jobs.max_attempts,
     )
     server = ThreadingHTTPServer((args.host, args.port), MeetFlowEventRequestHandler)
     server.state = state  # type: ignore[attr-defined]
     state.logger.info(
-        "飞书事件回调服务已启动 host=%s port=%s execute_agent=%s allow_write=%s",
+        "飞书事件回调服务已启动 host=%s port=%s execute_agent=%s enqueue_agent=%s allow_write=%s",
         args.host,
         args.port,
         args.execute_agent,
+        args.enqueue_agent,
         args.allow_write,
     )
     try:

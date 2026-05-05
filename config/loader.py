@@ -139,6 +139,24 @@ class StorageSettings:
 
 
 @dataclass(slots=True)
+class JobSettings:
+    """后台任务队列配置。
+
+    首期使用 SQLite 任务表承接 callback/daemon 触发的异步工作，配置项控制
+    worker 锁租约、重试次数和退避窗口，便于本地单机部署逐步演进。
+    """
+
+    enabled: bool
+    default_queue: str
+    worker_id: str
+    lock_seconds: int
+    max_attempts: int
+    retry_base_seconds: int
+    retry_max_seconds: int
+    dead_letter_after_attempts: int
+
+
+@dataclass(slots=True)
 class ObservabilitySettings:
     """结构化观测配置。
 
@@ -169,6 +187,7 @@ class Settings:
     risk_rules: RiskRuleSettings
     logging: LoggingSettings
     storage: StorageSettings
+    jobs: JobSettings
     observability: ObservabilitySettings
 
     def as_dict(self) -> dict[str, Any]:
@@ -250,6 +269,14 @@ ENV_MAPPING: dict[str, tuple[str, str, Any]] = {
     "MEETFLOW_STORAGE_DB_PATH": ("storage", "db_path", str),
     "MEETFLOW_STORAGE_PROJECT_MEMORY_DIR": ("storage", "project_memory_dir", str),
     "MEETFLOW_STORAGE_AUDIT_LOG_PATH": ("storage", "audit_log_path", str),
+    "MEETFLOW_JOBS_ENABLED": ("jobs", "enabled", lambda value: value.lower() in {"1", "true", "yes", "on"}),
+    "MEETFLOW_JOBS_DEFAULT_QUEUE": ("jobs", "default_queue", str),
+    "MEETFLOW_JOBS_WORKER_ID": ("jobs", "worker_id", str),
+    "MEETFLOW_JOBS_LOCK_SECONDS": ("jobs", "lock_seconds", int),
+    "MEETFLOW_JOBS_MAX_ATTEMPTS": ("jobs", "max_attempts", int),
+    "MEETFLOW_JOBS_RETRY_BASE_SECONDS": ("jobs", "retry_base_seconds", int),
+    "MEETFLOW_JOBS_RETRY_MAX_SECONDS": ("jobs", "retry_max_seconds", int),
+    "MEETFLOW_JOBS_DEAD_LETTER_AFTER_ATTEMPTS": ("jobs", "dead_letter_after_attempts", int),
     "MEETFLOW_OBSERVABILITY_STRUCTURED_EVENTS_ENABLED": (
         "observability",
         "structured_events_enabled",
@@ -400,5 +427,6 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         risk_rules=RiskRuleSettings(**merged["risk_rules"]),
         logging=LoggingSettings(**merged["logging"]),
         storage=StorageSettings(**merged["storage"]),
+        jobs=JobSettings(**merged["jobs"]),
         observability=ObservabilitySettings(**merged["observability"]),
     )

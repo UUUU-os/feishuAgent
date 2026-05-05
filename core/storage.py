@@ -8,6 +8,7 @@ from typing import Any
 
 from config import StorageSettings
 from core.logging import get_logger
+from core.migrations import MigrationRunner
 from core.models import WorkflowResult
 
 
@@ -36,86 +37,16 @@ class MeetFlowStorage:
         self.audit_log_path.parent.mkdir(parents=True, exist_ok=True)
         self.action_item_log_path.parent.mkdir(parents=True, exist_ok=True)
 
+        applied = MigrationRunner(self.db_path).apply_pending()
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-
-            # 记录工作流运行结果，便于后续查询某次执行的输出。
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS workflow_results (
-                    trace_id TEXT PRIMARY KEY,
-                    workflow_name TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    summary TEXT NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    created_at INTEGER NOT NULL
-                )
-                """
-            )
-
-            # 记录幂等键，避免同一个工作流被重复执行。
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS idempotency_keys (
-                    idempotency_key TEXT PRIMARY KEY,
-                    workflow_name TEXT NOT NULL,
-                    trace_id TEXT NOT NULL,
-                    created_at INTEGER NOT NULL
-                )
-                """
-            )
-
-            # 记录任务映射关系，为后续任务同步、风险扫描做准备。
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS task_mappings (
-                    item_id TEXT PRIMARY KEY,
-                    task_id TEXT NOT NULL,
-                    meeting_id TEXT NOT NULL DEFAULT '',
-                    minute_token TEXT NOT NULL DEFAULT '',
-                    title TEXT NOT NULL DEFAULT '',
-                    owner TEXT NOT NULL,
-                    due_date TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
-                    source_url TEXT NOT NULL DEFAULT '',
-                    updated_at INTEGER NOT NULL
-                )
-                """
-                )
+            # 兼容早期开发库。长期结构演进由 MigrationRunner 负责，这里只保留
+            # 对历史 task_mappings 补列的保险，避免用户从很旧的本地库启动失败。
             self._ensure_task_mapping_columns(cursor)
-
-            # 记录风险提醒历史，用于 M5 巡检降噪和后续审计。
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS risk_notifications (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    risk_key TEXT NOT NULL,
-                    task_id TEXT NOT NULL,
-                    risk_type TEXT NOT NULL,
-                    severity TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    trace_id TEXT NOT NULL,
-                    recipient TEXT NOT NULL,
-                    summary TEXT NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    notified_at INTEGER NOT NULL,
-                    suppressed_until INTEGER NOT NULL,
-                    created_at INTEGER NOT NULL,
-                    updated_at INTEGER NOT NULL
-                )
-                """
-            )
-            cursor.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_risk_notifications_key_time
-                ON risk_notifications (risk_key, notified_at)
-                """
-            )
-
             conn.commit()
+        MigrationRunner(self.db_path).verify()
 
-        self.logger.info("本地存储初始化完成 db_path=%s", self.db_path)
+        self.logger.info("本地存储初始化完成 db_path=%s migrations_applied=%s", self.db_path, len(applied))
 
     def save_workflow_result(self, result: WorkflowResult) -> None:
         """保存一次工作流执行结果。"""

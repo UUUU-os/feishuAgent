@@ -9,6 +9,11 @@ meetflow-m3-m4-m5-closed-loop-20260505
 本文件记录当前 M3/M4/M5 融合闭环版本的保存命令和测试命令。不要提交
 `config/settings.local.json`、`.venv-lark-oapi/`、`storage/reports/` 或任何真实 token。
 
+长期维护的完整测试命令总表见
+[MeetFlow 整体测试命令总表](overall-test-commands.md)。后续每次新增脚本、
+配置、migration、job_type、回调路径、评测 case 或真实联调入口，都要检查是否
+需要同步更新该总表。
+
 ## 1. Git 保存当前版本
 
 先检查工作区：
@@ -79,6 +84,40 @@ cd /home/tanyd/ye/workhard/feishuAgent-main
 /home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_risk_scan tests.test_risk_scan_card tests.test_storage_risk_notifications tests.test_risk_scan_workflow
 ```
 
+工业化 P0 验证：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_migrations tests.test_jobs
+/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_e2e_replay
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/storage_migrate.py --status
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/storage_migrate.py --verify
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_worker.py --once --dry-run
+.venv-lark-oapi/bin/python -c "import scripts.feishu_event_sdk_server; print('sdk server import ok')"
+```
+
+离线 E2E 业务评测：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/e2e_replay.py --all --fail-under 1.0
+```
+
+写入评测报告：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/e2e_replay.py \
+  --all \
+  --fail-under 1.0 \
+  --write-report
+```
+
+只跑单个评测 case：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/e2e_replay.py \
+  --case m4_post_meeting_with_tasks \
+  --fail-under 1.0
+```
+
 ## 3. 飞书 SDK 长连接准备
 
 安装独立 SDK 环境：
@@ -117,6 +156,24 @@ python3 scripts/setup_lark_oapi_venv.py
 
 ```bash
 .venv-lark-oapi/bin/python scripts/feishu_event_sdk_server.py --execute-agent --agent-provider dry-run --log-level info
+```
+
+如果要把 M3 按钮触发的后台 Agent 交给 `meetflow_worker.py` 异步执行：
+
+```bash
+.venv-lark-oapi/bin/python scripts/feishu_event_sdk_server.py \
+  --enqueue-agent \
+  --agent-provider dry-run \
+  --job-queue workflow \
+  --log-level info
+```
+
+另开一个终端启动 worker：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_worker.py \
+  --queues workflow,risk_scan,rag_refresh \
+  --poll-seconds 2
 ```
 
 确认允许真实写入后再使用：
@@ -248,6 +305,26 @@ sqlite3 storage/meetflow.sqlite \
   --send-identity tenant
 ```
 
+只入队、不立刻执行 M5 巡检：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/risk_scan_demo.py \
+  --backend feishu \
+  --show-card \
+  --allow-write \
+  --identity user \
+  --send-identity tenant \
+  --enqueue
+```
+
+再由 worker 消费：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_worker.py \
+  --queues risk_scan \
+  --once
+```
+
 如果没有配置默认测试群：
 
 ```bash
@@ -277,13 +354,54 @@ SDK 长连接不可用时，用公网 HTTPS fallback：
 /home/tanyd/anaconda3/envs/meetflow/bin/python scripts/feishu_event_server.py --host 0.0.0.0 --port 8765
 ```
 
+HTTP fallback 也可以把后台 Agent 入队：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/feishu_event_server.py \
+  --host 0.0.0.0 \
+  --port 8765 \
+  --enqueue-agent \
+  --agent-provider dry-run
+```
+
 飞书后台回调 URL 配置：
 
 ```text
 https://你的公网域名/feishu/card/actions
 ```
 
-## 9. 常见问题快速判断
+## 9. Daemon / Worker 工业化入口
+
+只检查 daemon 会发现什么，不执行真实副作用：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_daemon.py \
+  --enable-m3 \
+  --enable-m4 \
+  --enable-rag \
+  --enqueue \
+  --once \
+  --dry-run
+```
+
+长期运行推荐形态：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_daemon.py \
+  --enable-m3 \
+  --enable-m4 \
+  --enable-rag \
+  --enqueue \
+  --poll-seconds 60
+```
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_worker.py \
+  --queues workflow,risk_scan,rag_refresh \
+  --poll-seconds 2
+```
+
+## 10. 常见问题快速判断
 
 M3 找不到会议：
 

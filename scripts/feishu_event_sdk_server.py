@@ -17,6 +17,7 @@ from adapters.feishu_client import FeishuClient
 from config import load_settings
 from core.agent import create_meetflow_agent
 from core.feishu_callback_dispatcher import FeishuCallbackDispatcher
+from core.jobs import JobQueue, enqueue_agent_input_job
 from core.logging import configure_logging, get_logger
 from core.llm import DryRunLLMProvider
 from core.observability import configure_structured_events, safe_error_message
@@ -33,7 +34,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--log-level", default="", help="SDK 日志级别：debug/info/warn/error；不传使用配置。")
     parser.add_argument("--dry-run", action="store_true", help="只打印卡片回调并返回 toast，不执行业务写入。")
     parser.add_argument("--execute-agent", action="store_true", help="M3 刷新等动作生成 AgentInput 后异步执行 Agent。")
+    parser.add_argument("--enqueue-agent", action="store_true", help="M3 刷新等动作生成 AgentInput 后写入 workflow_jobs，由 worker 执行。")
     parser.add_argument("--allow-write", action="store_true", help="允许后台 Agent 执行写工具。")
+    parser.add_argument("--job-queue", default="workflow", help="AgentInput 入队队列名，默认 workflow。")
+    parser.add_argument("--job-priority", type=int, default=100, help="入队优先级，数值越小越先执行。")
+    parser.add_argument("--job-max-attempts", type=int, default=0, help="入队最大尝试次数；不传使用配置 jobs.max_attempts。")
     parser.add_argument(
         "--agent-provider",
         choices=["configured", "dry-run"],
@@ -70,6 +75,7 @@ def main() -> int:
         feishu_client=client,
         policy=AgentPolicy(),
     )
+    job_queue = JobQueue(settings.storage) if args.enqueue_agent else None
     logger = get_logger("meetflow.feishu_event_sdk_server")
 
     if not settings.feishu.app_id or not settings.feishu.app_secret:
@@ -86,7 +92,18 @@ def main() -> int:
                 {"toast": {"type": "info", "content": "MeetFlow dry-run：已收到按钮回调。"}}
             )
         result = dispatcher.dispatch_sdk_card_action(payload)
-        if args.execute_agent and result.agent_input is not None:
+        if args.enqueue_agent and result.agent_input is not None and job_queue is not None:
+            job = enqueue_agent_input_job(
+                job_queue,
+                agent_input=result.agent_input,
+                queue_name=args.job_queue,
+                allow_write=args.allow_write,
+                agent_provider=args.agent_provider,
+                priority=args.job_priority,
+                max_attempts=args.job_max_attempts or settings.jobs.max_attempts,
+            )
+            logger.info("SDK 回调已入队后台 Agent job_id=%s event_type=%s", job.job_id, result.agent_input.event_type)
+        elif args.execute_agent and result.agent_input is not None:
             thread = threading.Thread(
                 target=run_agent_in_background,
                 args=(result.agent_input, args.allow_write, args.agent_provider),

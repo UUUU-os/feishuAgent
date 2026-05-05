@@ -60,6 +60,7 @@ def normalize_sdk_card_action_payload(payload: dict[str, Any]) -> dict[str, Any]
             value = parse_action_value(action.get("value"))
             if value:
                 action["value"] = value
+                copy_form_fields(source=action, target=action)
                 event["action"] = action
                 normalized["event"] = event
                 return normalized
@@ -67,8 +68,10 @@ def normalize_sdk_card_action_payload(payload: dict[str, Any]) -> dict[str, Any]
         if isinstance(operator, dict):
             value = parse_action_value(operator.get("value"))
             if value:
-                event["action"] = {"value": value}
+                action_payload = {"value": value}
+                copy_form_fields(source=operator, target=action_payload)
                 normalized["event"] = event
+                event["action"] = action_payload
                 return normalized
 
     action = normalized.get("action")
@@ -77,14 +80,18 @@ def normalize_sdk_card_action_payload(payload: dict[str, Any]) -> dict[str, Any]
         if value:
             normalized.setdefault("event", {})
             if isinstance(normalized["event"], dict):
-                normalized["event"]["action"] = {"value": value}
+                action_payload = {"value": value}
+                copy_form_fields(source=action, target=action_payload)
+                normalized["event"]["action"] = action_payload
             return normalized
 
     value = parse_action_value(normalized.get("value"))
     if value:
         normalized.setdefault("event", {})
         if isinstance(normalized["event"], dict):
-            normalized["event"]["action"] = {"value": value}
+            action_payload = {"value": value}
+            copy_form_fields(source=normalized, target=action_payload)
+            normalized["event"]["action"] = action_payload
         return normalized
 
     found_value = find_first_action_value(normalized)
@@ -110,6 +117,12 @@ def build_callback_envelope(payload: dict[str, Any], source: str) -> FeishuCallb
     context = as_dict(event.get("context"))
     operator = as_dict(event.get("operator"))
     action_value = parse_action_value(action.get("value"))
+    form_value = action.get("form_value")
+    if isinstance(form_value, dict):
+        action_value["form_value"] = form_value
+    input_value = action.get("input_value")
+    if input_value is not None:
+        action_value["input_value"] = input_value
     action_name = str(action_value.get("action") or action.get("name") or "").strip()
 
     return FeishuCallbackEnvelope(
@@ -166,6 +179,20 @@ def parse_action_value(raw_value: Any) -> dict[str, Any]:
     return {}
 
 
+def copy_form_fields(source: dict[str, Any], target: dict[str, Any]) -> None:
+    """把 schema 2.0 表单提交值从 SDK 原始对象复制到标准 action。
+
+    飞书不同 SDK 版本可能把 `form_value` 放在 `event.action`、`event.operator`
+    或顶层对象中。业务层只读取 `event.action.form_value`，所以归一化时必须
+    显式保留这些输入字段，否则用户在卡片里填写的负责人/截止时间会丢失。
+    """
+
+    for key in ("form_value", "input_value"):
+        value = source.get(key)
+        if value is not None:
+            target[key] = value
+
+
 def find_first_action_value(data: Any) -> dict[str, Any]:
     """递归查找第一个形如 action.value 的对象。"""
 
@@ -215,4 +242,3 @@ def first_non_empty(*values: Any) -> str:
         if text:
             return text
     return ""
-

@@ -77,6 +77,16 @@
     "project_memory_dir": "storage/projects",
     "audit_log_path": "storage/workflow_runs.jsonl"
   },
+  "jobs": {
+    "enabled": false,
+    "default_queue": "workflow",
+    "worker_id": "meetflow-local-worker",
+    "lock_seconds": 300,
+    "max_attempts": 3,
+    "retry_base_seconds": 30,
+    "retry_max_seconds": 600,
+    "dead_letter_after_attempts": 4
+  },
   "observability": {
     "structured_events_enabled": true,
     "structured_event_path": "storage/workflow_events.jsonl",

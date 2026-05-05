@@ -96,6 +96,30 @@ class FeishuCallbackDispatcherTest(unittest.TestCase):
         self.assertEqual(envelope.action, "edit_task_fields")
         self.assertEqual(envelope.action_value["item_id"], "action_test_001")
 
+    def test_sdk_payload_preserves_operator_form_value(self) -> None:
+        payload = {
+            "event": {
+                "operator": {
+                    "value": {
+                        "action": "confirm_create_task",
+                        "item_id": "action_test_001",
+                        "owner_field": "owner_override__action_test_001",
+                        "due_date_field": "due_date_override__action_test_001",
+                    },
+                    "form_value": {
+                        "owner_override__action_test_001": "李四",
+                        "due_date_override__action_test_001": "2026-05-01",
+                    },
+                }
+            }
+        }
+        normalized = normalize_sdk_card_action_payload(payload)
+        action = normalized["event"]["action"]
+        envelope = build_callback_envelope(normalized, source="sdk_ws")
+
+        self.assertEqual(action["form_value"]["owner_override__action_test_001"], "李四")
+        self.assertEqual(envelope.action_value["form_value"]["due_date_override__action_test_001"], "2026-05-01")
+
     def test_unknown_action_returns_toast(self) -> None:
         dispatcher = self.build_dispatcher()
         result = dispatcher.dispatch_sdk_card_action(

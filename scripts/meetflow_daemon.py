@@ -19,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from adapters import FeishuAPIError, FeishuClient
 from config import load_settings
 from core import CalendarEvent, KnowledgeIndexStore, MeetFlowStorage, Resource, configure_logging, get_logger
+from core.jobs import JobQueue
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,6 +45,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--enable-m4", action="store_true", help="启用 M4 会后自动发卡。")
     parser.add_argument("--enable-rag", action="store_true", help="启用 RAG 文档自动刷新。")
     parser.add_argument("--event-stdin", action="store_true", help="从 stdin 读取 lark-cli event +subscribe NDJSON 事件作为实时唤醒。")
+    parser.add_argument("--enqueue", action="store_true", help="只发现后台机会并写入 workflow_jobs，由 meetflow_worker 执行。")
+    parser.add_argument("--job-queue", default="workflow", help="M3/M4 入队队列名，默认 workflow。")
+    parser.add_argument("--rag-job-queue", default="rag_refresh", help="RAG 刷新入队队列名，默认 rag_refresh。")
+    parser.add_argument("--job-priority", type=int, default=100, help="入队优先级，数值越小越先执行。")
     parser.add_argument("--dry-run", action="store_true", help="只打印将触发的动作，不真正发卡或刷新索引。")
     parser.add_argument("--once", action="store_true", help="只执行一轮扫描，便于本地验证和 systemd 健康检查。")
     return parser.parse_args()
@@ -66,6 +71,7 @@ def main() -> int:
     )
     knowledge_store.initialize()
     state = DaemonState(settings.storage.db_path)
+    job_queue = JobQueue(settings.storage) if args.enqueue else None
     timezone = ZoneInfo(settings.app.timezone or "Asia/Shanghai")
     chat_id = args.chat_id or settings.feishu.default_chat_id
     if args.enable_m4 and not chat_id and not args.dry_run:
@@ -95,9 +101,26 @@ def main() -> int:
         if (args.enable_m3 or args.enable_m4) and now >= next_calendar_scan:
             events = scan_calendar_events(client, args, timezone)
             if args.enable_m3:
-                trigger_m3_due_events(events, args=args, state=state, timezone=timezone, logger=logger)
+                trigger_m3_due_events(
+                    events,
+                    args=args,
+                    state=state,
+                    timezone=timezone,
+                    logger=logger,
+                    job_queue=job_queue,
+                    max_attempts=settings.jobs.max_attempts,
+                )
             if args.enable_m4:
-                trigger_m4_finished_events(events, args=args, state=state, chat_id=chat_id, timezone=timezone, logger=logger)
+                trigger_m4_finished_events(
+                    events,
+                    args=args,
+                    state=state,
+                    chat_id=chat_id,
+                    timezone=timezone,
+                    logger=logger,
+                    job_queue=job_queue,
+                    max_attempts=settings.jobs.max_attempts,
+                )
             next_calendar_scan = now + max(10, int(args.poll_seconds or 60))
 
         if args.enable_rag and now >= next_rag_scan:
@@ -106,6 +129,8 @@ def main() -> int:
                 knowledge_store=knowledge_store,
                 args=args,
                 logger=logger,
+                job_queue=job_queue,
+                max_attempts=settings.jobs.max_attempts,
             )
             next_rag_scan = now + max(60, int(args.rag_refresh_seconds or 600))
 
@@ -122,6 +147,9 @@ def ensure_daemon_calendar_subscription(client: FeishuClient, args: argparse.Nam
     """
 
     if not (args.enable_m3 or args.enable_m4):
+        return
+    if args.dry_run:
+        logger.info("dry-run: 跳过日程变更订阅，仅执行扫描预览。")
         return
     try:
         client.subscribe_calendar_event_changes(
@@ -209,6 +237,8 @@ def trigger_m3_due_events(
     state: DaemonState,
     timezone: ZoneInfo,
     logger: Any,
+    job_queue: JobQueue | None = None,
+    max_attempts: int = 3,
 ) -> None:
     """对进入会前窗口的日程触发 M3 发卡。"""
 
@@ -223,6 +253,29 @@ def trigger_m3_due_events(
             continue
         key = f"m3:{event.event_id}:{args.m3_minutes_before}"
         if state.has(key):
+            continue
+        if args.enqueue and job_queue is not None:
+            payload = {
+                "identity": args.identity,
+                "calendar_id": args.calendar_id,
+                "event_id": event.event_id,
+                "project_id": "meetflow",
+                "llm_provider": "scripted_debug",
+                "idempotency_suffix": f"daemon-{event.event_id}-{args.m3_minutes_before}",
+            }
+            if args.dry_run:
+                logger.info("dry-run: 将入队 M3 发卡任务 event_id=%s summary=%s", event.event_id, event.summary)
+            else:
+                job = job_queue.enqueue(
+                    queue_name=args.job_queue,
+                    job_type="pre_meeting.send_card",
+                    payload=payload,
+                    idempotency_key=key,
+                    priority=args.job_priority,
+                    max_attempts=max_attempts,
+                )
+                logger.info("已入队 M3 发卡任务 job_id=%s event_id=%s", job.job_id, event.event_id)
+            state.mark(key, {"summary": event.summary, "start_time": event.start_time, "queued": True})
             continue
         command = [
             sys.executable,
@@ -249,6 +302,8 @@ def trigger_m4_finished_events(
     chat_id: str,
     timezone: ZoneInfo,
     logger: Any,
+    job_queue: JobQueue | None = None,
+    max_attempts: int = 3,
 ) -> None:
     """对已结束会议查询妙记并触发 M4 发卡。"""
 
@@ -264,6 +319,26 @@ def trigger_m4_finished_events(
         minute_token = query_minute_token_by_calendar_event_id(event.event_id, logger=logger)
         if not minute_token:
             logger.info("会议暂未生成可用妙记 event_id=%s summary=%s", event.event_id, event.summary)
+            continue
+        if args.enqueue and job_queue is not None:
+            payload = {
+                "identity": "user",
+                "minute": minute_token,
+                "chat_id": chat_id,
+            }
+            if args.dry_run:
+                logger.info("dry-run: 将入队 M4 发卡任务 event_id=%s minute_token=%s", event.event_id, minute_token)
+            else:
+                job = job_queue.enqueue(
+                    queue_name=args.job_queue,
+                    job_type="post_meeting.send_cards",
+                    payload=payload,
+                    idempotency_key=key,
+                    priority=args.job_priority,
+                    max_attempts=max_attempts,
+                )
+                logger.info("已入队 M4 发卡任务 job_id=%s event_id=%s", job.job_id, event.event_id)
+            state.mark(key, {"summary": event.summary, "minute_token": minute_token, "queued": True})
             continue
         command = [
             sys.executable,
@@ -338,12 +413,42 @@ def refresh_recent_knowledge_documents(
     knowledge_store: KnowledgeIndexStore,
     args: argparse.Namespace,
     logger: Any,
+    job_queue: JobQueue | None = None,
+    max_attempts: int = 3,
 ) -> None:
     """对最近索引过的文档做增量刷新兜底。"""
 
-    process_pending_index_jobs(client=client, knowledge_store=knowledge_store, args=args, logger=logger)
+    process_pending_index_jobs(
+        client=client,
+        knowledge_store=knowledge_store,
+        args=args,
+        logger=logger,
+        job_queue=job_queue,
+        max_attempts=max_attempts,
+    )
     jobs = knowledge_store.enqueue_recent_document_refresh_jobs(limit=max(1, int(args.rag_limit or 20)))
     for job in jobs:
+        if args.enqueue and job_queue is not None:
+            if args.dry_run:
+                logger.info("dry-run: 将入队定期知识刷新 resource_id=%s source_url=%s", job.resource_id, job.source_url)
+            else:
+                queued = job_queue.enqueue(
+                    queue_name=args.rag_job_queue,
+                    job_type="rag_refresh.document",
+                    payload={
+                        "resource_id": job.resource_id,
+                        "resource_type": job.resource_type,
+                        "source_url": job.source_url,
+                        "identity": args.identity,
+                        "reason": "daemon_recent",
+                        "index_job_id": job.job_id,
+                    },
+                    idempotency_key=f"rag_recent:{job.job_id}",
+                    priority=args.job_priority,
+                    max_attempts=max_attempts,
+                )
+                logger.info("已入队定期知识刷新 job_id=%s index_job_id=%s", queued.job_id, job.job_id)
+            continue
         if args.dry_run:
             logger.info("dry-run: 将刷新知识文档 resource_id=%s source_url=%s", job.resource_id, job.source_url)
             continue
@@ -363,6 +468,8 @@ def process_pending_index_jobs(
     knowledge_store: KnowledgeIndexStore,
     args: argparse.Namespace,
     logger: Any,
+    job_queue: JobQueue | None = None,
+    max_attempts: int = 3,
 ) -> None:
     """优先处理长连接事件写入的 pending index_jobs。"""
 
@@ -374,6 +481,24 @@ def process_pending_index_jobs(
         source_url = str(job.get("source_url") or "")
         if args.dry_run:
             logger.info("dry-run: 将处理事件刷新任务 job_id=%s resource_id=%s", job_id, resource_id)
+            continue
+        if args.enqueue and job_queue is not None:
+            queued = job_queue.enqueue(
+                queue_name=args.rag_job_queue,
+                job_type="rag_refresh.document",
+                payload={
+                    "resource_id": resource_id,
+                    "resource_type": resource_type,
+                    "source_url": source_url,
+                    "identity": args.identity,
+                    "reason": "index_job",
+                    "index_job_id": job_id,
+                },
+                idempotency_key=f"rag_index_job:{job_id}",
+                priority=args.job_priority,
+                max_attempts=max_attempts,
+            )
+            logger.info("已入队事件知识刷新 job_id=%s index_job_id=%s", queued.job_id, job_id)
             continue
         knowledge_store.update_index_job_status(job_id, status="running")
         try:

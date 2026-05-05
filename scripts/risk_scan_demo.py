@@ -24,6 +24,7 @@ from core import (
     normalize_task_snapshots,
     scan_risks,
 )
+from core.jobs import JobQueue
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,6 +43,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stale-update-days", type=int, default=0, help="覆盖配置中的长期未更新天数。")
     parser.add_argument("--due-soon-hours", type=int, default=0, help="覆盖配置中的即将截止小时数。")
     parser.add_argument("--max-reminders", type=int, default=0, help="覆盖配置中的每日最大提醒数量。")
+    parser.add_argument("--enqueue", action="store_true", help="只写入 risk_scan.run 后台任务，由 meetflow_worker 执行。")
+    parser.add_argument("--job-queue", default="risk_scan", help="入队队列名，默认 risk_scan。")
+    parser.add_argument("--job-priority", type=int, default=100, help="入队优先级，数值越小越先执行。")
     return parser.parse_args()
 
 
@@ -56,6 +60,11 @@ def main() -> int:
 
     storage = MeetFlowStorage(settings.storage)
     storage.initialize()
+    if args.enqueue:
+        job = enqueue_risk_scan_job(args, settings)
+        print("已写入风险巡检后台任务：")
+        print(json.dumps(job.to_dict(), ensure_ascii=False, indent=2))
+        return 0
     now = int(time.time())
     stale_update_days = args.stale_update_days or settings.risk_rules.stale_update_days
     due_soon_hours = args.due_soon_hours or settings.risk_rules.due_soon_hours
@@ -147,6 +156,39 @@ def load_tasks(args: argparse.Namespace, settings: Any) -> list[Any]:
         page_size=args.page_size,
         page_limit=args.page_limit,
         identity=args.identity,
+    )
+
+
+def enqueue_risk_scan_job(args: argparse.Namespace, settings: Any) -> Any:
+    """把风险巡检请求写入后台队列。
+
+    入队只记录运行参数，不直接访问飞书任务，也不发送卡片；真实副作用由
+    `scripts/meetflow_worker.py` 后续执行，仍会检查 `--allow-write`。
+    """
+
+    now = int(time.time())
+    payload = {
+        "backend": args.backend,
+        "show_card": bool(args.show_card),
+        "allow_write": bool(args.allow_write),
+        "chat_id": args.chat_id or settings.feishu.default_chat_id,
+        "identity": args.identity,
+        "send_identity": args.send_identity,
+        "completed": args.completed,
+        "page_size": args.page_size,
+        "page_limit": args.page_limit,
+        "stale_update_days": args.stale_update_days,
+        "due_soon_hours": args.due_soon_hours,
+        "max_reminders": args.max_reminders,
+    }
+    queue = JobQueue(settings.storage)
+    return queue.enqueue(
+        queue_name=args.job_queue,
+        job_type="risk_scan.run",
+        payload=payload,
+        idempotency_key=f"risk_scan:{args.backend}:{payload['chat_id']}:{now}",
+        priority=args.job_priority,
+        max_attempts=settings.jobs.max_attempts,
     )
 
 
