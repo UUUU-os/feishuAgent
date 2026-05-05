@@ -71,13 +71,19 @@ class MeetFlowStorage:
                 CREATE TABLE IF NOT EXISTS task_mappings (
                     item_id TEXT PRIMARY KEY,
                     task_id TEXT NOT NULL,
+                    meeting_id TEXT NOT NULL DEFAULT '',
+                    minute_token TEXT NOT NULL DEFAULT '',
+                    title TEXT NOT NULL DEFAULT '',
                     owner TEXT NOT NULL,
                     due_date TEXT NOT NULL,
                     status TEXT NOT NULL,
+                    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+                    source_url TEXT NOT NULL DEFAULT '',
                     updated_at INTEGER NOT NULL
                 )
                 """
                 )
+            self._ensure_task_mapping_columns(cursor)
 
             # 记录风险提醒历史，用于 M5 巡检降噪和后续审计。
             cursor.execute(
@@ -248,6 +254,11 @@ class MeetFlowStorage:
         owner: str,
         due_date: str,
         status: str,
+        meeting_id: str = "",
+        minute_token: str = "",
+        title: str = "",
+        evidence_refs: list[dict[str, Any]] | None = None,
+        source_url: str = "",
     ) -> None:
         """保存行动项和飞书任务之间的映射关系。"""
 
@@ -257,18 +268,28 @@ class MeetFlowStorage:
                 INSERT OR REPLACE INTO task_mappings (
                     item_id,
                     task_id,
+                    meeting_id,
+                    minute_token,
+                    title,
                     owner,
                     due_date,
                     status,
+                    evidence_refs_json,
+                    source_url,
                     updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     item_id,
                     task_id,
+                    meeting_id,
+                    minute_token,
+                    title,
                     owner,
                     due_date,
                     status,
+                    json.dumps(evidence_refs or [], ensure_ascii=False),
+                    source_url,
                     int(time.time()),
                 ),
             )
@@ -317,7 +338,110 @@ class MeetFlowStorage:
                 (item_id,),
             ).fetchone()
 
-        return dict(row) if row is not None else None
+        if row is None:
+            return None
+        data = dict(row)
+        if "evidence_refs_json" in data:
+            try:
+                data["evidence_refs"] = json.loads(data.get("evidence_refs_json") or "[]")
+            except json.JSONDecodeError:
+                data["evidence_refs"] = []
+        return data
+
+    def get_task_mapping_by_task_id(self, task_id: str) -> dict[str, Any] | None:
+        """按飞书任务 ID 读取 M4 任务来源映射。
+
+        M5 巡检读取到的是飞书任务 ID，而不是 M4 内部的 action item ID。
+        这个查询把“任务当前风险”接回“会后由哪场会议产生、证据来自哪里”。
+        """
+
+        normalized_task_id = str(task_id or "").strip()
+        if not normalized_task_id:
+            return None
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """
+                SELECT *
+                FROM task_mappings
+                WHERE task_id = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (normalized_task_id,),
+            ).fetchone()
+
+        return self._normalize_task_mapping_row(row)
+
+    def find_task_mappings_by_meeting(
+        self,
+        meeting_id: str = "",
+        minute_token: str = "",
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """按会议或妙记读取任务映射，便于演示 M4/M5 闭环。"""
+
+        normalized_meeting_id = str(meeting_id or "").strip()
+        normalized_minute_token = str(minute_token or "").strip()
+        if not normalized_meeting_id and not normalized_minute_token:
+            return []
+
+        clauses: list[str] = []
+        params: list[Any] = []
+        if normalized_meeting_id:
+            clauses.append("meeting_id = ?")
+            params.append(normalized_meeting_id)
+        if normalized_minute_token:
+            clauses.append("minute_token = ?")
+            params.append(normalized_minute_token)
+        params.append(max(int(limit or 20), 1))
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM task_mappings
+                WHERE {" OR ".join(clauses)}
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+
+        return [item for row in rows if (item := self._normalize_task_mapping_row(row))]
+
+    @staticmethod
+    def _normalize_task_mapping_row(row: sqlite3.Row | None) -> dict[str, Any] | None:
+        """把 task_mappings 行转换成业务字典，并解析 evidence_refs。"""
+
+        if row is None:
+            return None
+        data = dict(row)
+        try:
+            data["evidence_refs"] = json.loads(data.get("evidence_refs_json") or "[]")
+        except json.JSONDecodeError:
+            data["evidence_refs"] = []
+        return data
+
+    def _ensure_task_mapping_columns(self, cursor: sqlite3.Cursor) -> None:
+        """为旧版本 task_mappings 表补齐 M4/M5 对接字段。"""
+
+        existing_columns = {
+            row[1]
+            for row in cursor.execute("PRAGMA table_info(task_mappings)").fetchall()
+        }
+        column_specs = {
+            "meeting_id": "TEXT NOT NULL DEFAULT ''",
+            "minute_token": "TEXT NOT NULL DEFAULT ''",
+            "title": "TEXT NOT NULL DEFAULT ''",
+            "evidence_refs_json": "TEXT NOT NULL DEFAULT '[]'",
+            "source_url": "TEXT NOT NULL DEFAULT ''",
+        }
+        for column_name, column_spec in column_specs.items():
+            if column_name not in existing_columns:
+                cursor.execute(f"ALTER TABLE task_mappings ADD COLUMN {column_name} {column_spec}")
 
     def record_risk_notification(
         self,

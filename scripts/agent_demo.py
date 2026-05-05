@@ -7,6 +7,7 @@ import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -16,6 +17,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from config import LLMSettings, load_settings
+from cards.pre_meeting import build_pre_meeting_card
 from core import (
     AgentMessage,
     AgentPolicy,
@@ -591,6 +593,13 @@ def build_debug_card_arguments(user_content: str, context_payload: dict[str, str
     event = runtime_context.get("event") if isinstance(runtime_context.get("event"), dict) else {}
     event_payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
     meeting_title = str(event_payload.get("summary") or context_payload.get("query") or "会前知识卡片")
+    meeting_id = str(runtime_context.get("meeting_id") or event_payload.get("meeting_id") or context_payload.get("meeting_id") or "")
+    calendar_event_id = str(
+        runtime_context.get("calendar_event_id")
+        or event_payload.get("calendar_event_id")
+        or event_payload.get("event_id")
+        or meeting_id
+    )
     related_resources = runtime_context.get("related_resources")
     facts: list[object] = []
     if isinstance(related_resources, list):
@@ -608,9 +617,62 @@ def build_debug_card_arguments(user_content: str, context_payload: dict[str, str
         "title": f"会前背景知识卡片：{meeting_title}",
         "summary": "scripted_debug 已完成真实会议、真实文档索引和 knowledge.search 检索，并通过受控工具发送本卡片。",
         "facts": facts,
+        "card": build_debug_pre_meeting_card(
+            meeting_title=meeting_title,
+            meeting_id=meeting_id,
+            calendar_event_id=calendar_event_id,
+            facts=facts,
+        ),
         "idempotency_key": context_payload.get("idempotency_key", ""),
         "identity": "tenant",
     }
+
+
+def build_debug_pre_meeting_card(
+    *,
+    meeting_title: str,
+    meeting_id: str,
+    calendar_event_id: str,
+    facts: list[object],
+) -> dict[str, object]:
+    """用 M3 专用模板生成带按钮的 scripted_debug 会前卡片。"""
+
+    must_read_resources: list[SimpleNamespace] = []
+    for fact in facts:
+        if not isinstance(fact, dict):
+            continue
+        value = str(fact.get("value") or "")
+        title, _, source_url = value.partition(": ")
+        if source_url.startswith("http"):
+            must_read_resources.append(
+                SimpleNamespace(
+                    title=title or "相关资料",
+                    content="真实联调补充索引资源。",
+                    evidence_refs=[
+                        SimpleNamespace(
+                            source_id=title or "resource",
+                            source_url=source_url,
+                            source_type="resource",
+                            snippet="真实联调资源链接。",
+                        )
+                    ],
+                )
+            )
+    brief = SimpleNamespace(
+        topic=meeting_title,
+        meeting_id=meeting_id,
+        calendar_event_id=calendar_event_id,
+        summary="scripted_debug 已完成真实会议读取、知识检索和受控发卡。",
+        confidence=0.8,
+        needs_confirmation=False,
+        last_decisions=[],
+        current_questions=[],
+        risks=[],
+        must_read_resources=must_read_resources,
+        possible_related_resources=[],
+        evidence_refs=[],
+    )
+    return build_pre_meeting_card(brief)
 
 
 def extract_context_payload(user_content: str) -> dict[str, str]:

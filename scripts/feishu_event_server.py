@@ -13,13 +13,15 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from adapters.feishu_event_handler import FeishuEventHandler
+from adapters.feishu_client import FeishuClient
 from config import load_settings
 from core.agent import create_meetflow_agent
-from core.card_actions import CardActionRouter
+from core.feishu_callback_dispatcher import FeishuCallbackDispatcher
 from core.llm import DryRunLLMProvider
 from core.logging import configure_logging, get_logger
 from core.observability import configure_structured_events, emit_structured_event, safe_error_message
+from core.policy import AgentPolicy
+from core.storage import MeetFlowStorage
 
 
 class FeishuEventServerState:
@@ -31,14 +33,14 @@ class FeishuEventServerState:
 
     def __init__(
         self,
-        handler: FeishuEventHandler,
-        router: CardActionRouter,
+        dispatcher: FeishuCallbackDispatcher,
+        paths: set[str],
         execute_agent: bool,
         allow_write: bool,
         agent_provider: str,
     ) -> None:
-        self.handler = handler
-        self.router = router
+        self.dispatcher = dispatcher
+        self.paths = paths
         self.execute_agent = execute_agent
         self.allow_write = allow_write
         self.agent_provider = agent_provider
@@ -62,21 +64,15 @@ class MeetFlowEventRequestHandler(BaseHTTPRequestHandler):
         """接收飞书 POST 回调。"""
 
         state: FeishuEventServerState = self.server.state  # type: ignore[attr-defined]
-        if self.path not in {"/feishu/events", "/feishu/card/actions"}:
+        request_path = self.path.split("?", maxsplit=1)[0]
+        if request_path not in state.paths:
             self._write_json({"error": "not_found"}, status=404)
             return
 
         try:
             payload = self._read_json_body()
-            challenge_response = state.handler.handle_verification(payload)
-            if challenge_response is not None:
-                self._write_json(challenge_response)
-                return
-
-            action_input = state.handler.parse_card_action(payload)
-            result = state.router.route(action_input)
-            response = state.handler.build_callback_response(result)
-            self._write_json(response)
+            result = state.dispatcher.dispatch_http_callback(payload)
+            self._write_json(result.body)
 
             if state.execute_agent and result.agent_input is not None:
                 thread = threading.Thread(
@@ -176,12 +172,20 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    storage = MeetFlowStorage(settings.storage)
+    storage.initialize()
+    client = FeishuClient(settings.feishu)
+    configured_paths = getattr(settings.feishu, "event_http_paths", []) or []
+    paths = {str(path) for path in configured_paths if path}
+    paths.update({"/feishu/events", "/feishu/card/actions", "/feishu/card/callback"})
     state = FeishuEventServerState(
-        handler=FeishuEventHandler(
-            verification_token=settings.feishu.event_verification_token,
-            encrypt_key=settings.feishu.event_encrypt_key,
+        dispatcher=FeishuCallbackDispatcher(
+            settings=settings,
+            storage=storage,
+            feishu_client=client,
+            policy=AgentPolicy(),
         ),
-        router=CardActionRouter(),
+        paths=paths,
         execute_agent=args.execute_agent,
         allow_write=args.allow_write,
         agent_provider=args.agent_provider,

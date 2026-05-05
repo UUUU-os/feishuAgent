@@ -23,7 +23,11 @@
     "event_verification_token": "replace-with-event-verification-token",
     "event_encrypt_key": "",
     "event_server_host": "0.0.0.0",
-    "event_server_port": 8765
+    "event_server_port": 8765,
+    "event_receive_mode": "sdk_ws",
+    "event_sdk_log_level": "info",
+    "event_http_enabled": true,
+    "event_http_paths": ["/feishu/events", "/feishu/card/actions", "/feishu/card/callback"]
   },
   "llm": {
     "provider": "openai-compatible",

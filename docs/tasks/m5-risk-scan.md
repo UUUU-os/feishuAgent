@@ -22,13 +22,15 @@
 ### T5.2 实现任务状态对账
 
 - 优先级：`P0`
-- 状态：`已完成首版归一化`
+- 状态：`已完成 M4/M5 闭环对接`
 - 目标：将历史 Action Items 与实际任务状态做映射
 - 验收标准：
   - 能识别哪些 Action Item 已建任务、未建任务、状态异常
 - 实现记录：
   - `normalize_task_snapshots()` 兼容 `ActionItem`、工具序列化 dict 和本地 mock。
   - 归一化字段包括 `task_id`、`title`、`owner`、`due_timestamp`、`updated_at`、`completed_at`、`url`。
+  - `core/storage.py` 新增 `get_task_mapping_by_task_id()` 和 `find_task_mappings_by_meeting()`，M5 可用飞书任务 ID 反查 M4 创建任务时保存的 `meeting_id`、`minute_token`、`title`、`source_url` 和 `evidence_refs`。
+  - `core/risk_scan.py` 新增 `enrich_risks_with_task_mappings()`，在风险结果中写入 `evidence["m4_task_mapping"]`，让“当前任务风险”能接回“来自哪次会后 Action Item”。
 
 ### T5.3 实现风险识别规则
 
@@ -49,13 +51,14 @@
 ### T5.4 实现风险提醒卡片
 
 - 优先级：`P0`
-- 状态：`已完成首版`
+- 状态：`已完成 M4 来源富化展示`
 - 目标：向负责人或 PM 推送聚合提醒
 - 验收标准：
   - 卡片包含任务名、风险原因、截止时间、处理建议
 - 实现记录：
   - 新增 `cards/risk_scan.py`，实现 `build_risk_scan_card()`。
   - 卡片包含扫描任务数、命中风险数、本次提醒数、降噪跳过数、任务名、风险原因、负责人、截止时间和建议动作。
+  - 风险卡片现在会在存在 M4 映射时展示“来源会议/行动项”、`minute_token` 和第一条证据片段，形成 `M4 会后创建任务 -> M5 风险追踪 -> 回到原始妙记证据` 的演示闭环。
 
 ### T5.5 接入每日定时巡检
 
@@ -100,6 +103,14 @@
 - `tests/test_storage_risk_notifications.py`
 - `tests/test_risk_scan_workflow.py`
 
+2026-05-04 追加 M4/M5 闭环改造：
+
+- `core/storage.py`：新增按 `task_id` 反查 task mapping、按会议/妙记查 mapping 的接口。
+- `core/risk_scan.py`：新增风险来源富化函数，把 M4 的 `task_mappings` 合并进风险 evidence。
+- `core/workflows.py`：`RiskScanWorkflow.post_process_result()` 在降噪和渲染卡片前执行 M4 来源富化。
+- `cards/risk_scan.py`：风险卡片展示来源会议、妙记 token 和证据片段。
+- `tests/test_storage_risk_notifications.py`、`tests/test_risk_scan.py`、`tests/test_risk_scan_card.py`：新增闭环回归测试。
+
 已执行验证：
 
 ```bash
@@ -116,5 +127,6 @@
 - 全量测试 29 个通过。
 - 本地 demo 扫描 5 个 mock 任务，命中 4 条风险，生成风险卡片 JSON。
 - Agent 风险巡检链路已在 `result.payload["risk_scan"]` 中生成 `scan_result`、`notification_decision` 和 `card_payload`。
+- 2026-05-04 闭环改造后，`/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest discover -s tests` 通过 61 条测试。
 
 ---

@@ -24,6 +24,57 @@
   - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_router` 验证 `minute.ready` 和手动 `post_meeting_followup` 两条路由都包含联系人解析工具
   - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/agent_demo.py --event-type minute.ready --backend local --llm-provider scripted_debug --max-iterations 3` 验证本地会后链路仍能进入 `post_meeting_followup`
 
+#### T4.1 融合实现记录：M4 会后主链路接入完整仓库
+
+- 更新时间：2026-05-04
+- 已更新文件：
+  - `core/post_meeting.py`
+  - `core/post_meeting_tools.py`
+  - `core/card_callback.py`
+  - `core/confirmation_commands.py`
+  - `core/agent.py`
+  - `core/router.py`
+  - `core/workflows.py`
+  - `core/policy.py`
+  - `core/storage.py`
+  - `adapters/feishu_tools.py`
+  - `adapters/feishu_client.py`
+  - `cards/post_meeting.py`
+  - `cards/layout.py`
+  - `scripts/post_meeting_demo.py`
+  - `scripts/post_meeting_live_test.py`
+  - `scripts/post_meeting_agent_live_test.py`
+  - `scripts/post_meeting_button_flow_live_test.py`
+  - `scripts/post_meeting_confirmation_watcher.py`
+  - `scripts/post_meeting_confirmation_event_watcher.py`
+  - `tests/test_post_meeting_card_callback.py`
+  - `tests/test_post_meeting_rag_query.py`
+- 已实现的核心能力：
+  - `PostMeetingFollowupWorkflow.prepare_context()` 会在进入 Agent Loop 前构造确定性会后产物，包括清洗纪要、总结草稿、Action Items、待确认任务、卡片 payload 和相关知识线索
+  - `register_post_meeting_tools()` 已接入 `create_meetflow_agent()`，会后流程可以通过 ToolRegistry 暴露 `post_meeting.build_artifacts`、`post_meeting.prepare_task`、`post_meeting.send_summary_card` 等工具
+  - 会后主链路不再自动创建飞书任务；所有 Action Item 先进入总结卡或待确认卡，用户确认后再进入 `handle_post_meeting_card_callback()`
+  - `AgentPolicy._authorize_create_task()` 增加人工确认检查，任务创建必须具备 `human_confirmation.confirmed=True`，并继续校验负责人、截止时间、置信度和幂等键
+  - `task_mappings` 扩展 `meeting_id`、`minute_token`、`title`、`evidence_refs`、`source_url`，用于把 M4 创建的任务和后续 M5 风险巡检证据链关联起来
+- 当前验证方式：
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_post_meeting_card_callback tests.test_post_meeting_rag_query` 验证 M4 卡片确认状态机、重复点击拦截、截止日期归一和 RAG query 去噪
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest discover -s tests` 验证融合后全量 58 条单测通过
+
+#### T4.1 真实联调稳定性补充：重复发卡确认会话
+
+- 更新时间：2026-05-05
+- 问题背景：
+  - 同一个妙记重复执行 `scripts/card_send_live.py m4 --minute ...` 时，Action Item 的稳定 `item_id` 不变。
+  - 第一轮点击“确认创建”后，本地 `post_meeting_pending_actions.json` 会把该 `item_id` 标记为 `created`；第二轮重新发卡后，如果仍沿用旧状态，点击新卡片会被误判为“该任务已创建”，导致不再创建新飞书任务，后续 M5 也扫不到本轮测试任务。
+- 已实现修复：
+  - `scripts/post_meeting_live_test.py` 每次真实发待确认卡都会写入新的 `review_session_id`。
+  - `cards/post_meeting.py` 将 `review_session_id` 放入按钮 value。
+  - `core/confirmation_commands.py` 在新 session 写入同一个 `item_id` 时重置状态为 `pending`。
+  - `core/card_callback.py` 将 `review_session_id` 纳入任务创建幂等键，并把 task mapping 的 `item_id` 扩展为 `item_id:review_session_id`，保留重复联调时的多轮映射。
+  - 旧卡片点击会被提示“请使用群里最新发送的卡片”，避免旧卡继续改写新 session 状态。
+- 当前验证方式：
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_post_meeting_card_callback` 验证新 session 会重置 created 状态、旧卡片被拦截、幂等键包含 session。
+  - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest discover -s tests` 验证全量 66 条测试通过。
+
 ### T4.2 实现纪要清洗
 
 - 优先级：`P0`

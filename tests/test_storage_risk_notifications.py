@@ -39,6 +39,40 @@ class StorageRiskNotificationsTest(unittest.TestCase):
             self.assertTrue(storage.has_recent_risk_notification("risk_scan:task_1:overdue:20260502", now + 60))
             self.assertFalse(storage.has_recent_risk_notification("risk_scan:task_1:overdue:20260502", now + 90000))
 
+    def test_get_task_mapping_by_task_id_keeps_m4_provenance(self) -> None:
+        """M5 能用飞书 task_id 找回 M4 保存的会议和证据来源。"""
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            storage = build_storage(tmp_dir)
+            storage.save_task_mapping(
+                item_id="action_1",
+                task_id="task_1",
+                meeting_id="meeting_1",
+                minute_token="minute_1",
+                title="MeetFlow 测试会议",
+                owner="张三",
+                due_date="2026-05-05",
+                status="created",
+                evidence_refs=[
+                    {
+                        "source_id": "minute_chunk_1",
+                        "source_type": "minute",
+                        "source_url": "https://example.com/minutes/1",
+                        "snippet": "张三负责整理测试报告。",
+                    }
+                ],
+                source_url="https://example.com/minutes/1",
+            )
+
+            mapping = storage.get_task_mapping_by_task_id("task_1")
+
+            self.assertIsNotNone(mapping)
+            assert mapping is not None
+            self.assertEqual(mapping["item_id"], "action_1")
+            self.assertEqual(mapping["meeting_id"], "meeting_1")
+            self.assertEqual(mapping["title"], "MeetFlow 测试会议")
+            self.assertEqual(mapping["evidence_refs"][0]["source_id"], "minute_chunk_1")
+
 
 def build_storage(tmp_dir: str) -> MeetFlowStorage:
     """构造临时 SQLite 存储。"""

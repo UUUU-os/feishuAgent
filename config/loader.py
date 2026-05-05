@@ -48,6 +48,10 @@ class FeishuSettings:
     event_encrypt_key: str
     event_server_host: str
     event_server_port: int
+    event_receive_mode: str
+    event_sdk_log_level: str
+    event_http_enabled: bool
+    event_http_paths: list[str]
 
 
 @dataclass(slots=True)
@@ -202,6 +206,18 @@ ENV_MAPPING: dict[str, tuple[str, str, Any]] = {
     "MEETFLOW_FEISHU_EVENT_ENCRYPT_KEY": ("feishu", "event_encrypt_key", str),
     "MEETFLOW_FEISHU_EVENT_SERVER_HOST": ("feishu", "event_server_host", str),
     "MEETFLOW_FEISHU_EVENT_SERVER_PORT": ("feishu", "event_server_port", int),
+    "MEETFLOW_FEISHU_EVENT_RECEIVE_MODE": ("feishu", "event_receive_mode", str),
+    "MEETFLOW_FEISHU_EVENT_SDK_LOG_LEVEL": ("feishu", "event_sdk_log_level", str),
+    "MEETFLOW_FEISHU_EVENT_HTTP_ENABLED": (
+        "feishu",
+        "event_http_enabled",
+        lambda value: value.lower() in {"1", "true", "yes", "on"},
+    ),
+    "MEETFLOW_FEISHU_EVENT_HTTP_PATHS": (
+        "feishu",
+        "event_http_paths",
+        lambda value: [item.strip() for item in value.split(",") if item.strip()],
+    ),
     "MEETFLOW_LLM_PROVIDER": ("llm", "provider", str),
     "MEETFLOW_LLM_MODEL": ("llm", "model", str),
     "MEETFLOW_LLM_API_BASE": ("llm", "api_base", str),

@@ -43,6 +43,22 @@
 
 按照 [MeetFlow 当前代码改造思路](docs/current-code-improvement-plan.md) 的这一轮补强已经完成主链路修复：会前卡片按钮 value 不再写死 workflow 幂等键，回调层会按“本次点击”生成幂等键并兼容老卡片；`minute.ready` 和手动 `post_meeting_followup` 已补齐 `contact.get_current_user` / `contact.search_user`；会前刷新场景新增显式的只读上下文补全过程，会从当前 payload、项目记忆和本地历史工作流结果中补回会议标题、参与人、附件与相关资源；`allow_write` 不再挂在共享 loop 实例上，而是通过单次 `run()` 显式透传。对应修改文件包括 `cards/pre_meeting.py`、`core/card_actions.py`、`core/router.py`、`core/agent.py`、`core/agent_loop.py`、`core/workflows.py`、`core/pre_meeting.py`、`core/storage.py` 以及新增的 M3/M4 回归测试文件。本轮使用 `/home/tanyd/anaconda3/envs/meetflow/bin/python` 运行 `py_compile`、24 条针对性 `unittest`、以及 `scripts/agent_demo.py --event-type meeting.soon/minute.ready` 两条本地链路，结果均通过。
 
+2026-05-04 已完成协作者 M3/M4 代码与当前 M5 仓库的融合实现，完整方案见
+[MeetFlow 代码仓库融合方案](docs/codebase-fusion-plan.md)。本轮新增或合入
+`core/post_meeting.py`、`core/post_meeting_tools.py`、`core/card_callback.py`、
+`core/confirmation_commands.py`、`cards/post_meeting.py`、`cards/layout.py`、
+M4 demo/live/watcher 脚本以及对应测试；新增统一回调适配层
+`adapters/feishu_callback_payloads.py` 和统一业务分发层
+`core/feishu_callback_dispatcher.py`；新增 `scripts/feishu_event_sdk_server.py`
+作为飞书官方 SDK WebSocket 长连接入口，同时改造 `scripts/feishu_event_server.py`
+保留公网 HTTPS fallback。`core/agent.py` 已注册 M4 工具，`core/workflows.py`
+已把 `minute.ready` 接入会后 artifact、总结卡、待确认任务和 RAG 计划；
+`core/policy.py` 强制会后任务创建必须带人工确认上下文，`core/storage.py`
+扩展 `task_mappings` 以衔接 M4 证据链与 M5 风险巡检。验证命令包括
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile core/*.py adapters/*.py cards/*.py scripts/*.py`
+和 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest discover -s tests`，
+结果为 58 条测试全部通过。
+
 同时，基于当前 Agent Runtime 已完成一版结构化日志与观测增强，详细实现记录见
 [M2.8：业务侧垂直 Agent Runtime](docs/tasks/m2_8-agent-runtime.md) 中的
 `T2.8-O1 Agent 运行观测与结构化日志增强`。本次新增 `core/observability.py`

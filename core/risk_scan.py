@@ -394,6 +394,101 @@ def decide_risk_notification(
     return decision
 
 
+def enrich_risks_with_task_mappings(
+    scan_result: RiskScanResult,
+    storage: "MeetFlowStorage | None",
+) -> RiskScanResult:
+    """把 M4 创建任务时保存的来源证据补到 M5 风险结果里。
+
+    M5 读取飞书任务只能知道“当前任务有风险”；M4 的 `task_mappings`
+    记录了“这个任务来自哪场会议、哪个 action item、哪些妙记证据”。
+    这里把两者接起来，让风险卡片能解释风险的业务来源。
+    """
+
+    if storage is None or not hasattr(storage, "get_task_mapping_by_task_id"):
+        return scan_result
+
+    enriched_risks: list[RiskRuleResult] = []
+    for risk in scan_result.risks:
+        mapping = storage.get_task_mapping_by_task_id(risk.task_id)  # type: ignore[attr-defined]
+        if not mapping:
+            enriched_risks.append(risk)
+            continue
+        enriched_risks.append(enrich_risk_with_mapping(risk, mapping))
+
+    return RiskScanResult(
+        scanned_count=scan_result.scanned_count,
+        risk_count=scan_result.risk_count,
+        risks=enriched_risks,
+        skipped_count=scan_result.skipped_count,
+        generated_at=scan_result.generated_at,
+        summary=scan_result.summary,
+    )
+
+
+def enrich_risk_with_mapping(risk: RiskRuleResult, mapping: dict[str, Any]) -> RiskRuleResult:
+    """把单条 M4 task_mapping 合并进风险 evidence。"""
+
+    source = {
+        "item_id": str(mapping.get("item_id") or ""),
+        "task_id": str(mapping.get("task_id") or ""),
+        "meeting_id": str(mapping.get("meeting_id") or ""),
+        "minute_token": str(mapping.get("minute_token") or ""),
+        "title": str(mapping.get("title") or ""),
+        "owner": str(mapping.get("owner") or ""),
+        "due_date": str(mapping.get("due_date") or ""),
+        "source_url": str(mapping.get("source_url") or ""),
+        "evidence_refs": normalize_mapping_evidence_refs(mapping.get("evidence_refs")),
+    }
+    evidence = dict(risk.evidence or {})
+    evidence["m4_task_mapping"] = source
+    task_raw_payload = dict(risk.task.raw_payload or {})
+    task_raw_payload["m4_task_mapping"] = source
+    task = TaskSnapshot(
+        task_id=risk.task.task_id,
+        title=risk.task.title,
+        status=risk.task.status,
+        owner=risk.task.owner,
+        due_timestamp=risk.task.due_timestamp,
+        updated_at=risk.task.updated_at,
+        completed_at=risk.task.completed_at,
+        url=risk.task.url or source["source_url"],
+        source=risk.task.source,
+        raw_payload=task_raw_payload,
+    )
+    return RiskRuleResult(
+        risk_id=risk.risk_id,
+        task_id=risk.task_id,
+        risk_type=risk.risk_type,
+        severity=risk.severity,
+        reason=risk.reason,
+        suggestion=risk.suggestion,
+        task=task,
+        dedupe_key=risk.dedupe_key,
+        evidence=evidence,
+    )
+
+
+def normalize_mapping_evidence_refs(value: Any) -> list[dict[str, Any]]:
+    """清洗 task_mappings 中保存的 evidence refs，避免脏数据进入卡片。"""
+
+    if not isinstance(value, list):
+        return []
+    normalized: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        normalized.append(
+            {
+                "source_id": str(item.get("source_id") or item.get("id") or ""),
+                "source_type": str(item.get("source_type") or item.get("type") or ""),
+                "source_url": str(item.get("source_url") or item.get("url") or ""),
+                "snippet": str(item.get("snippet") or item.get("text") or "")[:200],
+            }
+        )
+    return normalized
+
+
 def risk_result_to_alert(risk: RiskRuleResult) -> RiskAlert:
     """把 M5 规则结果转换为项目已有公共 `RiskAlert` 模型。"""
 

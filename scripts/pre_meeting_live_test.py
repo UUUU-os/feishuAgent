@@ -401,12 +401,20 @@ def build_live_goal(event: CalendarEvent, resources: list[Resource], allow_write
 
 
 def format_event_time_range(event: CalendarEvent, timezone_name: str = "Asia/Shanghai") -> str:
-    """把飞书日程秒级时间戳格式化为本地会议时间。"""
+    """把飞书日程时间格式化为本地会议时间。
+
+    飞书普通会议通常返回秒级 timestamp，全天日程只返回 YYYY-MM-DD。
+    真实联调时两种形态都可能出现，这里统一给 Agent 一个可直接展示的权威时间。
+    """
 
     tz = ZoneInfo(timezone_name or "Asia/Shanghai")
     start_text = format_event_timestamp(event.start_time, tz)
     end_text = format_event_timestamp(event.end_time, tz)
     if start_text and end_text:
+        if " " not in start_text or " " not in end_text:
+            if start_text == end_text:
+                return f"{start_text} 全天 {timezone_name or 'Asia/Shanghai'}"
+            return f"{start_text}-{end_text} {timezone_name or 'Asia/Shanghai'}"
         start_date, start_clock = start_text.split(" ", 1)
         end_date, end_clock = end_text.split(" ", 1)
         if start_date == end_date:
@@ -416,12 +424,17 @@ def format_event_time_range(event: CalendarEvent, timezone_name: str = "Asia/Sha
 
 
 def format_event_timestamp(value: str, timezone: ZoneInfo) -> str:
-    """格式化秒级或毫秒级时间戳。"""
+    """格式化秒级、毫秒级时间戳或飞书全天日程日期。"""
 
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return ""
+    if len(raw_value) == 10 and raw_value[4] == "-" and raw_value[7] == "-":
+        return raw_value
     try:
-        timestamp = int(str(value or "0"))
+        timestamp = int(raw_value)
     except ValueError:
-        return str(value or "")
+        return raw_value
     if timestamp > 10_000_000_000:
         timestamp = timestamp // 1000
     return datetime.fromtimestamp(timestamp, timezone).strftime("%Y-%m-%d %H:%M")

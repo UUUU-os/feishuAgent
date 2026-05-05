@@ -589,6 +589,24 @@ class FeishuClient:
         items = response_json.get("data", {}).get("items", [])
         return [self.to_calendar_event(item) for item in items]
 
+    def subscribe_calendar_event_changes(
+        self,
+        calendar_id: str,
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """订阅指定日历下的日程变更事件。
+
+        飞书日程变更事件需要对具体 `calendar_id` 建立订阅关系；后台长连接
+        收到事件后仍只作为唤醒信号，业务动作继续回到 Agent 主链路执行。
+        """
+
+        resolved_calendar_id = self.resolve_calendar_id(calendar_id, identity=identity)
+        return self.post(
+            path=f"calendar/v4/calendars/{resolved_calendar_id}/events/subscription",
+            payload={},
+            identity=identity or "user",
+        )
+
     def to_calendar_info(self, item: dict[str, Any]) -> CalendarInfo:
         """将飞书日历基础信息对象转换为统一 `CalendarInfo` 模型。"""
 
@@ -689,6 +707,67 @@ class FeishuClient:
             raise FeishuAPIError("文档 token 中不应包含路径、查询参数或片段标识")
 
         return raw_document
+
+    @staticmethod
+    def detect_drive_file_type(document: str, default: str = "docx") -> str:
+        """从飞书文档链接推断 drive 订阅所需 file_type。"""
+
+        raw_document = str(document or "").strip()
+        marker_to_type = {
+            "/docx/": "docx",
+            "/doc/": "doc",
+            "/sheets/": "sheet",
+            "/base/": "bitable",
+            "/bitable/": "bitable",
+            "/wiki/": "wiki",
+        }
+        for marker, file_type in marker_to_type.items():
+            if marker in raw_document:
+                return file_type
+        return default
+
+    def subscribe_drive_file(
+        self,
+        file_token: str,
+        file_type: str,
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """订阅单个云文档事件。
+
+        云文档事件不是全量空间级监听，必须先对具体文件 token 建立订阅。
+        收到事件后只写入索引任务，后续 worker 再刷新本地知识库。
+        """
+
+        token = str(file_token or "").strip()
+        final_file_type = self.normalize_drive_file_type(file_type)
+        if not token:
+            raise FeishuAPIError("订阅云文档事件需要 file_token")
+        return self.post(
+            path=f"drive/v1/files/{token}/subscribe",
+            params={"file_type": final_file_type},
+            payload={},
+            identity=identity,
+        )
+
+    @staticmethod
+    def normalize_drive_file_type(file_type: str) -> str:
+        """规范化云文档事件订阅的 file_type。"""
+
+        normalized = str(file_type or "").strip().lower()
+        aliases = {
+            "feishu_document": "docx",
+            "document": "docx",
+            "docx": "docx",
+            "doc": "doc",
+            "sheet": "sheet",
+            "sheets": "sheet",
+            "spreadsheet": "sheet",
+            "bitable": "bitable",
+            "base": "bitable",
+        }
+        if normalized == "wiki":
+            return "docx"
+        return aliases.get(normalized, normalized or "docx")
 
     def fetch_document_resource(
         self,
@@ -1479,6 +1558,32 @@ class FeishuClient:
             idempotency_key=idempotency_key,
             identity=identity,
         )
+
+    def update_card_message(
+        self,
+        message_id: str,
+        card: dict[str, Any],
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """更新一条已发送的飞书卡片消息。
+
+        M4 按钮回调收到点击事件后会尽快刷新原卡片状态，避免用户重复点击。
+        这里仍通过 FeishuClient 封装执行外部副作用，方便统一鉴权和脱敏日志。
+        """
+
+        if not message_id:
+            raise FeishuAPIError("message_id 不能为空")
+        payload = {
+            "msg_type": "interactive",
+            "content": json.dumps(card, ensure_ascii=False),
+        }
+        response_json = self._request(
+            method="PATCH",
+            path=f"im/v1/messages/{message_id}",
+            payload=payload,
+            identity=identity,
+        )
+        return response_json.get("data", {})
 
     def send_message(
         self,

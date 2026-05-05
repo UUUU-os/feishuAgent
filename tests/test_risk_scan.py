@@ -10,6 +10,7 @@ from core.risk_scan import (
     TaskSnapshot,
     build_risk_dedupe_key,
     decide_risk_notification,
+    enrich_risks_with_task_mappings,
     normalize_task_snapshots,
     parse_task_timestamp,
     scan_risks,
@@ -160,6 +161,59 @@ class RiskScanTest(unittest.TestCase):
 
             self.assertFalse(decision.should_notify)
             self.assertEqual(len(decision.suppressed_risks), 1)
+
+    def test_enrich_risks_with_m4_task_mapping(self) -> None:
+        """M5 风险结果能带上 M4 创建任务时保存的会议证据链。"""
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            storage = MeetFlowStorage(
+                StorageSettings(
+                    db_path=str(Path(tmp_dir) / "meetflow.sqlite"),
+                    project_memory_dir=str(Path(tmp_dir) / "projects"),
+                    audit_log_path=str(Path(tmp_dir) / "workflow_runs.jsonl"),
+                )
+            )
+            storage.initialize()
+            storage.save_task_mapping(
+                item_id="action_1",
+                task_id="task_overdue",
+                meeting_id="meeting_1",
+                minute_token="minute_1",
+                title="MeetFlow 测试会议",
+                owner="张三",
+                due_date="2026-05-05",
+                status="created",
+                evidence_refs=[
+                    {
+                        "source_id": "minute_chunk_1",
+                        "source_type": "minute",
+                        "source_url": "https://example.com/minutes/1",
+                        "snippet": "张三负责整理测试报告。",
+                    }
+                ],
+                source_url="https://example.com/minutes/1",
+            )
+            result = scan_risks(
+                tasks=[
+                    TaskSnapshot(
+                        task_id="task_overdue",
+                        title="整理测试报告",
+                        owner="张三",
+                        due_timestamp=self.now - 3600,
+                        updated_at=self.now - 3600,
+                    )
+                ],
+                now=self.now,
+                stale_update_days=3,
+                due_soon_hours=24,
+            )
+
+            enriched = enrich_risks_with_task_mappings(result, storage)
+
+            source = enriched.risks[0].evidence["m4_task_mapping"]
+            self.assertEqual(source["meeting_id"], "meeting_1")
+            self.assertEqual(source["title"], "MeetFlow 测试会议")
+            self.assertEqual(source["evidence_refs"][0]["snippet"], "张三负责整理测试报告。")
 
 
 if __name__ == "__main__":

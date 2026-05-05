@@ -16,6 +16,7 @@ from core.logging import bind_trace_id, get_logger, reset_trace_id
 from core.models import AgentDecision, AgentInput, AgentRunResult
 from core.observability import configure_structured_events, duration_ms_since, emit_structured_event, safe_error_message
 from core.policy import AgentPolicy
+from core.post_meeting_tools import register_post_meeting_tools
 from core.router import WorkflowRouter
 from core.storage import MeetFlowStorage
 from core.tools import ToolRegistry
@@ -338,6 +339,14 @@ def create_meetflow_agent(
         )
         knowledge_store.initialize()
         register_knowledge_tools(final_tool_registry, knowledge_store)
+        register_post_meeting_tools(
+            final_tool_registry,
+            storage=final_storage,
+            knowledge_store=knowledge_store,
+            client=client,
+            default_chat_id=settings.feishu.default_chat_id,
+            timezone=settings.app.timezone,
+        )
     final_llm_provider = llm_provider or create_llm_provider(settings.llm)
     final_policy = policy or AgentPolicy()
 

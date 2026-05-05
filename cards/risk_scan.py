@@ -90,13 +90,66 @@ def render_risk_item_lines(index: int, risk: RiskRuleResult) -> list[str]:
     title = render_link(safe_text(task.title) or "未命名任务", task.url)
     owner = safe_text(task.owner) or "未明确"
     due_text = format_timestamp(task.due_timestamp) if task.due_timestamp else "未设置"
-    return [
+    lines = [
         f"{index}. {title}",
         f"   - 风险：{risk_type_label(risk.risk_type)} / {severity_label(risk.severity)}",
         f"   - 原因：{safe_text(risk.reason)}",
         f"   - 负责人：{owner}  |  截止时间：{due_text}",
         f"   - 建议：{safe_text(risk.suggestion)}",
     ]
+    source_lines = render_m4_source_lines(risk)
+    if source_lines:
+        lines.extend(source_lines)
+    return lines
+
+
+def render_m4_source_lines(risk: RiskRuleResult) -> list[str]:
+    """渲染 M4 任务来源，体现“会后生成任务 -> 风险巡检跟踪”的闭环。"""
+
+    source = extract_m4_task_mapping(risk)
+    if not source:
+        return []
+
+    meeting_label = safe_text(source.get("title")) or safe_text(source.get("meeting_id")) or "会后行动项"
+    source_url = safe_text(source.get("source_url"))
+    minute_token = safe_text(source.get("minute_token"))
+    evidence_refs = source.get("evidence_refs") if isinstance(source.get("evidence_refs"), list) else []
+    lines = [
+        f"   - 来源：{render_link(meeting_label, source_url)}",
+    ]
+    if minute_token:
+        lines.append(f"   - 妙记：`{minute_token}`")
+    evidence_line = render_first_evidence_line(evidence_refs)
+    if evidence_line:
+        lines.append(f"   - 证据：{evidence_line}")
+    return lines
+
+
+def extract_m4_task_mapping(risk: RiskRuleResult) -> dict[str, Any]:
+    """从风险 evidence 或 task.raw_payload 中取出 M4 映射。"""
+
+    evidence_source = risk.evidence.get("m4_task_mapping") if isinstance(risk.evidence, dict) else None
+    if isinstance(evidence_source, dict):
+        return evidence_source
+    raw_payload = risk.task.raw_payload if isinstance(risk.task.raw_payload, dict) else {}
+    raw_source = raw_payload.get("m4_task_mapping")
+    return raw_source if isinstance(raw_source, dict) else {}
+
+
+def render_first_evidence_line(evidence_refs: list[Any]) -> str:
+    """渲染第一条可读证据，避免风险卡片过长。"""
+
+    for item in evidence_refs:
+        if not isinstance(item, dict):
+            continue
+        snippet = safe_text(item.get("snippet"))
+        source_id = safe_text(item.get("source_id")) or "原始证据"
+        source_url = safe_text(item.get("source_url"))
+        label = render_link(source_id, source_url)
+        if snippet:
+            return f"{label}：{snippet[:80]}"
+        return label
+    return ""
 
 
 def choose_header_template(decision: RiskNotificationDecision, scan_result: RiskScanResult) -> str:
