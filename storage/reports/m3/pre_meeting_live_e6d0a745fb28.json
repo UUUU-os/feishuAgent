@@ -1,0 +1,520 @@
+{
+  "event": {
+    "event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+    "summary": "MeetFlow 测试会议",
+    "description": "",
+    "start_time": "2026-05-05",
+    "end_time": "2026-05-06",
+    "timezone": "UTC",
+    "organizer_name": "叶抒锐",
+    "organizer_id": "ou_e63ed07394f013fd2b84728a53a64aff",
+    "status": "confirmed",
+    "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631504997331078351&key=af0e57dd-a93a-458d-b484-e9a57f7a3bed&originalTime=0&startTime=1777939200",
+    "attendees": [],
+    "raw_payload": {
+      "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631504997331078351&key=af0e57dd-a93a-458d-b484-e9a57f7a3bed&originalTime=0&startTime=1777939200",
+      "attendee_ability": "can_invite_others",
+      "color": -1,
+      "description": "",
+      "end_time": {
+        "date": "2026-05-06",
+        "timezone": "UTC"
+      },
+      "event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+      "event_organizer": {
+        "display_name": "叶抒锐",
+        "user_id": "ou_e63ed07394f013fd2b84728a53a64aff"
+      },
+      "free_busy_status": "free",
+      "is_exception": false,
+      "organizer_calendar_id": "feishu.cn_Oprqs8tQIWP8vsSbWvorAa@group.calendar.feishu.cn",
+      "self_rsvp_status": "accept",
+      "start_time": {
+        "date": "2026-05-05",
+        "timezone": "UTC"
+      },
+      "status": "confirmed",
+      "summary": "MeetFlow 测试会议",
+      "vchat": {
+        "meeting_url": "https://vc.feishu.cn/j/980397698",
+        "vc_type": "vc"
+      },
+      "visibility": "default"
+    }
+  },
+  "identity": "user",
+  "allow_write": true,
+  "index_summaries": [],
+  "resources": [],
+  "trigger_plan": {
+    "trigger_id": "meeting.soon:af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+    "event": {
+      "event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+      "calendar_event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+      "meeting_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+      "project_id": "meetflow",
+      "summary": "MeetFlow 测试会议",
+      "description": "",
+      "start_time": "2026-05-05",
+      "end_time": "2026-05-06",
+      "participants": [],
+      "attendees": [],
+      "related_resources": [],
+      "attachments": [],
+      "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631504997331078351&key=af0e57dd-a93a-458d-b484-e9a57f7a3bed&originalTime=0&startTime=1777939200"
+    },
+    "agent_input": {
+      "trigger_type": "schedule",
+      "event_type": "meeting.soon",
+      "payload": {
+        "event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+        "calendar_event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+        "meeting_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+        "project_id": "meetflow",
+        "summary": "MeetFlow 测试会议",
+        "description": "",
+        "start_time": "2026-05-05",
+        "end_time": "2026-05-06",
+        "participants": [],
+        "attendees": [],
+        "related_resources": [],
+        "attachments": [],
+        "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631504997331078351&key=af0e57dd-a93a-458d-b484-e9a57f7a3bed&originalTime=0&startTime=1777939200",
+        "workflow_type": "pre_meeting_brief",
+        "idempotency_key": "pre_meeting_brief:af0e57dd-a93a-458d-b484-e9a57f7a3bed_0:m3-20260505152230"
+      },
+      "actor": "",
+      "source": "pre_meeting_live_test",
+      "event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+      "trace_id": "e6d0a745fb28",
+      "created_at": 1777965751
+    },
+    "idempotency_key": "pre_meeting_brief:af0e57dd-a93a-458d-b484-e9a57f7a3bed_0:m3-20260505152230",
+    "due_in_seconds": 0,
+    "reason": "会议进入会前触发窗口，准备生成会前背景卡。"
+  },
+  "pre_meeting_artifacts": {
+    "workflow_input": {
+      "meeting_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+      "calendar_event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+      "project_id": "meetflow",
+      "meeting_title": "MeetFlow 测试会议",
+      "meeting_description": "",
+      "start_time": "2026-05-05",
+      "end_time": "2026-05-06",
+      "timezone": "",
+      "organizer": "",
+      "participants": [],
+      "attachments": [],
+      "related_resources": [],
+      "memory_snapshot": {},
+      "raw_payload": {
+        "event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+        "calendar_event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+        "meeting_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+        "project_id": "meetflow",
+        "summary": "MeetFlow 测试会议",
+        "description": "",
+        "start_time": "2026-05-05",
+        "end_time": "2026-05-06",
+        "participants": [],
+        "attendees": [],
+        "related_resources": [],
+        "attachments": [],
+        "app_link": "https://applink.feishu.cn/client/calendar/event/detail?calendarId=7631504997331078351&key=af0e57dd-a93a-458d-b484-e9a57f7a3bed&originalTime=0&startTime=1777939200",
+        "workflow_type": "pre_meeting_brief",
+        "idempotency_key": "pre_meeting_brief:af0e57dd-a93a-458d-b484-e9a57f7a3bed_0:m3-20260505152230"
+      }
+    },
+    "topic_signal": {
+      "topic": "meetflow / 测试会议",
+      "candidate_projects": [
+        {
+          "project_id": "meetflow",
+          "name": "meetflow",
+          "score": 0.7,
+          "matched_signals": [
+            "meetflow",
+            "project_id:meetflow"
+          ],
+          "source": "memory"
+        }
+      ],
+      "business_entities": [
+        "MeetFlow",
+        "测试会议"
+      ],
+      "attendee_signals": [],
+      "confidence": 0.7,
+      "missing_context": [
+        "participants"
+      ],
+      "query_hints": [
+        "meetflow / 测试会议",
+        "meetflow",
+        "MeetFlow",
+        "测试会议"
+      ],
+      "needs_confirmation": true,
+      "reason": "候选项目 meetflow 命中 meetflow, project_id:meetflow；识别到实体 MeetFlow, 测试会议；缺少上下文 participants"
+    },
+    "retrieval_query": {
+      "meeting_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+      "calendar_event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+      "project_id": "meetflow",
+      "meeting_title": "MeetFlow 测试会议",
+      "meeting_description": "",
+      "entities": [
+        "MeetFlow",
+        "测试会议"
+      ],
+      "attendee_names": [],
+      "attachment_titles": [],
+      "related_resource_titles": [],
+      "resource_types": [
+        "doc",
+        "sheet",
+        "minute",
+        "task"
+      ],
+      "time_window": "recent_90_days",
+      "search_queries": [
+        "meetflow / 测试会议",
+        "MeetFlow 测试会议",
+        "meetflow",
+        "MeetFlow",
+        "测试会议"
+      ],
+      "confidence": 0.7,
+      "missing_context": [
+        "participants",
+        "related_resources"
+      ],
+      "extra": {
+        "identified_topic": "meetflow / 测试会议",
+        "topic_signal": {
+          "topic": "meetflow / 测试会议",
+          "candidate_projects": [
+            {
+              "project_id": "meetflow",
+              "name": "meetflow",
+              "score": 0.7,
+              "matched_signals": [
+                "meetflow",
+                "project_id:meetflow"
+              ],
+              "source": "memory"
+            }
+          ],
+          "business_entities": [
+            "MeetFlow",
+            "测试会议"
+          ],
+          "attendee_signals": [],
+          "confidence": 0.7,
+          "missing_context": [
+            "participants"
+          ],
+          "query_hints": [
+            "meetflow / 测试会议",
+            "meetflow",
+            "MeetFlow",
+            "测试会议"
+          ],
+          "needs_confirmation": true,
+          "reason": "候选项目 meetflow 命中 meetflow, project_id:meetflow；识别到实体 MeetFlow, 测试会议；缺少上下文 participants"
+        },
+        "start_time": "2026-05-05",
+        "end_time": "2026-05-06",
+        "timezone": "",
+        "organizer": ""
+      }
+    },
+    "retrieval_result": {
+      "query": {
+        "meeting_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+        "calendar_event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+        "project_id": "meetflow",
+        "meeting_title": "MeetFlow 测试会议",
+        "meeting_description": "",
+        "entities": [
+          "MeetFlow",
+          "测试会议"
+        ],
+        "attendee_names": [],
+        "attachment_titles": [],
+        "related_resource_titles": [],
+        "resource_types": [
+          "doc",
+          "sheet",
+          "minute",
+          "task"
+        ],
+        "time_window": "recent_90_days",
+        "search_queries": [
+          "meetflow / 测试会议",
+          "MeetFlow 测试会议",
+          "meetflow",
+          "MeetFlow",
+          "测试会议"
+        ],
+        "confidence": 0.7,
+        "missing_context": [
+          "participants",
+          "related_resources"
+        ],
+        "extra": {
+          "identified_topic": "meetflow / 测试会议",
+          "topic_signal": {
+            "topic": "meetflow / 测试会议",
+            "candidate_projects": [
+              {
+                "project_id": "meetflow",
+                "name": "meetflow",
+                "score": 0.7,
+                "matched_signals": [
+                  "meetflow",
+                  "project_id:meetflow"
+                ],
+                "source": "memory"
+              }
+            ],
+            "business_entities": [
+              "MeetFlow",
+              "测试会议"
+            ],
+            "attendee_signals": [],
+            "confidence": 0.7,
+            "missing_context": [
+              "participants"
+            ],
+            "query_hints": [
+              "meetflow / 测试会议",
+              "meetflow",
+              "MeetFlow",
+              "测试会议"
+            ],
+            "needs_confirmation": true,
+            "reason": "候选项目 meetflow 命中 meetflow, project_id:meetflow；识别到实体 MeetFlow, 测试会议；缺少上下文 participants"
+          },
+          "start_time": "2026-05-05",
+          "end_time": "2026-05-06",
+          "timezone": "",
+          "organizer": ""
+        }
+      },
+      "resources": [],
+      "omitted_count": 0,
+      "low_confidence": true,
+      "reason": "未召回到相关资源，需要补充附件、项目记忆或后续接入知识索引。"
+    },
+    "meeting_brief": {
+      "meeting_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+      "calendar_event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+      "project_id": "meetflow",
+      "topic": "meetflow / 测试会议",
+      "summary": "meetflow / 测试会议 的上下文证据不足，当前只召回到可能相关资料，建议人工确认后再推送。",
+      "last_decisions": [],
+      "current_questions": [],
+      "must_read_resources": [],
+      "risks": [],
+      "possible_related_resources": [],
+      "evidence_refs": [],
+      "confidence": 0.7,
+      "needs_confirmation": true,
+      "status": "draft"
+    },
+    "card_payload": {
+      "title": "MeetFlow 会前背景卡：meetflow / 测试会议",
+      "summary": "meetflow / 测试会议 的上下文证据不足，当前只召回到可能相关资料，建议人工确认后再推送。",
+      "facts": [
+        {
+          "label": "会议主题",
+          "value": "meetflow / 测试会议"
+        },
+        {
+          "label": "背景摘要",
+          "value": "meetflow / 测试会议 的上下文证据不足，当前只召回到可能相关资料，建议人工确认后再推送。"
+        },
+        {
+          "label": "置信度",
+          "value": "0.70"
+        },
+        {
+          "label": "状态",
+          "value": "上下文不足，建议人工确认后再推送"
+        }
+      ],
+      "sections": [
+        {
+          "key": "last_decisions",
+          "title": "上次结论",
+          "empty": "暂无明确结论",
+          "items": []
+        },
+        {
+          "key": "current_questions",
+          "title": "当前问题",
+          "empty": "暂无待确认问题",
+          "items": []
+        },
+        {
+          "key": "risks",
+          "title": "风险点",
+          "empty": "暂无显著风险",
+          "items": []
+        },
+        {
+          "key": "must_read_resources",
+          "title": "待读资料",
+          "empty": "暂无必读资料",
+          "items": []
+        },
+        {
+          "key": "possible_related_resources",
+          "title": "可能相关资料",
+          "empty": "暂无候选资料",
+          "items": []
+        }
+      ],
+      "card": {
+        "config": {
+          "wide_screen_mode": true
+        },
+        "header": {
+          "template": "orange",
+          "title": {
+            "tag": "plain_text",
+            "content": "MeetFlow 会前背景卡：meetflow / 测试会议"
+          }
+        },
+        "elements": [
+          {
+            "tag": "markdown",
+            "content": "**主题**：meetflow / 测试会议\n**状态**：需确认  |  **置信度**：0.70\n**背景摘要**：meetflow / 测试会议 的上下文证据不足，当前只召回到可能相关资料，建议人工确认后再推送。"
+          },
+          {
+            "tag": "hr"
+          },
+          {
+            "tag": "hr"
+          },
+          {
+            "tag": "action",
+            "actions": [
+              {
+                "tag": "button",
+                "text": {
+                  "tag": "plain_text",
+                  "content": "刷新背景"
+                },
+                "type": "primary",
+                "value": {
+                  "action": "refresh_pre_meeting_brief",
+                  "workflow_type": "pre_meeting_brief",
+                  "meeting_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+                  "calendar_event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+                  "source_card": "pre_meeting_brief"
+                }
+              },
+              {
+                "tag": "button",
+                "text": {
+                  "tag": "plain_text",
+                  "content": "生成待办草案"
+                },
+                "type": "default",
+                "value": {
+                  "action": "create_task_draft",
+                  "workflow_type": "pre_meeting_brief",
+                  "meeting_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+                  "calendar_event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+                  "source_card": "pre_meeting_brief"
+                }
+              },
+              {
+                "tag": "button",
+                "text": {
+                  "tag": "plain_text",
+                  "content": "发给我"
+                },
+                "type": "default",
+                "value": {
+                  "action": "send_summary_to_me",
+                  "workflow_type": "pre_meeting_brief",
+                  "meeting_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+                  "calendar_event_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+                  "source_card": "pre_meeting_brief"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "source_meeting_id": "af0e57dd-a93a-458d-b484-e9a57f7a3bed_0",
+      "idempotency_key": "pre_meeting_brief:af0e57dd-a93a-458d-b484-e9a57f7a3bed_0"
+    },
+    "stage_plan": [
+      "prepare_context",
+      "build_retrieval_query",
+      "agent_loop_collect_evidence",
+      "validate_meeting_brief",
+      "render_card_payload",
+      "send_or_save"
+    ]
+  },
+  "tool_results": [
+    {
+      "tool_name": "knowledge.search",
+      "status": "success",
+      "content": "工具 knowledge.search 执行成功。\n结构化数据 JSON：\n{\n  \"query\": \"MeetFlow 测试会议\",\n  \"hits\": [],\n  \"omitted_count\": 0,\n  \"token_budget\": 600,\n  \"used_tokens\": 0,\n  \"knowledge_namespace\": \"sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce\",\n  \"vector_collection_name\": \"meetflow_knowledge_chunks_137933ce\",\n  \"embedding_provider\": \"sentence-transformers\",\n  \"embedding_model\": \"BAAI/bge-small-zh-v1.5\",\n  \"embedding_dimensions\": 512,\n  \"low_confidence\": true,\n  \"reason\": \"混合检索未召回到满足阈值的知识片段，请确认资源是否已索引或放宽查询条件；namespace=sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce collection=meetflow_knowledge_chunks_137933ce。\"\n}",
+      "data": {
+        "query": "MeetFlow 测试会议",
+        "hits": [],
+        "omitted_count": 0,
+        "token_budget": 600,
+        "used_tokens": 0,
+        "knowledge_namespace": "sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce",
+        "vector_collection_name": "meetflow_knowledge_chunks_137933ce",
+        "embedding_provider": "sentence-transformers",
+        "embedding_model": "BAAI/bge-small-zh-v1.5",
+        "embedding_dimensions": 512,
+        "low_confidence": true,
+        "reason": "混合检索未召回到满足阈值的知识片段，请确认资源是否已索引或放宽查询条件；namespace=sentence_transformers_baai_bge_small_zh_v1_5_512_137933ce collection=meetflow_knowledge_chunks_137933ce。"
+      },
+      "error_message": ""
+    },
+    {
+      "tool_name": "im.send_card",
+      "status": "success",
+      "content": "工具 im.send_card 执行成功。\n结构化数据 JSON：\n{\n  \"body\": {\n    \"content\": \"{\\\"title\\\":\\\"MeetFlow 会前背景卡：MeetFlow 测试会议\\\",\\\"elements\\\":[[{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"主题\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"：MeetFlow 测试会议\\\\n\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"状态\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"：可参考  |  \\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"置信度\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"：0.80\\\\n\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"背景摘要\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"：scripted_debug 已完成真实会议读取、知识检索和受控发卡。\\\"}],[{\\\"tag\\\":\\\"hr\\\"}],[{\\\"tag\\\":\\\"hr\\\"}],[{\\\"tag\\\":\\\"button\\\",\\\"text\\\":\\\"刷新背景\\\",\\\"type\\\":\\\"primary\\\"},{\\\"tag\\\":\\\"button\\\",\\\"text\\\":\\\"生成待办草案\\\",\\\"type\\\":\\\"default\\\"},{\\\"tag\\\":\\\"button\\\",\\\"text\\\":\\\"发给我\\\",\\\"type\\\":\\\"default\\\"}]]}\"\n  },\n  \"chat_id\": \"oc_d3e31969e4b527ee929db9cfb1493bb6\",\n  \"create_time\": \"1777965752155\",\n  \"deleted\": false,\n  \"message_id\": \"om_x100b50ade5b36cbcb2d0ba1b70f1d58\",\n  \"msg_type\": \"interactive\",\n  \"sender\": {\n    \"id\": \"cli_a97994d9e1f81cc3\",\n    \"id_type\": \"app_id\",\n    \"sender_type\": \"app\",\n    \"tenant_key\": \"1abd20e084069b82\"\n  },\n  \"update_time\": \"1777965752155\",\n  \"updated\": false,\n  \"card_delivery\": \"full_card\"\n}",
+      "data": {
+        "body": {
+          "content": "{\"title\":\"MeetFlow 会前背景卡：MeetFlow 测试会议\",\"elements\":[[{\"tag\":\"text\",\"text\":\"主题\"},{\"tag\":\"text\",\"text\":\"：MeetFlow 测试会议\\n\"},{\"tag\":\"text\",\"text\":\"状态\"},{\"tag\":\"text\",\"text\":\"：可参考  |  \"},{\"tag\":\"text\",\"text\":\"置信度\"},{\"tag\":\"text\",\"text\":\"：0.80\\n\"},{\"tag\":\"text\",\"text\":\"背景摘要\"},{\"tag\":\"text\",\"text\":\"：scripted_debug 已完成真实会议读取、知识检索和受控发卡。\"}],[{\"tag\":\"hr\"}],[{\"tag\":\"hr\"}],[{\"tag\":\"button\",\"text\":\"刷新背景\",\"type\":\"primary\"},{\"tag\":\"button\",\"text\":\"生成待办草案\",\"type\":\"default\"},{\"tag\":\"button\",\"text\":\"发给我\",\"type\":\"default\"}]]}"
+        },
+        "chat_id": "oc_d3e31969e4b527ee929db9cfb1493bb6",
+        "create_time": "1777965752155",
+        "deleted": false,
+        "message_id": "om_x100b50ade5b36cbcb2d0ba1b70f1d58",
+        "msg_type": "interactive",
+        "sender": {
+          "id": "cli_a97994d9e1f81cc3",
+          "id_type": "app_id",
+          "sender_type": "app",
+          "tenant_key": "1abd20e084069b82"
+        },
+        "update_time": "1777965752155",
+        "updated": false,
+        "card_delivery": "full_card"
+      },
+      "error_message": ""
+    }
+  ],
+  "agent_result": {
+    "trace_id": "e6d0a745fb28",
+    "workflow_type": "pre_meeting_brief",
+    "status": "success",
+    "summary": "scripted_debug 最终回复：工具 im.send_card 执行成功。\n结构化数据 JSON：\n{\n  \"body\": {\n    \"content\": \"{\\\"title\\\":\\\"MeetFlow 会前背景卡：MeetFlow",
+    "final_answer": "scripted_debug 最终回复：工具 im.send_card 执行成功。\n结构化数据 JSON：\n{\n  \"body\": {\n    \"content\": \"{\\\"title\\\":\\\"MeetFlow 会前背景卡：MeetFlow 测试会议\\\",\\\"elements\\\":[[{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"主题\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"：MeetFlow 测试会议\\\\n\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"状态\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"：可参考  |  \\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"置信度\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"：0.80\\\\n\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"背景摘要\\\"},{\\\"tag\\\":\\\"text\\\",\\\"text\\\":\\\"：scripted_debug 已完成真实会议读取、知识检索和受控发卡。\\\"}],[{\\\"tag\\\":\\\"hr\\\"}],[{\\\"tag\\\":\\\"hr\\\"}],[{\\\"tag\\\":\\\"button\\\",\\\"text\\\":\\\"刷新背景\\\",\\\"type\\\":\\\"primary\\\"},{\\\"tag\\\":\\\"button\\\",\\\"text\\\":\\\"生成待办草案\\\",\\\"type\\\":\\\"default\\\"},{\\\"tag\\\":\\\"button\\\",\\\"text\\\":\\\"发给我\\\",\\\"type\\\":\\\"default\\\"}]]}\"\n  },\n  \"chat_id\": \"oc_d3e31969e4b527ee929db9cfb1493bb6\",\n  \"create_time\": \"1777965752155\",\n  \"deleted\": false,\n  \"message_id\": \"om_x100b50ade5b36cbcb2d0ba1b70f1d58\",\n  \"msg_type\": \"interactive\",\n  \"sender\": {\n    \"id\": \"cli_a97994d9e1f81cc3\",\n    \"id_type\": \"app_id\",\n    \"sender_type\": \"app\",\n    \"tenant_key\": \"1abd20e084069b82\"\n  },\n  \"update_time\": \"1777965752155\",\n  \"updated\": false,\n  \"card_delivery\": \"full_card\"\n}"
+  }
+}

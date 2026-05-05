@@ -1,0 +1,253 @@
+{
+  "total_cases": 4,
+  "passed_cases": 4,
+  "score": 1.0,
+  "generated_at": 1777968772,
+  "results": [
+    {
+      "case_id": "job_queue_recovery",
+      "workflow": "job_queue",
+      "passed": true,
+      "score": 1.0,
+      "assertions": [
+        {
+          "name": "min_enqueued",
+          "passed": true,
+          "expected": 1,
+          "actual": 1,
+          "message": ""
+        },
+        {
+          "name": "claimed_job_type",
+          "passed": true,
+          "expected": "pre_meeting.send_card",
+          "actual": "pre_meeting.send_card",
+          "message": ""
+        },
+        {
+          "name": "final_status",
+          "passed": true,
+          "expected": "succeeded",
+          "actual": [
+            "succeeded"
+          ],
+          "message": ""
+        }
+      ],
+      "artifacts": {
+        "enqueued_count": 1,
+        "claimed_job_type": "pre_meeting.send_card",
+        "claimed_status": "running",
+        "final_statuses": {
+          "job_ab03a88af88692b6bb43220d661ac5bc": "succeeded"
+        }
+      },
+      "duration_ms": 34,
+      "error": ""
+    },
+    {
+      "case_id": "m3_pre_meeting_basic",
+      "workflow": "m3_pre_meeting",
+      "passed": true,
+      "score": 1.0,
+      "assertions": [
+        {
+          "name": "topic_contains",
+          "passed": true,
+          "expected": "MeetFlow",
+          "actual": "meetflow / M3 / 方案评审",
+          "message": ""
+        },
+        {
+          "name": "min_must_read_resources",
+          "passed": true,
+          "expected": 1,
+          "actual": 3,
+          "message": ""
+        },
+        {
+          "name": "min_current_questions",
+          "passed": true,
+          "expected": 1,
+          "actual": 2,
+          "message": ""
+        },
+        {
+          "name": "min_risks",
+          "passed": true,
+          "expected": 1,
+          "actual": 1,
+          "message": ""
+        }
+      ],
+      "artifacts": {
+        "topic": "meetflow / M3 / 方案评审",
+        "confidence": 0.95,
+        "summary": "围绕 meetflow / M3 / 方案评审，已召回 3 条相关资料。上次结论优先查看：上次评审结论 - MeetFlow M3。本次讨论重点可能集中在：上次评审结论 - MeetFlow M3、当前问题清单 - 负责人字段。需要提前关注的风险或待办：未完成待办 - 刷新背景幂等键。会前待读资料：上次评审结论 - MeetFlow M3、未完成待办 - 刷新背景幂等键、当前问题清单 - 负责人字段。",
+        "facts": [
+          {
+            "label": "会议主题",
+            "value": "meetflow / M3 / 方案评审"
+          },
+          {
+            "label": "背景摘要",
+            "value": "围绕 meetflow / M3 / 方案评审，已召回 3 条相关资料。上次结论优先查看：上次评审结论 - MeetFlow M3。本次讨论重点可能集中在：上次评审结论 - MeetFlow M3、当前问题清单 - 负责人字段。需要提前关注的风险或待办：未完成待办 - 刷新背景幂等键。会前待读资料：上次评审结论 - MeetFlow M3、未完成待办 - 刷新背景幂等键、当前问题清单 - 负责人字段。"
+          },
+          {
+            "label": "置信度",
+            "value": "0.95"
+          },
+          {
+            "label": "上次结论",
+            "value": "上次评审结论 - MeetFlow M3"
+          },
+          {
+            "label": "当前问题",
+            "value": "上次评审结论 - MeetFlow M3；当前问题清单 - 负责人字段"
+          },
+          {
+            "label": "风险点",
+            "value": "未完成待办 - 刷新背景幂等键"
+          },
+          {
+            "label": "待读资料",
+            "value": "上次评审结论 - MeetFlow M3；未完成待办 - 刷新背景幂等键；当前问题清单 - 负责人字段"
+          },
+          {
+            "label": "资料链接",
+            "value": "https://example.feishu.cn/minutes/minute_eval_001；https://example.feishu.cn/docx/doc_eval_001；https://example.feishu.cn/task/task_eval_001"
+          }
+        ],
+        "must_read_count": 3,
+        "risk_count": 1,
+        "current_question_count": 2
+      },
+      "duration_ms": 0,
+      "error": ""
+    },
+    {
+      "case_id": "m4_post_meeting_with_tasks",
+      "workflow": "m4_post_meeting",
+      "passed": true,
+      "score": 1.0,
+      "assertions": [
+        {
+          "name": "min_action_items",
+          "passed": true,
+          "expected": 2,
+          "actual": 2,
+          "message": ""
+        },
+        {
+          "name": "min_pending_action_items",
+          "passed": true,
+          "expected": 2,
+          "actual": 2,
+          "message": ""
+        },
+        {
+          "name": "title_contains",
+          "passed": true,
+          "expected": "测试报告整理",
+          "actual": [
+            "测试报告整理：整理 meet flow 的 M4 测试报告，于明天下午 6 点前完成",
+            "回调链路检查：检查飞书卡片按钮回调日志，后天中午前完成"
+          ],
+          "message": ""
+        },
+        {
+          "name": "owner",
+          "passed": true,
+          "expected": "张三",
+          "actual": [
+            "张三",
+            "李四"
+          ],
+          "message": ""
+        },
+        {
+          "name": "due_date_contains",
+          "passed": true,
+          "expected": "明天下午",
+          "actual": [
+            "明天下午 6 点前",
+            "后天中午前"
+          ],
+          "message": ""
+        }
+      ],
+      "artifacts": {
+        "action_item_count": 2,
+        "pending_action_item_count": 2,
+        "titles": [
+          "测试报告整理：整理 meet flow 的 M4 测试报告，于明天下午 6 点前完成",
+          "回调链路检查：检查飞书卡片按钮回调日志，后天中午前完成"
+        ],
+        "owners": [
+          "张三",
+          "李四"
+        ],
+        "due_dates": [
+          "明天下午 6 点前",
+          "后天中午前"
+        ],
+        "decision_count": 1,
+        "open_question_count": 1
+      },
+      "duration_ms": 2,
+      "error": ""
+    },
+    {
+      "case_id": "m5_risk_from_m4_mapping",
+      "workflow": "m5_risk_scan",
+      "passed": true,
+      "score": 1.0,
+      "assertions": [
+        {
+          "name": "min_risks",
+          "passed": true,
+          "expected": 1,
+          "actual": 2,
+          "message": ""
+        },
+        {
+          "name": "risk_types",
+          "passed": true,
+          "expected": [
+            "overdue"
+          ],
+          "actual": [
+            "overdue",
+            "stale_update"
+          ],
+          "message": ""
+        },
+        {
+          "name": "evidence_source_contains",
+          "passed": true,
+          "expected": "minute_eval_m4",
+          "actual": [
+            "https://example.feishu.cn/minutes/minute_eval_m4",
+            "https://example.feishu.cn/minutes/minute_eval_m4"
+          ],
+          "message": ""
+        }
+      ],
+      "artifacts": {
+        "scanned_count": 1,
+        "risk_count": 2,
+        "risk_types": [
+          "overdue",
+          "stale_update"
+        ],
+        "evidence_sources": [
+          "https://example.feishu.cn/minutes/minute_eval_m4",
+          "https://example.feishu.cn/minutes/minute_eval_m4"
+        ],
+        "summary": "已扫描 1 个任务，发现 2 条风险：高风险 1 条，中风险 1 条。"
+      },
+      "duration_ms": 27,
+      "error": ""
+    }
+  ]
+}

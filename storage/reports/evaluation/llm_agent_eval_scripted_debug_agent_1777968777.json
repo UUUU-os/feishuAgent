@@ -1,0 +1,476 @@
+{
+  "suite_id": "meetflow_llm_agent_eval_1777968777",
+  "provider": "scripted_debug",
+  "model": "scripted_debug",
+  "mode": "agent",
+  "total_cases": 3,
+  "passed_cases": 3,
+  "score": 1.0,
+  "metrics": {
+    "workflow_completion": 1.0,
+    "tool_call": 1.0,
+    "policy": 1.0,
+    "evidence": 1.0,
+    "feishu_closure": 1.0,
+    "reliability": 1.0,
+    "overall": 1.0
+  },
+  "generated_at": 1777968777,
+  "results": [
+    {
+      "case_id": "m3_agent_tool_call",
+      "workflow": "m3_agent_tool_call",
+      "passed": true,
+      "score": 1.0,
+      "metrics": {
+        "workflow_completion": 1.0,
+        "tool_call": 1.0,
+        "policy": 1.0,
+        "evidence": 1.0,
+        "feishu_closure": 1.0,
+        "reliability": 1.0,
+        "overall": 1.0
+      },
+      "failures": [],
+      "trace": {
+        "case_id": "m3_agent_tool_call",
+        "provider": "scripted_debug",
+        "model": "scripted_debug",
+        "workflow_type": "pre_meeting_brief",
+        "tool_calls": [
+          {
+            "call_id": "eval_call_1_calendar_list_events",
+            "tool_name": "calendar.list_events",
+            "llm_tool_name": "calendar_list_events",
+            "arguments": {
+              "calendar_id": "primary",
+              "start_time": "1777996800",
+              "end_time": "1778083200"
+            },
+            "status": "success"
+          },
+          {
+            "call_id": "eval_call_2_knowledge_search",
+            "tool_name": "knowledge.search",
+            "llm_tool_name": "knowledge_search",
+            "arguments": {
+              "query": "MeetFlow M3 M4 M5 闭环",
+              "project_id": "meetflow",
+              "top_k": 3
+            },
+            "status": "success"
+          },
+          {
+            "call_id": "eval_call_3_im_send_card",
+            "tool_name": "im.send_card",
+            "llm_tool_name": "im_send_card",
+            "arguments": {
+              "chat_id": "oc_eval_chat",
+              "card": {
+                "title": "会前背景知识卡片：MeetFlow 测试会议",
+                "source_url": "https://example.feishu.cn/docx/doc_eval"
+              },
+              "idempotency_key": "eval:m3_agent:event_eval_m3_agent"
+            },
+            "status": "blocked"
+          }
+        ],
+        "tool_results": [
+          {
+            "call_id": "eval_call_1_calendar_list_events",
+            "tool_name": "calendar.list_events",
+            "status": "success",
+            "data": {
+              "events": [
+                {
+                  "title": "MeetFlow 测试会议",
+                  "source_url": "https://example.feishu.cn/calendar/event_eval"
+                }
+              ],
+              "event_count": 1,
+              "tool_name": "calendar.list_events",
+              "arguments": {
+                "calendar_id": "primary",
+                "start_time": "1777996800",
+                "end_time": "1778083200"
+              }
+            },
+            "error_message": "",
+            "evidence_refs": []
+          },
+          {
+            "call_id": "eval_call_2_knowledge_search",
+            "tool_name": "knowledge.search",
+            "status": "success",
+            "data": {
+              "hit_count": 1,
+              "source_url": "https://example.feishu.cn/docx/doc_eval",
+              "evidence_refs": [
+                {
+                  "source_type": "doc",
+                  "source_id": "doc_eval",
+                  "source_url": "https://example.feishu.cn/docx/doc_eval",
+                  "snippet": "MeetFlow 当前重点是 M3/M4/M5 闭环。"
+                }
+              ],
+              "tool_name": "knowledge.search",
+              "arguments": {
+                "query": "MeetFlow M3 M4 M5 闭环",
+                "project_id": "meetflow",
+                "top_k": 3
+              }
+            },
+            "error_message": "",
+            "evidence_refs": []
+          },
+          {
+            "call_id": "eval_call_3_im_send_card",
+            "tool_name": "im.send_card",
+            "status": "blocked",
+            "data": {
+              "policy_decision": {
+                "status": "blocked",
+                "reason": "写工具未开启自动执行权限，请显式传入 allow_write。",
+                "tool_name": "im.send_card",
+                "idempotency_key": "",
+                "patched_arguments": {
+                  "chat_id": "oc_eval_chat",
+                  "card": {
+                    "title": "会前背景知识卡片：MeetFlow 测试会议",
+                    "source_url": "https://example.feishu.cn/docx/doc_eval"
+                  },
+                  "idempotency_key": "eval:m3_agent:event_eval_m3_agent"
+                },
+                "required_fields": [],
+                "metadata": {}
+              }
+            },
+            "error_message": "写工具未开启自动执行权限，请显式传入 allow_write。",
+            "evidence_refs": []
+          }
+        ],
+        "policy_decisions": [
+          {
+            "status": "blocked",
+            "reason": "写工具未开启自动执行权限，请显式传入 allow_write。",
+            "tool_name": "im.send_card",
+            "idempotency_key": "",
+            "patched_arguments": {
+              "chat_id": "oc_eval_chat",
+              "card": {
+                "title": "会前背景知识卡片：MeetFlow 测试会议",
+                "source_url": "https://example.feishu.cn/docx/doc_eval"
+              },
+              "idempotency_key": "eval:m3_agent:event_eval_m3_agent"
+            },
+            "required_fields": [],
+            "metadata": {}
+          }
+        ],
+        "side_effects": [],
+        "final_answer": "已基于日历和 knowledge.search 证据生成 MeetFlow 会前背景知识卡片。",
+        "artifacts": {
+          "context": {
+            "workflow_type": "pre_meeting_brief",
+            "trace_id": "eval_m3_agent_tool_call",
+            "event": null,
+            "meeting_id": "meeting_eval_m3_agent",
+            "calendar_event_id": "event_eval_m3_agent",
+            "minute_token": "",
+            "task_id": "",
+            "project_id": "meetflow",
+            "participants": [
+              {
+                "display_name": "张三",
+                "role": "owner"
+              },
+              {
+                "display_name": "李四",
+                "role": "developer"
+              }
+            ],
+            "related_resources": [],
+            "memory_snapshot": {},
+            "raw_context": {}
+          }
+        },
+        "latency_ms": 2,
+        "status": "success",
+        "error": ""
+      }
+    },
+    {
+      "case_id": "m4_policy_missing_fields_blocked",
+      "workflow": "m4_policy_negative",
+      "passed": true,
+      "score": 1.0,
+      "metrics": {
+        "workflow_completion": 1.0,
+        "tool_call": 1.0,
+        "policy": 1.0,
+        "evidence": 1.0,
+        "feishu_closure": 1.0,
+        "reliability": 1.0,
+        "overall": 1.0
+      },
+      "failures": [],
+      "trace": {
+        "case_id": "m4_policy_missing_fields_blocked",
+        "provider": "scripted_debug",
+        "model": "scripted_debug",
+        "workflow_type": "post_meeting_followup",
+        "tool_calls": [
+          {
+            "call_id": "eval_call_1_minutes_fetch_resource",
+            "tool_name": "minutes.fetch_resource",
+            "llm_tool_name": "minutes_fetch_resource",
+            "arguments": {
+              "minute_token": "minute_eval_policy"
+            },
+            "status": "success"
+          },
+          {
+            "call_id": "eval_call_2_tasks_create_task",
+            "tool_name": "tasks.create_task",
+            "llm_tool_name": "tasks_create_task",
+            "arguments": {
+              "summary": "整理 M4 测试报告",
+              "confidence": 0.95,
+              "idempotency_key": "eval:m4_policy:action_001"
+            },
+            "status": "needs_confirmation"
+          }
+        ],
+        "tool_results": [
+          {
+            "call_id": "eval_call_1_minutes_fetch_resource",
+            "tool_name": "minutes.fetch_resource",
+            "status": "success",
+            "data": {
+              "source_url": "https://example.feishu.cn/minutes/minute_eval_policy",
+              "evidence_refs": [
+                {
+                  "source_type": "feishu_minute",
+                  "source_id": "minute_eval_policy",
+                  "source_url": "https://example.feishu.cn/minutes/minute_eval_policy",
+                  "snippet": "整理 M4 测试报告，明天下午 6 点前完成 @张三"
+                }
+              ],
+              "tool_name": "minutes.fetch_resource",
+              "arguments": {
+                "minute_token": "minute_eval_policy"
+              }
+            },
+            "error_message": "",
+            "evidence_refs": []
+          },
+          {
+            "call_id": "eval_call_2_tasks_create_task",
+            "tool_name": "tasks.create_task",
+            "status": "needs_confirmation",
+            "data": {
+              "policy_decision": {
+                "status": "needs_confirmation",
+                "reason": "任务创建必须先经过人工确认，M4 主链路只能生成待确认任务。",
+                "tool_name": "tasks.create_task",
+                "idempotency_key": "eval:m4_policy:action_001",
+                "patched_arguments": {
+                  "summary": "整理 M4 测试报告",
+                  "confidence": 0.95,
+                  "idempotency_key": "eval:m4_policy:action_001"
+                },
+                "required_fields": [
+                  "human_confirmation"
+                ],
+                "metadata": {}
+              }
+            },
+            "error_message": "任务创建必须先经过人工确认，M4 主链路只能生成待确认任务。",
+            "evidence_refs": []
+          }
+        ],
+        "policy_decisions": [
+          {
+            "status": "needs_confirmation",
+            "reason": "任务创建必须先经过人工确认，M4 主链路只能生成待确认任务。",
+            "tool_name": "tasks.create_task",
+            "idempotency_key": "eval:m4_policy:action_001",
+            "patched_arguments": {
+              "summary": "整理 M4 测试报告",
+              "confidence": 0.95,
+              "idempotency_key": "eval:m4_policy:action_001"
+            },
+            "required_fields": [
+              "human_confirmation"
+            ],
+            "metadata": {}
+          }
+        ],
+        "side_effects": [],
+        "final_answer": "任务创建被 AgentPolicy 拦截，需人工确认负责人和截止时间后再创建。",
+        "artifacts": {
+          "context": {
+            "workflow_type": "post_meeting_followup",
+            "trace_id": "eval_m4_policy_missing_fields_blocked",
+            "event": null,
+            "meeting_id": "",
+            "calendar_event_id": "",
+            "minute_token": "minute_eval_policy",
+            "task_id": "",
+            "project_id": "meetflow",
+            "participants": [],
+            "related_resources": [],
+            "memory_snapshot": {},
+            "raw_context": {}
+          }
+        },
+        "latency_ms": 1,
+        "status": "success",
+        "error": ""
+      }
+    },
+    {
+      "case_id": "m5_agent_risk_traceability",
+      "workflow": "m5_agent_tool_call",
+      "passed": true,
+      "score": 1.0,
+      "metrics": {
+        "workflow_completion": 1.0,
+        "tool_call": 1.0,
+        "policy": 1.0,
+        "evidence": 1.0,
+        "feishu_closure": 1.0,
+        "reliability": 1.0,
+        "overall": 1.0
+      },
+      "failures": [],
+      "trace": {
+        "case_id": "m5_agent_risk_traceability",
+        "provider": "scripted_debug",
+        "model": "scripted_debug",
+        "workflow_type": "risk_scan",
+        "tool_calls": [
+          {
+            "call_id": "eval_call_1_tasks_list_my_tasks",
+            "tool_name": "tasks.list_my_tasks",
+            "llm_tool_name": "tasks_list_my_tasks",
+            "arguments": {
+              "completed": "false",
+              "page_size": 50
+            },
+            "status": "success"
+          },
+          {
+            "call_id": "eval_call_2_im_send_card",
+            "tool_name": "im.send_card",
+            "llm_tool_name": "im_send_card",
+            "arguments": {
+              "chat_id": "oc_eval_chat",
+              "card": {
+                "title": "任务风险提醒",
+                "source_url": "https://example.feishu.cn/minutes/minute_eval_m4"
+              },
+              "idempotency_key": "eval:m5:risk:task_eval_overdue"
+            },
+            "status": "blocked"
+          }
+        ],
+        "tool_results": [
+          {
+            "call_id": "eval_call_1_tasks_list_my_tasks",
+            "tool_name": "tasks.list_my_tasks",
+            "status": "success",
+            "data": {
+              "task_count": 1,
+              "risk_count": 1,
+              "m4_task_mapping": {
+                "task_id": "task_eval_overdue",
+                "minute_token": "minute_eval_m4",
+                "source_url": "https://example.feishu.cn/minutes/minute_eval_m4"
+              },
+              "evidence_refs": [
+                {
+                  "source_type": "feishu_minute",
+                  "source_id": "minute_eval_m4",
+                  "source_url": "https://example.feishu.cn/minutes/minute_eval_m4",
+                  "snippet": "测试报告整理，于明天下午 6 点前完成 @张三"
+                }
+              ],
+              "tool_name": "tasks.list_my_tasks",
+              "arguments": {
+                "completed": "false",
+                "page_size": 50
+              }
+            },
+            "error_message": "",
+            "evidence_refs": []
+          },
+          {
+            "call_id": "eval_call_2_im_send_card",
+            "tool_name": "im.send_card",
+            "status": "blocked",
+            "data": {
+              "policy_decision": {
+                "status": "blocked",
+                "reason": "写工具未开启自动执行权限，请显式传入 allow_write。",
+                "tool_name": "im.send_card",
+                "idempotency_key": "",
+                "patched_arguments": {
+                  "chat_id": "oc_eval_chat",
+                  "card": {
+                    "title": "任务风险提醒",
+                    "source_url": "https://example.feishu.cn/minutes/minute_eval_m4"
+                  },
+                  "idempotency_key": "eval:m5:risk:task_eval_overdue"
+                },
+                "required_fields": [],
+                "metadata": {}
+              }
+            },
+            "error_message": "写工具未开启自动执行权限，请显式传入 allow_write。",
+            "evidence_refs": []
+          }
+        ],
+        "policy_decisions": [
+          {
+            "status": "blocked",
+            "reason": "写工具未开启自动执行权限，请显式传入 allow_write。",
+            "tool_name": "im.send_card",
+            "idempotency_key": "",
+            "patched_arguments": {
+              "chat_id": "oc_eval_chat",
+              "card": {
+                "title": "任务风险提醒",
+                "source_url": "https://example.feishu.cn/minutes/minute_eval_m4"
+              },
+              "idempotency_key": "eval:m5:risk:task_eval_overdue"
+            },
+            "required_fields": [],
+            "metadata": {}
+          }
+        ],
+        "side_effects": [],
+        "final_answer": "已发现 1 个任务风险，并在风险卡片中保留 M4 妙记来源。",
+        "artifacts": {
+          "context": {
+            "workflow_type": "risk_scan",
+            "trace_id": "eval_m5_agent_risk_traceability",
+            "event": null,
+            "meeting_id": "",
+            "calendar_event_id": "",
+            "minute_token": "",
+            "task_id": "",
+            "project_id": "meetflow",
+            "participants": [],
+            "related_resources": [],
+            "memory_snapshot": {},
+            "raw_context": {}
+          }
+        },
+        "latency_ms": 1,
+        "status": "success",
+        "error": ""
+      }
+    }
+  ]
+}
