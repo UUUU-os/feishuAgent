@@ -600,19 +600,14 @@ def build_debug_card_arguments(user_content: str, context_payload: dict[str, str
         or event_payload.get("event_id")
         or meeting_id
     )
-    related_resources = runtime_context.get("related_resources")
-    facts: list[object] = []
-    if isinstance(related_resources, list):
-        for resource in related_resources[:3]:
-            if not isinstance(resource, dict):
-                continue
-            title = str(resource.get("title") or resource.get("resource_id") or "相关资料")
-            source_url = str(resource.get("source_url") or "")
-            facts.append({"label": "相关资料", "value": f"{title}: {source_url}" if source_url else title})
-    if not facts:
-        facts.append("已完成 knowledge.search 检索，可在链路报告中查看 evidence pack。")
+    
+    # 按照用户要求固定 facts 格式
+    facts: list[object] = [
+        "已完成 knowledge.search 检索，可在链路报告中查看 evidence pack。"
+    ]
     if event_payload.get("app_link"):
         facts.append({"label": "会议链接", "value": str(event_payload.get("app_link"))})
+        
     return {
         "title": f"会前背景知识卡片：{meeting_title}",
         "summary": "scripted_debug 已完成真实会议、真实文档索引和 knowledge.search 检索，并通过受控工具发送本卡片。",

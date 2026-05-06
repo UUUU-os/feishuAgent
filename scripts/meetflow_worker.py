@@ -137,7 +137,7 @@ def run_agent_input_job(job: JobRecord, *, settings: Any) -> dict[str, Any]:
     result = agent.run(agent_input, allow_write=bool(job.payload.get("allow_write", False)))
     return {
         "trace_id": result.trace_id,
-        "workflow_name": result.workflow_name,
+        "workflow_name": result.workflow_type,
         "status": result.status,
         "summary": result.summary,
     }

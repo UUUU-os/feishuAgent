@@ -716,6 +716,10 @@ def build_daemon_args(args: argparse.Namespace, *, dry_run: bool) -> SimpleNames
         m4_delay_minutes=args.m4_delay_minutes,
         rag_limit=args.rag_limit,
         dry_run=dry_run,
+        enqueue=False,
+        job_queue="workflow",
+        rag_job_queue="rag_refresh",
+        job_priority=100,
     )
 
 

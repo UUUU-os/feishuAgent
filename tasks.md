@@ -41,6 +41,26 @@
 
 当前开发重点在 [M3：会前知识卡片工作流](docs/tasks/m3-pre-meeting.md)。
 
+2026-05-06 新增比赛演示一键运行入口 `scripts/meetflow_up.py`，用于把已经单点跑通的
+M3/M4/M5/RAG 能力收敛为一个可长期运行的闭环系统。该入口会启动
+`lark-cli event +subscribe` 监听日程/文档事件，把事件流接入
+`scripts/meetflow_daemon.py --event-stdin --enqueue`，同时启动
+`scripts/meetflow_worker.py` 消费 `workflow/risk_scan/rag_refresh` 队列，
+启动 `scripts/card_send_live.py m4-callback` 承接 M4 卡片按钮，并按
+`--risk-scan-seconds` 定期把 M5 风险巡检写入后台队列。默认安全预览，比赛演示时
+显式传 `--allow-write --chat-id oc_xxx` 真实发送卡片；`Ctrl+C` 会按反序停止所有
+子进程。本轮同步更新 `测试命令总表.md` 的“比赛演示一键启动”章节。验证命令包括
+`python3 -m py_compile scripts/meetflow_up.py` 和
+`python3 scripts/meetflow_up.py --help`，均通过。
+2026-05-06 继续补强比赛录屏准备：`scripts/meetflow_up.py` 新增 `--doc` 参数，
+启动前会复用 `live_environment_watch.py --doc` 把演示文档加入 RAG 并订阅变更；
+新增 `storage/demo_materials/` 下 5 份录屏材料，包括 4 份 RAG 基础文档、1 份
+两人会议妙记脚本和 `meetflow_recording_runbook.md`。已通过
+`lark-cli docs +create --api-version v2 --as user --doc-format markdown --content @...`
+在真实飞书云文档中创建这些资料，并将 URL 写入 Runbook 和测试命令总表。
+验证命令：`python3 -m py_compile scripts/meetflow_up.py`、
+`python3 scripts/meetflow_up.py --help`。
+
 2026-05-05 修复 M3 真实发卡时 `assistant_sessions.user_id` NOT NULL 约束失败。
 根因是本地 `storage/meetflow.sqlite` 中的 `assistant_sessions` 仍保留早期实验
 schema 的 `user_id`、`chat_id`、`current_workflow` 等 NOT NULL 字段，而当前代码
@@ -246,6 +266,20 @@ RAGFlow 代码阅读中可借鉴的 RAG 设计已整理到 [RAGFlow 代码阅读
 - T3.16：实现 evidence pack token budget 与稳定引用格式
 
 关于 T3.10 的关键设计结论已经记录在 M3 文档中：`updated_at + checksum` 只能判断“检查后是否需要重建”，不能让系统第一时间知道文档变化；实时变化感知需要飞书事件订阅、Webhook 或 WebSocket，将变更写入 `index_jobs` 后由后台 worker 异步刷新索引。
+
+2026-05-06 补充比赛效果评测套件。新增 `scripts/effect_eval_suite.py` 和
+`tests/test_effect_eval_suite.py`，用脱敏样本模拟飞书文档、妙记、任务快照和
+后台队列，覆盖 M3 会前背景、RAG 文档更新、M4 会后总结与待办确认、M5 风险
+扫描、job queue 闭环。评测报告会输出 Markdown/JSON 到
+`storage/reports/evaluation/effect_eval_latest.*`，用于回答比赛中的“实际价值/
+效率提升/是否测试过效果”。当前验证通过：
+`python3 -m py_compile scripts/effect_eval_suite.py tests/test_effect_eval_suite.py`、
+`python3 -m unittest tests.test_effect_eval_suite`、
+`python3 scripts/effect_eval_suite.py --write-report`。最新离线结果为 8/8 通过，
+人工基线估算 107 分钟，Agent 流程估算 19 分钟，预计节省 88 分钟（约 82%）。
+2026-05-06 继续增强该报告的“对比解释力”：每个场景现在都会记录人工流程步骤、
+引入 MeetFlow 后的操作步骤、操作减少数量和效率提升来源，避免报告只停留在
+“通过/节省时间”的简略结论。
 
 ## 维护约定
 

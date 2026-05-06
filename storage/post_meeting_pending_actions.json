@@ -1,4 +1,255 @@
 {
+  "action_0fac4605c551": {
+    "created_at": 1778047061,
+    "item_id": "action_0fac4605c551",
+    "result": {
+      "message": "已创建任务：要求：同学们需全情投入，将赛事视为真实项目经验，主动学习、动手实践，遇到问题主动反馈，积极参与群内和观察员的讨论及直播分享，填写个人阶段成果小结，请勿中途退赛",
+      "status": "success",
+      "task_mapping": {
+        "due_date": "2025-05-07",
+        "evidence_refs": [
+          {
+            "snippet": "要求：同学们需全情投入，将赛事视为真实项目经验，主动学习、动手实践，遇到问题主动反馈，积极参与群内和观察员的讨论及直播分享，填写个人阶段成果小结，请勿中途退赛。",
+            "source_id": "obcn7xk3bg1olx8lb811fq4i",
+            "source_type": "feishu_minute",
+            "source_url": "https://bytedance.larkoffice.com/minutes/obcn7xk3bg1olx8lb811fq4i",
+            "updated_at": ""
+          }
+        ],
+        "item_id": "action_0fac4605c551:obcn7xk3bg1olx8lb811fq4i:1778048439",
+        "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+        "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+        "owner": "李健文",
+        "source_url": "https://bytedance.larkoffice.com/minutes/obcn7xk3bg1olx8lb811fq4i",
+        "status": "todo",
+        "task_id": "54f4641b-d26f-47ed-b096-6e750f2e22bc",
+        "title": "要求：同学们需全情投入，将赛事视为真实项目经验，主动学习、动手实践，遇到问题主动反馈，积极参与群内和观察员的讨论及直播分享，填写个人阶段成果小结，请勿中途退赛"
+      }
+    },
+    "source": {
+      "chat_id": "oc_3e432398cc43063fda2b2d322bb6dead",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "message_id": "om_x100b509995717c0cb2def6cd13f272c",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "receive_id_type": "chat_id",
+      "review_session_id": "obcn7xk3bg1olx8lb811fq4i:1778048439"
+    },
+    "status": "created",
+    "updated_at": 1778048457,
+    "value": {
+      "calendar_event_id": "",
+      "confidence": 0.7,
+      "due_date": "2025-05-07",
+      "evidence_refs": [
+        {
+          "snippet": "要求：同学们需全情投入，将赛事视为真实项目经验，主动学习、动手实践，遇到问题主动反馈，积极参与群内和观察员的讨论及直播分享，填写个人阶段成果小结，请勿中途退赛。",
+          "source_id": "obcn7xk3bg1olx8lb811fq4i",
+          "source_type": "feishu_minute",
+          "source_url": "https://bytedance.larkoffice.com/minutes/obcn7xk3bg1olx8lb811fq4i",
+          "updated_at": ""
+        }
+      ],
+      "extra": {
+        "confirm_reason": "缺少截止时间；置信度低于阈值 0.75",
+        "missing_fields": [
+          "due_date"
+        ]
+      },
+      "item_id": "action_0fac4605c551",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "meeting_topic": "",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "owner": "李健文",
+      "priority": "medium",
+      "project_id": "meetflow",
+      "review_session_id": "obcn7xk3bg1olx8lb811fq4i:1778048439",
+      "title": "要求：同学们需全情投入，将赛事视为真实项目经验，主动学习、动手实践，遇到问题主动反馈，积极参与群内和观察员的讨论及直播分享，填写个人阶段成果小结，请勿中途退赛"
+    }
+  },
+  "action_62d05507716e": {
+    "created_at": 1778047061,
+    "item_id": "action_62d05507716e",
+    "result": {
+      "message": "已拒绝创建任务 action_62d05507716e。",
+      "status": "success"
+    },
+    "source": {
+      "chat_id": "oc_3e432398cc43063fda2b2d322bb6dead",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "message_id": "om_x100b5099957c04a0b1002c36b9fbc98",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "receive_id_type": "chat_id",
+      "review_session_id": "obcn7xk3bg1olx8lb811fq4i:1778048439"
+    },
+    "status": "reject_create_task",
+    "updated_at": 1778048480,
+    "value": {
+      "calendar_event_id": "",
+      "confidence": 0.7,
+      "due_date": "",
+      "evidence_refs": [
+        {
+          "snippet": "3. 文档发送：将个人阶段成果小结的飞书文档模板发送到群里，供成员按模板创建个人文档并记录开发心路历程 @王恂",
+          "source_id": "obcn7xk3bg1olx8lb811fq4i",
+          "source_type": "feishu_minute",
+          "source_url": "https://bytedance.larkoffice.com/minutes/obcn7xk3bg1olx8lb811fq4i",
+          "updated_at": ""
+        }
+      ],
+      "extra": {
+        "confirm_reason": "缺少截止时间；置信度低于阈值 0.75",
+        "missing_fields": [
+          "due_date"
+        ]
+      },
+      "item_id": "action_62d05507716e",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "meeting_topic": "",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "owner": "王恂",
+      "priority": "medium",
+      "project_id": "meetflow",
+      "review_session_id": "obcn7xk3bg1olx8lb811fq4i:1778048439",
+      "title": "文档发送：将个人阶段成果小结的飞书文档模板发送到群里，供成员按模板创建个人文档并记录开发心路历程"
+    }
+  },
+  "action_670c4fa54f41": {
+    "created_at": 1778046922,
+    "item_id": "action_670c4fa54f41",
+    "result": {
+      "message": "已拒绝创建任务 action_670c4fa54f41。",
+      "status": "success"
+    },
+    "source": {
+      "chat_id": "oc_3e432398cc43063fda2b2d322bb6dead",
+      "meeting_id": "obcnb2q4nap98l5ny5as2n11",
+      "message_id": "om_x100b50993200449cb10702364587224",
+      "minute_token": "obcnb2q4nap98l5ny5as2n11",
+      "receive_id_type": "chat_id",
+      "review_session_id": "obcnb2q4nap98l5ny5as2n11:1778046922"
+    },
+    "status": "reject_create_task",
+    "updated_at": 1778046976,
+    "value": {
+      "calendar_event_id": "",
+      "confidence": 0.7,
+      "due_date": "",
+      "evidence_refs": [
+        {
+          "snippet": "本次飞书 AI 校园挑战赛产品专场主题分享直播，邀请飞书产品大牛吴星辉和飞书 IM 团队 26 届产品校招生韩赛鸿进行分享，同步赛事关键时间节点，并进行抽奖活动，内容如下：",
+          "source_id": "obcnb2q4nap98l5ny5as2n11",
+          "source_type": "feishu_minute",
+          "source_url": "https://bytedance.larkoffice.com/minutes/obcnb2q4nap98l5ny5as2n11",
+          "updated_at": ""
+        }
+      ],
+      "extra": {
+        "confirm_reason": "缺少截止时间；置信度低于阈值 0.75",
+        "missing_fields": [
+          "due_date"
+        ]
+      },
+      "item_id": "action_670c4fa54f41",
+      "meeting_id": "obcnb2q4nap98l5ny5as2n11",
+      "meeting_topic": "",
+      "minute_token": "obcnb2q4nap98l5ny5as2n11",
+      "owner": "专场主题",
+      "priority": "medium",
+      "project_id": "meetflow",
+      "review_session_id": "obcnb2q4nap98l5ny5as2n11:1778046922",
+      "title": "本次飞书 AI 校园挑战赛产品专场主题分享直播，邀请飞书产品大牛吴星辉和飞书 IM 团队 26 届产品校招生韩赛鸿进行分享，同步赛事关键时间节点，并进行抽奖活动，内容如下："
+    }
+  },
+  "action_9742539104e5": {
+    "created_at": 1778047061,
+    "item_id": "action_9742539104e5",
+    "source": {
+      "chat_id": "oc_3e432398cc43063fda2b2d322bb6dead",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "message_id": "om_x100b5099955a5ca8b3f6eff16412a94",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "receive_id_type": "chat_id",
+      "review_session_id": "obcn7xk3bg1olx8lb811fq4i:1778048439"
+    },
+    "status": "pending",
+    "updated_at": 1778048441,
+    "value": {
+      "calendar_event_id": "",
+      "confidence": 0.8,
+      "due_date": "今天或最晚明天",
+      "evidence_refs": [
+        {
+          "snippet": "1. 仓库创建填写：以组为单位创建 GitHub 代码仓库，将项目设置为 public，并于今天或最晚明天将仓库地址填写到问卷中（来自王恂） @所有参赛同学",
+          "source_id": "obcn7xk3bg1olx8lb811fq4i",
+          "source_type": "feishu_minute",
+          "source_url": "https://bytedance.larkoffice.com/minutes/obcn7xk3bg1olx8lb811fq4i",
+          "updated_at": ""
+        }
+      ],
+      "extra": {
+        "confirm_reason": "缺少可解析负责人",
+        "missing_fields": [
+          "owner_resolution"
+        ]
+      },
+      "item_id": "action_9742539104e5",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "meeting_topic": "",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "owner": "所有参赛同学",
+      "priority": "high",
+      "project_id": "meetflow",
+      "review_session_id": "obcn7xk3bg1olx8lb811fq4i:1778048439",
+      "title": "仓库创建填写：以组为单位创建 GitHub 代码仓库，将项目设置为 public，并于今天或最晚明天将仓库地址填写到问卷中（来自王恂）"
+    }
+  },
+  "action_a0376dc045f8": {
+    "created_at": 1778046922,
+    "item_id": "action_a0376dc045f8",
+    "result": {
+      "message": "已拒绝创建任务 action_a0376dc045f8。",
+      "status": "success"
+    },
+    "source": {
+      "chat_id": "oc_3e432398cc43063fda2b2d322bb6dead",
+      "meeting_id": "obcnb2q4nap98l5ny5as2n11",
+      "message_id": "om_x100b5099320f4ca4b4cf54ece264a3b",
+      "minute_token": "obcnb2q4nap98l5ny5as2n11",
+      "receive_id_type": "chat_id",
+      "review_session_id": "obcnb2q4nap98l5ny5as2n11:1778046922"
+    },
+    "status": "reject_create_task",
+    "updated_at": 1778046995,
+    "value": {
+      "calendar_event_id": "",
+      "confidence": 0.7,
+      "due_date": "2026-05-20",
+      "evidence_refs": [
+        {
+          "snippet": "1. 链接分享：将多维表格以数据表为数据源、通过 Web coding 方式生成个性化页面的产品发布会信息链接发送给大家 @吴星辉",
+          "source_id": "obcnb2q4nap98l5ny5as2n11",
+          "source_type": "feishu_minute",
+          "source_url": "https://bytedance.larkoffice.com/minutes/obcnb2q4nap98l5ny5as2n11",
+          "updated_at": ""
+        }
+      ],
+      "extra": {
+        "confirm_reason": "缺少截止时间；置信度低于阈值 0.75",
+        "missing_fields": [
+          "due_date"
+        ]
+      },
+      "item_id": "action_a0376dc045f8",
+      "meeting_id": "obcnb2q4nap98l5ny5as2n11",
+      "meeting_topic": "",
+      "minute_token": "obcnb2q4nap98l5ny5as2n11",
+      "owner": "李健文",
+      "priority": "medium",
+      "project_id": "meetflow",
+      "review_session_id": "obcnb2q4nap98l5ny5as2n11:1778046922",
+      "title": "链接分享：将多维表格以数据表为数据源、通过 Web coding 方式生成个性化页面的产品发布会信息链接发送给大家"
+    }
+  },
   "action_a82e0db1b8ec": {
     "created_at": 1777956552,
     "item_id": "action_a82e0db1b8ec",
@@ -62,6 +313,53 @@
       "project_id": "meetflow",
       "review_session_id": "obcnf14z4qh9i2o846jy56ae:1777957474",
       "title": "测试报告整理：整理 meet flow 的 M4 测试报告，于明天下午 6 点前完成"
+    }
+  },
+  "action_c4ca5322928a": {
+    "created_at": 1778047061,
+    "item_id": "action_c4ca5322928a",
+    "result": {
+      "message": "已拒绝创建任务 action_c4ca5322928a。",
+      "status": "success"
+    },
+    "source": {
+      "chat_id": "oc_3e432398cc43063fda2b2d322bb6dead",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "message_id": "om_x100b50999569f8b4b24f45b137aa7b1",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "receive_id_type": "chat_id",
+      "review_session_id": "obcn7xk3bg1olx8lb811fq4i:1778048439"
+    },
+    "status": "reject_create_task",
+    "updated_at": 1778048483,
+    "value": {
+      "calendar_event_id": "",
+      "confidence": 0.8,
+      "due_date": "今天到明天",
+      "evidence_refs": [
+        {
+          "snippet": "2. 文档创建提交：按照模板创建个人阶段成果小结的飞书文档，命名为姓名 + 个人阶段成果小结，于今天到明天将文档链接填写到问卷中（来自王恂） @所有参赛同学",
+          "source_id": "obcn7xk3bg1olx8lb811fq4i",
+          "source_type": "feishu_minute",
+          "source_url": "https://bytedance.larkoffice.com/minutes/obcn7xk3bg1olx8lb811fq4i",
+          "updated_at": ""
+        }
+      ],
+      "extra": {
+        "confirm_reason": "缺少可解析负责人",
+        "missing_fields": [
+          "owner_resolution"
+        ]
+      },
+      "item_id": "action_c4ca5322928a",
+      "meeting_id": "obcn7xk3bg1olx8lb811fq4i",
+      "meeting_topic": "",
+      "minute_token": "obcn7xk3bg1olx8lb811fq4i",
+      "owner": "所有参赛同学",
+      "priority": "high",
+      "project_id": "meetflow",
+      "review_session_id": "obcn7xk3bg1olx8lb811fq4i:1778048439",
+      "title": "文档创建提交：按照模板创建个人阶段成果小结的飞书文档，命名为姓名 + 个人阶段成果小结，于今天到明天将文档链接填写到问卷中（来自王恂）"
     }
   }
 }
