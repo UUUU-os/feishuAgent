@@ -2,44 +2,20 @@
   "action_a82e0db1b8ec": {
     "created_at": 1777956552,
     "item_id": "action_a82e0db1b8ec",
-    "result": {
-      "message": "已创建任务：测试报告整理：整理 meet flow 的 M4 测试报告，于明天下午 6 点前完成",
-      "status": "success",
-      "task_mapping": {
-        "due_date": "2026-04-13",
-        "evidence_refs": [
-          {
-            "snippet": "1. 测试报告整理：整理 meet flow 的 M4 测试报告，于明天下午 6 点前完成 @张三",
-            "source_id": "obcnf14z4qh9i2o846jy56ae",
-            "source_type": "feishu_minute",
-            "source_url": "https://jcneyh7qlo8i.feishu.cn/minutes/obcnf14z4qh9i2o846jy56ae",
-            "updated_at": ""
-          }
-        ],
-        "item_id": "action_a82e0db1b8ec",
-        "meeting_id": "obcnf14z4qh9i2o846jy56ae",
-        "minute_token": "obcnf14z4qh9i2o846jy56ae",
-        "owner": "我",
-        "source_url": "https://jcneyh7qlo8i.feishu.cn/minutes/obcnf14z4qh9i2o846jy56ae",
-        "status": "todo",
-        "task_id": "8a2300d2-07ff-45e0-b1a4-dd8c11b946cb",
-        "title": "测试报告整理：整理 meet flow 的 M4 测试报告，于明天下午 6 点前完成"
-      }
-    },
     "source": {
       "chat_id": "oc_d3e31969e4b527ee929db9cfb1493bb6",
       "meeting_id": "obcnf14z4qh9i2o846jy56ae",
-      "message_id": "om_x100b50a3e8e20c64b29f62c641fb497",
+      "message_id": "om_x100b50840f1c44acc4f81fa6e8d43fb",
       "minute_token": "obcnf14z4qh9i2o846jy56ae",
       "receive_id_type": "chat_id",
-      "review_session_id": "obcnf14z4qh9i2o846jy56ae:1777957474"
+      "review_session_id": "obcnf14z4qh9i2o846jy56ae:1778058267"
     },
-    "status": "created",
-    "updated_at": 1777957517,
+    "status": "pending",
+    "updated_at": 1778058269,
     "value": {
       "calendar_event_id": "",
       "confidence": 0.95,
-      "due_date": "2026-04-13",
+      "due_date": "明天下午 6 点前",
       "evidence_refs": [
         {
           "snippet": "1. 测试报告整理：整理 meet flow 的 M4 测试报告，于明天下午 6 点前完成 @张三",
@@ -57,10 +33,10 @@
       "meeting_id": "obcnf14z4qh9i2o846jy56ae",
       "meeting_topic": "",
       "minute_token": "obcnf14z4qh9i2o846jy56ae",
-      "owner": "我",
+      "owner": "张三",
       "priority": "high",
       "project_id": "meetflow",
-      "review_session_id": "obcnf14z4qh9i2o846jy56ae:1777957474",
+      "review_session_id": "obcnf14z4qh9i2o846jy56ae:1778058267",
       "title": "测试报告整理：整理 meet flow 的 M4 测试报告，于明天下午 6 点前完成"
     }
   }
