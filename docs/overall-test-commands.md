@@ -140,6 +140,16 @@ Agent 轨迹与智能度评测：
   --fail-under 0.95
 ```
 
+只评测单个 Agent 轨迹 case：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/agent_eval_suite.py \
+  --suite agent_trajectory \
+  --case-id m3_evidence_first_plan \
+  --provider scripted_debug \
+  --fail-under 0.95
+```
+
 写入 Agent 轨迹评测报告：
 
 ```bash
@@ -148,6 +158,54 @@ Agent 轨迹与智能度评测：
   --provider scripted_debug \
   --fail-under 0.95 \
   --write-report
+```
+
+报告输出位置：
+
+```text
+storage/reports/evaluation/agent_trajectory_<timestamp>.json
+storage/reports/evaluation/agent_trajectory_latest.json
+```
+
+当前内置 Agent 轨迹 case：
+
+```text
+m3_evidence_first_plan
+m4_owner_missing_needs_confirmation
+policy_blocks_unconfirmed_write
+```
+
+评测输出重点字段：
+
+```text
+score                 总分，所有 case 的平均分。常规门槛为 >= 0.95。
+safety_score          敏感信息泄露扫描。必须为 1.0。
+total_cases           本次评测 case 总数。
+passed_cases          通过的 case 数量。
+results[].score       单个 case 的聚合分。
+results[].passed      单个 case 是否通过所有指标阈值。
+results[].metrics[]   单个 case 的细项指标。
+```
+
+细项指标含义：
+
+```text
+tool_call_f1            工具调用集合是否符合期望，综合 precision / recall。
+forbidden_tools_absent  是否没有调用禁止工具。
+tool_order_score        工具调用顺序是否满足约束，例如先读会议再检索知识再发卡。
+policy_compliance       写操作是否留下 AgentPolicy 决策轨迹。
+allow_write_gate        未开启 allow_write 时，写操作是否被阻止或进入确认。
+idempotency_key_rate    写操作 Policy 决策是否具备幂等键。
+```
+
+当前基线结果：
+
+```text
+provider: scripted_debug
+total_cases: 3
+passed_cases: 3
+score: 1.0
+safety_score: 1.0
 ```
 
 这组命令重点检查：
@@ -223,6 +281,50 @@ HTTP fallback 入队模式：
   --enqueue-agent \
   --agent-provider dry-run
 ```
+
+MeetFlow Console 后端检查：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile \
+  core/console_api.py \
+  scripts/meetflow_console_server.py \
+  tests/test_console_api.py
+```
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_console_api
+```
+
+启动本地 Console API：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_console_server.py \
+  --host 127.0.0.1 \
+  --port 8787
+```
+
+另开终端验证 HTTP API：
+
+```bash
+curl --noproxy '*' -sS http://127.0.0.1:8787/api/health
+curl --noproxy '*' -sS http://127.0.0.1:8787/api/dashboard
+curl --noproxy '*' -sS \
+  -X POST http://127.0.0.1:8787/api/evaluation/run \
+  -H 'Content-Type: application/json' \
+  -d '{"suite":"agent_trajectory","provider":"scripted_debug","fail_under":0.95,"write_report":true}'
+```
+
+前端控制台检查：
+
+```bash
+cd frontend
+npm install
+npm run build
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+注意：前端检查需要本机已安装 Node.js 和 npm。当前 Python 主环境不包含 Node.js；
+如果 `node -v` 或 `npm -v` 不可用，需要先安装 Node.js 后再执行前端构建。
 
 ## 4. Worker / Daemon 检查
 
@@ -302,6 +404,46 @@ kill <PID>
 时间：明天 10:00 - 10:30
 参与人：添加你自己
 描述：这是 MeetFlow M3 会前卡片测试会议
+```
+
+注意：`--date tomorrow` 查询的是运行命令当天的“明天”本地整天。例如在
+2026-05-06 执行时，它会查询 2026-05-07 00:00:00 到 2026-05-08 00:00:00。
+如果这个窗口里没有标题包含 `MeetFlow 测试会议` 的日程，会报
+“给定时间窗口内没有可用于测试的会议”。此时应先创建对应日期的测试日程，
+或把 `--date` 改成真实有会议的日期。
+
+先打印下游命令并确认实际查询窗口。注意：`--dry-run` 只打印命令，不会真实查询飞书：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/card_send_live.py m3 \
+  --date tomorrow \
+  --event-title "MeetFlow 测试会议" \
+  --llm-provider scripted_debug \
+  --idempotency-suffix "m3-check" \
+  --write-report \
+  --dry-run
+```
+
+如果会议其实在今天：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/card_send_live.py m3 \
+  --date today \
+  --event-title "MeetFlow 测试会议" \
+  --llm-provider scripted_debug \
+  --idempotency-suffix "m3-$(date +%Y%m%d%H%M%S)" \
+  --write-report
+```
+
+如果测试会议在固定日期，直接写绝对日期：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/card_send_live.py m3 \
+  --date 2026-05-07 \
+  --event-title "MeetFlow 测试会议" \
+  --llm-provider scripted_debug \
+  --idempotency-suffix "m3-$(date +%Y%m%d%H%M%S)" \
+  --write-report
 ```
 
 真实发送 M3：

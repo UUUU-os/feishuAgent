@@ -238,7 +238,12 @@ def select_target_event(
         identity=identity,  # type: ignore[arg-type]
     )
     if not events:
-        raise FeishuAPIError("给定时间窗口内没有可用于测试的会议，请扩大查询时间范围。")
+        raise FeishuAPIError(
+            "给定时间窗口内没有可用于测试的会议："
+            f"{format_unix_seconds(start_time)} - {format_unix_seconds(end_time)}。"
+            "请先确认该日期确实有测试日程，或改用 --date today / --date YYYY-MM-DD，"
+            "也可以传 --event-id 精确指定会议。"
+        )
     if event_id:
         for item in events:
             if item.event_id == event_id:
@@ -251,6 +256,15 @@ def select_target_event(
         available = "；".join(item.summary or item.event_id for item in events[:10])
         raise FeishuAPIError(f"没有找到标题包含 {event_title!r} 的会议；当前窗口会议：{available}")
     return sorted(events, key=lambda item: safe_event_timestamp(item.start_time))[0]
+
+
+def format_unix_seconds(value: str) -> str:
+    """把秒级时间戳转成便于真实联调排查的本地时间。"""
+
+    try:
+        return datetime.fromtimestamp(int(value)).astimezone().isoformat(timespec="seconds")
+    except (TypeError, ValueError, OSError):
+        return str(value)
 
 
 def fetch_supporting_resources(

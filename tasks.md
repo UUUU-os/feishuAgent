@@ -41,6 +41,54 @@
 
 当前开发重点在 [M3：会前知识卡片工作流](docs/tasks/m3-pre-meeting.md)。
 
+2026-05-06 修正 M3 真实发卡日期窗口排查说明。
+用户在 2026-05-06 执行 `scripts/card_send_live.py m3 --date tomorrow --event-title "MeetFlow 测试会议"`
+时，实际查询窗口为 2026-05-07 本地整天；飞书日历中该窗口没有匹配会议，因此
+`pre_meeting_live_test.py` 返回“给定时间窗口内没有可用于测试的会议”。本轮修改
+`scripts/pre_meeting_live_test.py`，在无会议时输出查询窗口的本地绝对时间，并提示
+使用 `--date today`、`--date YYYY-MM-DD` 或 `--event-id`；同步更新
+`docs/overall-test-commands.md`，说明 `--date tomorrow` 的日期含义、today/绝对日期
+替代命令以及 `--dry-run` 只打印下游命令不查询飞书。已执行
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile scripts/pre_meeting_live_test.py scripts/card_send_live.py`
+和 M3 `--dry-run` 命令，均通过。
+
+2026-05-06 完成 MeetFlow Console 第一版代码落地。
+本轮新增 `core/console_api.py`、`scripts/meetflow_console_server.py`、
+`tests/test_console_api.py` 和 `frontend/` React/Vite 控制台骨架。后端 facade
+已提供 `/api/health`、`/api/dashboard`、`/api/jobs`、`/api/reports/latest`、
+`/api/migrations/status`、`/api/evaluation/run`、`/api/m3/send-card`、
+`/api/worker/run-once`，继续复用现有 `MigrationRunner`、`workflow_jobs`、
+`storage/reports/**`、`scripts.agent_eval_suite.run_agent_eval_suite()` 和
+`scripts/card_send_live.py m3`，不绕过 `AgentPolicy`、`ToolRegistry` 或
+`FeishuClient`。前端第一版包含 Dashboard、M3 会前发卡、Agent 评测中心和
+Jobs/Health 页面，所有真实发卡入口保留 `allow_write` 和二次确认。已同步更新
+`architecture.md` 和 `docs/overall-test-commands.md`。验证命令包括
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile core/console_api.py scripts/meetflow_console_server.py tests/test_console_api.py`、
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_console_api`，
+以及启动 `/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_console_server.py --host 127.0.0.1 --port 8787`
+后用 `curl --noproxy '*'` 验证 `/api/health`、`/api/dashboard` 和
+`/api/evaluation/run`，均通过；`/api/evaluation/run` 返回 `score=1.0`、
+`safety_score=1.0`。当前机器未安装 Node.js/npm，前端 `npm install` 和
+`npm run build` 尚未执行，测试命令文档已记录该前置条件。
+
+2026-05-06 新增 MeetFlow Console 代码实现设计方案。
+本轮新增 `docs/frontend-code-implementation-plan.md`，承接
+`docs/frontend-system-design.md`，进一步明确前端控制台落地时的目录结构、
+`core/console_api.py`、`scripts/meetflow_console_server.py`、`frontend/src/**`
+职责划分、HTTP API、TypeScript DTO、M3 发卡 / Agent 评测 / Jobs Health 的实现
+映射、安全副作用控制、分阶段实施顺序和验收命令。已同步更新
+`docs/frontend-system-design.md`，加入代码实现方案入口。本次为文档设计更新，
+未修改业务运行代码。
+
+2026-05-05 补充 Agent 评测系统使用说明，并新增前端控制台设计方案。
+`docs/overall-test-commands.md` 已补齐 `scripts/agent_eval_suite.py` 的单 case 运行、
+写报告、报告路径、内置 case、输出字段、细项指标和当前 `scripted_debug` 基线结果；
+`docs/tasks/m6-evaluation-demo.md` 已同步当前评测口径、指标解释和新增 case 时的文档
+同步要求；新增 `docs/frontend-system-design.md`，提出 `MeetFlow Console` 工作台、
+M3 会前发卡、M4 会后确认、M5 风险巡检、Agent 评测中心、Jobs/Health 的页面与 API
+设计；`prd.md` 已补充管理控制台作为记忆与效果评估层的产品方向。本次为文档设计更新，
+未修改业务运行代码。
+
 2026-05-05 修复 M3 真实发卡时 `assistant_sessions.user_id` NOT NULL 约束失败。
 根因是本地 `storage/meetflow.sqlite` 中的 `assistant_sessions` 仍保留早期实验
 schema 的 `user_id`、`chat_id`、`current_workflow` 等 NOT NULL 字段，而当前代码
