@@ -41,6 +41,42 @@
 
 当前开发重点在 [M3：会前知识卡片工作流](docs/tasks/m3-pre-meeting.md)。
 
+2026-05-06 新增 MeetFlow 从零启动到真实飞书群完整联调 Runbook。
+本轮新增 `docs/meetflow-full-live-test-runbook.md`，用于指导从基础质量检查、OAuth
+授权、Console API、前端 Vite、前端真实联调页面，到 M3 会前卡片、M4 会后总结和待确认
+任务卡、群内按钮确认、M5 风险巡检卡的完整运行与验收。文档明确推荐只手动启动
+Console API 与前端两个长期终端，其余 Worker、SDK 回调和 M4 按钮回调优先通过前端
+`真实联调` 页面启动；同时提供手动备用终端命令，并说明 SDK 统一回调与 M4 按钮回调
+监听 card.action.trigger 时应二选一，避免重复处理。本次为文档 runbook 更新，未修改
+业务运行代码。
+
+2026-05-06 落地 MeetFlow Console 一键真实联调第一阶段。
+本轮按照 `docs/one-click-live-test-console-code-design.md` 开始实现真实联调控制台。新增
+`core/service_manager.py`，用白名单 profile 管理 Worker、SDK 回调和 M4 按钮回调等
+长期服务，记录 PID、启动命令、日志路径和 `storage/runtime/services.json` 状态；扩展
+`core/console_api.py`，新增 `M4ReadMinuteRequest`、`M4SendCardsRequest`、
+`M5RiskScanRequest`，提供 `/api/services`、`/api/services/start`、
+`/api/services/stop`、`/api/services/logs`、`/api/m4/read-minute`、
+`/api/m4/send-cards`、`/api/m5/risk-scan` 以及 M4/M5 运行表查询能力，继续通过
+`scripts/post_meeting_live_test.py`、`scripts/card_send_live.py` 和
+`scripts/risk_scan_demo.py` 执行真实链路，不允许前端传任意 shell 命令。前端新增
+`frontend/src/pages/LiveFlowPage.tsx`、`ServiceControlPanel`、`CommandResultPanel`，
+并在 `App.tsx` 增加“真实联调”导航；页面支持服务启动/停止/日志查看、M4 妙记只读解析、
+M4 dry-run/真实发卡、M5 local/feishu direct/enqueue 巡检和真实写入二次确认。同步更新
+`docs/frontend-system-design.md` 与 `docs/overall-test-commands.md`。已执行
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile core/service_manager.py core/console_api.py scripts/meetflow_console_server.py tests/test_console_api.py`
+和 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_console_api`，
+10 条 Console API 测试通过；`npm run build` 因当前环境 `npm: command not found`
+未能执行，需安装 Node.js/npm 后补跑前端构建。
+
+2026-05-06 新增真实飞书群联调演示视频录制稿。
+本轮新增 `MeetFlow_真实飞书群联调演示视频录制稿.md`，用于录制 MeetFlow 项目
+Demo 视频。文档包含视频录制流程、可直接照念的解说词、终端演示命令、飞书群真实
+测试步骤、独立的“大厂项目开发需求评审会”会议内容准备稿、项目整体功能介绍、各模块
+演示目的和异常情况处理话术。会议素材覆盖 M4 会后总结、待确认任务和 M5 风险巡检
+所需的需求澄清、前后端接口、数据库字段、权限、排期、测试策略和风险点。本次只新增
+录制文档，未修改业务代码。
+
 2026-05-06 重写 MeetFlow 整体测试命令文档，补齐前端启动与终端分工。
 本轮重写 `docs/overall-test-commands.md`，在不改变原有测试命令含义的前提下，
 将文档整理为 16 个执行章节：文档用途、快速启动总览、终端分工、最小测试流程、

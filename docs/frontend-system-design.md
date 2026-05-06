@@ -203,6 +203,28 @@ scripts/storage_migrate.py --verify
 scripts/meetflow_worker.py --once --dry-run
 ```
 
+### 3.7 真实联调控制台
+
+目的：把原本需要多个终端手工输入的 M4/M5 真实群聊联调收敛到一个页面。
+
+核心能力：
+
+- 启动 / 停止 Console 白名单长期服务：
+  - Worker
+  - SDK 回调
+  - M4 按钮回调
+- 输入飞书妙记链接，触发 M4 只读解析、M4 dry-run 或真实发送会后总结卡和待确认任务卡。
+- 输入风险巡检参数，触发 M5 local/feishu dry-run、入队或真实发送风险提醒卡。
+- 展示命令返回结果、脱敏 stdout、report path、job 摘要和最近业务状态表。
+- 真实飞书写入继续要求 `allow_write` 和二次确认。
+
+对应实现文档：
+
+```text
+docs/one-click-live-test-console-design.md
+docs/one-click-live-test-console-code-design.md
+```
+
 ## 4. API 设计建议
 
 第一版后端 facade 可以提供这些接口：
@@ -211,9 +233,14 @@ scripts/meetflow_worker.py --once --dry-run
 GET  /api/health
 GET  /api/dashboard
 GET  /api/reports/latest?type=evaluation|m3|m4
+GET  /api/services
+GET  /api/services/logs
 POST /api/m3/send-card
-POST /api/m4/send-card
+POST /api/m4/read-minute
+POST /api/m4/send-cards
 POST /api/m5/risk-scan
+POST /api/services/start
+POST /api/services/stop
 POST /api/evaluation/run
 GET  /api/evaluation/latest
 GET  /api/jobs
@@ -257,6 +284,7 @@ POST /api/worker/run-once
 ```text
 Dashboard
 M3 会前发卡
+真实联调
 Evaluation 评测中心
 Jobs / Health
 ```
@@ -264,6 +292,9 @@ Jobs / Health
 第一阶段验收标准：
 
 - 能在前端跑 M3 scripted_debug 发卡并看到 trace_id 和 report path
+- 能在真实联调页启动 / 停止 Worker、查看服务日志
+- 能输入飞书妙记链接触发 M4 只读解析和 M4 dry-run
+- 能触发 M5 local dry-run 并展示命令结果
 - 能一键运行 Agent 评测并展示 `score = 1.0`、`safety_score = 1.0`
 - 能查看 `workflow_jobs` 最近状态
 - 能查看 migration verify 结果

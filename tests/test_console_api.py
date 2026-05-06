@@ -21,7 +21,15 @@ from config import (
     StorageSettings,
 )
 from config.loader import Settings
-from core.console_api import EvaluationRunRequest, M3SendCardRequest, MeetFlowConsoleAPI, parse_m3_stdout
+from core.console_api import (
+    EvaluationRunRequest,
+    M3SendCardRequest,
+    M4ReadMinuteRequest,
+    M4SendCardsRequest,
+    M5RiskScanRequest,
+    MeetFlowConsoleAPI,
+    parse_m3_stdout,
+)
 from core.jobs import JobQueue
 from core.migrations import MigrationRunner
 
@@ -108,6 +116,71 @@ class ConsoleAPITest(unittest.TestCase):
         self.assertEqual(parsed["trace_id"], "abc123")
         self.assertEqual(parsed["workflow_type"], "pre_meeting_brief")
         self.assertEqual(parsed["report_json"], "/tmp/report.json")
+
+    def test_run_m4_read_minute_uses_read_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = make_settings(temp_dir)
+            api = MeetFlowConsoleAPI(settings=settings, project_root=Path(temp_dir))
+            completed = SimpleNamespace(returncode=0, stdout='{"report_path": "/tmp/m4.md"}')
+
+            with patch("core.console_api.subprocess.run", return_value=completed) as run_mock:
+                result = api.run_m4_read_minute(M4ReadMinuteRequest(minute="https://example.feishu.cn/minutes/abc"))
+
+            command = run_mock.call_args.args[0]
+            self.assertIn("--read-only", command)
+            self.assertNotIn("--allow-write", command)
+            self.assertTrue(result["dry_run"])
+            self.assertEqual(result["report_path"], "/tmp/m4.md")
+
+    def test_run_m4_send_cards_without_allow_write_uses_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = make_settings(temp_dir)
+            api = MeetFlowConsoleAPI(settings=settings, project_root=Path(temp_dir))
+            completed = SimpleNamespace(returncode=0, stdout="将执行：")
+
+            with patch("core.console_api.subprocess.run", return_value=completed) as run_mock:
+                result = api.run_m4_send_cards(M4SendCardsRequest(minute="minute_token", chat_id="oc_test"))
+
+            command = run_mock.call_args.args[0]
+            self.assertIn("--dry-run", command)
+            self.assertIn("--chat-id", command)
+            self.assertTrue(result["dry_run"])
+
+    def test_run_m4_send_cards_with_allow_write_removes_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = make_settings(temp_dir)
+            api = MeetFlowConsoleAPI(settings=settings, project_root=Path(temp_dir))
+            completed = SimpleNamespace(returncode=0, stdout='{"write_results": {"skipped": false}}')
+
+            with patch("core.console_api.subprocess.run", return_value=completed) as run_mock:
+                result = api.run_m4_send_cards(M4SendCardsRequest(minute="minute_token", allow_write=True))
+
+            command = run_mock.call_args.args[0]
+            self.assertNotIn("--dry-run", command)
+            self.assertFalse(result["dry_run"])
+
+    def test_run_m5_risk_scan_enqueue_wraps_existing_script(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = make_settings(temp_dir)
+            api = MeetFlowConsoleAPI(settings=settings, project_root=Path(temp_dir))
+            completed = SimpleNamespace(returncode=0, stdout='{"job_id": "job_test"}')
+
+            with patch("core.console_api.subprocess.run", return_value=completed) as run_mock:
+                result = api.run_m5_risk_scan(M5RiskScanRequest(backend="feishu", mode="enqueue"))
+
+            command = run_mock.call_args.args[0]
+            self.assertIn("--enqueue", command)
+            self.assertIn("--backend", command)
+            self.assertEqual(result["job"]["job_id"], "job_test")
+
+    def test_runtime_table_queries_return_empty_when_db_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = make_settings(temp_dir)
+            api = MeetFlowConsoleAPI(settings=settings, project_root=Path(temp_dir))
+
+            self.assertEqual(api.list_review_sessions()["items"], [])
+            self.assertEqual(api.list_task_mappings()["items"], [])
+            self.assertEqual(api.list_risk_notifications()["items"], [])
 
 
 def make_settings(temp_dir: str) -> Settings:

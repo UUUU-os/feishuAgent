@@ -14,6 +14,7 @@ from config import load_settings
 from config.loader import Settings
 from core.migrations import MigrationError, MigrationRunner
 from core.observability import safe_error_message
+from core.service_manager import ServiceManager, ServiceStartRequest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -54,6 +55,53 @@ class EvaluationRunRequest:
     write_report: bool = True
 
 
+@dataclass(slots=True)
+class M4ReadMinuteRequest:
+    """MeetFlow Console 触发 M4 妙记只读解析的请求。"""
+
+    minute: str
+    identity: str = "user"
+    content_limit: int = 800
+    show_card_json: bool = False
+    timeout_seconds: int = 180
+
+
+@dataclass(slots=True)
+class M4SendCardsRequest:
+    """MeetFlow Console 触发 M4 会后总结卡和待确认任务卡的请求。"""
+
+    minute: str
+    identity: str = "user"
+    chat_id: str = ""
+    receive_id_type: str = "chat_id"
+    content_limit: int = 300
+    related_top_n: int = 5
+    skip_related_knowledge: bool = False
+    show_card_json: bool = False
+    allow_write: bool = False
+    timeout_seconds: int = 180
+
+
+@dataclass(slots=True)
+class M5RiskScanRequest:
+    """MeetFlow Console 触发 M5 风险巡检的请求。"""
+
+    backend: str = "local"
+    mode: str = "direct"
+    chat_id: str = ""
+    identity: str = "user"
+    send_identity: str = "tenant"
+    completed: str = "false"
+    page_size: int = 50
+    page_limit: int = 20
+    stale_update_days: int = 0
+    due_soon_hours: int = 0
+    max_reminders: int = 0
+    show_card: bool = True
+    allow_write: bool = False
+    timeout_seconds: int = 180
+
+
 class ConsoleAPIError(RuntimeError):
     """MeetFlow Console API 的业务错误。"""
 
@@ -69,6 +117,7 @@ class MeetFlowConsoleAPI:
         self.settings = settings or load_settings()
         self.project_root = project_root
         self.report_root = project_root / "storage" / "reports"
+        self.service_manager = ServiceManager(project_root)
 
     def get_health(self) -> dict[str, Any]:
         """返回配置、SQLite、migration 和报告目录健康状态。"""
@@ -109,6 +158,7 @@ class MeetFlowConsoleAPI:
             "evaluation": self.get_latest_report("evaluation"),
             "m3": self.get_latest_report("m3"),
             "m4": self.get_latest_report("m4"),
+            "m5": self.get_latest_report("m5"),
             "job_status_counts": self.get_job_status_counts(),
             "recent_jobs": self.list_jobs(limit=10),
         }
@@ -124,6 +174,8 @@ class MeetFlowConsoleAPI:
             return read_latest_glob_report(self.report_root / "m3", "*.json")
         if normalized == "m4":
             return read_latest_glob_report(self.report_root / "m4", "*.json")
+        if normalized == "m5":
+            return read_latest_glob_report(self.report_root / "m5", "*.json")
         raise ConsoleAPIError(f"未知报告类型：{report_type}")
 
     def list_jobs(self, *, limit: int = 50, status: str = "", queue_name: str = "") -> dict[str, Any]:
@@ -247,6 +299,149 @@ class MeetFlowConsoleAPI:
             "parsed": parsed,
         }
 
+    def list_services(self) -> dict[str, Any]:
+        """返回 Console 可管理的长期服务状态。"""
+
+        return self.service_manager.list_services()
+
+    def start_service(self, request: ServiceStartRequest) -> dict[str, Any]:
+        """启动一个白名单长期服务。"""
+
+        return self.service_manager.start_service(request)
+
+    def stop_service(self, name: str) -> dict[str, Any]:
+        """停止一个由 Console 启动的长期服务。"""
+
+        return self.service_manager.stop_service(name)
+
+    def tail_service_logs(self, name: str, *, tail: int = 200) -> dict[str, Any]:
+        """读取长期服务日志尾部。"""
+
+        return self.service_manager.tail_logs(name, tail=tail)
+
+    def run_m4_read_minute(self, request: M4ReadMinuteRequest) -> dict[str, Any]:
+        """只读解析真实飞书妙记，不发送卡片也不创建任务。"""
+
+        validate_m4_read_minute_request(request)
+        command = [
+            sys.executable,
+            str(self.project_root / "scripts" / "post_meeting_live_test.py"),
+            "--minute",
+            request.minute,
+            "--identity",
+            request.identity,
+            "--read-only",
+            "--content-limit",
+            str(request.content_limit),
+        ]
+        if request.show_card_json:
+            command.append("--show-card-json")
+        return run_console_command(
+            command,
+            cwd=self.project_root,
+            timeout_seconds=request.timeout_seconds,
+            dry_run=True,
+            parsed=parse_m4_stdout,
+        )
+
+    def run_m4_send_cards(self, request: M4SendCardsRequest) -> dict[str, Any]:
+        """触发 M4 会后总结卡和待确认任务卡。未 allow_write 时只 dry-run 打印命令。"""
+
+        validate_m4_send_cards_request(request)
+        command = [
+            sys.executable,
+            str(self.project_root / "scripts" / "card_send_live.py"),
+            "m4",
+            "--minute",
+            request.minute,
+            "--identity",
+            request.identity,
+            "--receive-id-type",
+            request.receive_id_type,
+            "--content-limit",
+            str(request.content_limit),
+            "--related-top-n",
+            str(request.related_top_n),
+        ]
+        if request.chat_id:
+            command.extend(["--chat-id", request.chat_id])
+        if request.skip_related_knowledge:
+            command.append("--skip-related-knowledge")
+        if request.show_card_json:
+            command.append("--show-card-json")
+        if not request.allow_write:
+            command.append("--dry-run")
+        return run_console_command(
+            command,
+            cwd=self.project_root,
+            timeout_seconds=request.timeout_seconds,
+            dry_run=not request.allow_write,
+            parsed=parse_m4_stdout,
+        )
+
+    def run_m5_risk_scan(self, request: M5RiskScanRequest) -> dict[str, Any]:
+        """触发 M5 风险巡检，支持直接执行或只入队。"""
+
+        validate_m5_risk_scan_request(request)
+        command = [
+            sys.executable,
+            str(self.project_root / "scripts" / "risk_scan_demo.py"),
+            "--backend",
+            request.backend,
+            "--identity",
+            request.identity,
+            "--send-identity",
+            request.send_identity,
+            "--completed",
+            request.completed,
+            "--page-size",
+            str(request.page_size),
+            "--page-limit",
+            str(request.page_limit),
+        ]
+        if request.chat_id:
+            command.extend(["--chat-id", request.chat_id])
+        for value, option in (
+            (request.stale_update_days, "--stale-update-days"),
+            (request.due_soon_hours, "--due-soon-hours"),
+            (request.max_reminders, "--max-reminders"),
+        ):
+            if value:
+                command.extend([option, str(value)])
+        if request.show_card:
+            command.append("--show-card")
+        if request.allow_write:
+            command.append("--allow-write")
+        if request.mode == "enqueue":
+            command.append("--enqueue")
+        return run_console_command(
+            command,
+            cwd=self.project_root,
+            timeout_seconds=request.timeout_seconds,
+            dry_run=not request.allow_write,
+            parsed=parse_m5_stdout,
+        )
+
+    def list_review_sessions(self, *, limit: int = 20) -> dict[str, Any]:
+        """读取 M4 待确认任务 review session 摘要。"""
+
+        return {"items": query_table_recent(Path(self.settings.storage.db_path), "review_sessions", limit=limit)}
+
+    def list_pending_actions(self, *, limit: int = 20) -> dict[str, Any]:
+        """读取 Agent pending action 摘要。"""
+
+        return {"items": query_table_recent(Path(self.settings.storage.db_path), "pending_actions", limit=limit)}
+
+    def list_task_mappings(self, *, limit: int = 20) -> dict[str, Any]:
+        """读取 M4 到飞书任务的映射摘要，供 M5 排查。"""
+
+        return {"items": query_table_recent(Path(self.settings.storage.db_path), "task_mappings", limit=limit)}
+
+    def list_risk_notifications(self, *, limit: int = 20) -> dict[str, Any]:
+        """读取 M5 风险提醒历史摘要。"""
+
+        return {"items": query_table_recent(Path(self.settings.storage.db_path), "risk_notifications", limit=limit)}
+
     def run_worker_once(self, *, dry_run: bool = True, timeout_seconds: int = 60) -> dict[str, Any]:
         """执行一次 worker 健康检查。第一阶段只允许 dry-run。"""
 
@@ -286,6 +481,90 @@ def validate_m3_request(request: M3SendCardRequest) -> None:
         raise ConsoleAPIError("date 只支持 today / tomorrow / YYYY-MM-DD。")
 
 
+def validate_m4_read_minute_request(request: M4ReadMinuteRequest) -> None:
+    """校验 M4 妙记只读请求。"""
+
+    if not str(request.minute or "").strip():
+        raise ConsoleAPIError("请提供飞书妙记链接或 minute token。")
+    if request.identity not in {"user", "tenant"}:
+        raise ConsoleAPIError("identity 只支持 user / tenant。")
+    validate_int_range("content_limit", request.content_limit, 100, 5000)
+    validate_int_range("timeout_seconds", request.timeout_seconds, 10, 600)
+
+
+def validate_m4_send_cards_request(request: M4SendCardsRequest) -> None:
+    """校验 M4 发卡请求，避免前端传入不受控参数。"""
+
+    if not str(request.minute or "").strip():
+        raise ConsoleAPIError("请提供飞书妙记链接或 minute token。")
+    if request.identity not in {"user", "tenant"}:
+        raise ConsoleAPIError("identity 只支持 user / tenant。")
+    if request.receive_id_type != "chat_id":
+        raise ConsoleAPIError("第一阶段 receive_id_type 只支持 chat_id。")
+    validate_int_range("content_limit", request.content_limit, 100, 5000)
+    validate_int_range("related_top_n", request.related_top_n, 1, 8)
+    validate_int_range("timeout_seconds", request.timeout_seconds, 10, 600)
+
+
+def validate_m5_risk_scan_request(request: M5RiskScanRequest) -> None:
+    """校验 M5 风险巡检请求。"""
+
+    if request.backend not in {"local", "feishu"}:
+        raise ConsoleAPIError("backend 只支持 local / feishu。")
+    if request.mode not in {"direct", "enqueue"}:
+        raise ConsoleAPIError("mode 只支持 direct / enqueue。")
+    if request.identity not in {"user", "tenant"}:
+        raise ConsoleAPIError("identity 只支持 user / tenant。")
+    if request.send_identity not in {"user", "tenant"}:
+        raise ConsoleAPIError("send_identity 只支持 user / tenant。")
+    if request.completed not in {"true", "false", "all"}:
+        raise ConsoleAPIError("completed 只支持 true / false / all。")
+    validate_int_range("page_size", request.page_size, 1, 100)
+    validate_int_range("page_limit", request.page_limit, 1, 100)
+    validate_int_range("timeout_seconds", request.timeout_seconds, 10, 600)
+
+
+def validate_int_range(name: str, value: int, minimum: int, maximum: int) -> None:
+    """校验整数参数范围，避免脚本被异常大参数拖垮。"""
+
+    if int(value) < minimum or int(value) > maximum:
+        raise ConsoleAPIError(f"{name} 只支持 {minimum}..{maximum}。")
+
+
+def run_console_command(
+    command: list[str],
+    *,
+    cwd: Path,
+    timeout_seconds: int,
+    dry_run: bool,
+    parsed: Any | None = None,
+) -> dict[str, Any]:
+    """执行 Console 白名单命令，并统一脱敏输出。"""
+
+    completed = subprocess.run(
+        command,
+        cwd=cwd,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=max(int(timeout_seconds or 60), 10),
+        check=False,
+    )
+    output = redact_sensitive(completed.stdout or "")
+    parsed_payload = parsed(output) if parsed else {}
+    return {
+        "ok": completed.returncode == 0,
+        "returncode": completed.returncode,
+        "dry_run": dry_run,
+        "command": command_for_display(command),
+        "stdout": output[-12000:],
+        "stderr": "",
+        "parsed": parsed_payload,
+        "report_path": parsed_payload.get("report_path", "") if isinstance(parsed_payload, dict) else "",
+        "job": parsed_payload.get("job", {}) if isinstance(parsed_payload, dict) else {},
+    }
+
+
 def query_jobs(db_path: Path, *, limit: int = 50, status: str = "", queue_name: str = "") -> list[dict[str, Any]]:
     """直接查询 workflow_jobs，补充 JobQueue 当前不支持的队列筛选。"""
 
@@ -315,6 +594,61 @@ def query_jobs(db_path: Path, *, limit: int = 50, status: str = "", queue_name: 
             (*params, max(int(limit or 50), 1)),
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def query_table_recent(db_path: Path, table_name: str, *, limit: int = 20) -> list[dict[str, Any]]:
+    """读取指定运行表的最近记录；表不存在时返回空列表。"""
+
+    allowed_tables = {"review_sessions", "pending_actions", "task_mappings", "risk_notifications"}
+    if table_name not in allowed_tables or not db_path.exists():
+        return []
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        if not table_exists(conn, table_name):
+            return []
+        columns = [str(row["name"]) for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()]
+        order_column = first_existing(columns, ["updated_at", "created_at", "notified_at", "applied_at"])
+        order = f"ORDER BY {order_column} DESC" if order_column else ""
+        rows = conn.execute(
+            f"SELECT * FROM {table_name} {order} LIMIT ?",
+            (max(int(limit or 20), 1),),
+        ).fetchall()
+    return [summarize_sql_row(dict(row)) for row in rows]
+
+
+def table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    """判断 SQLite 表是否存在。"""
+
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    return row is not None
+
+
+def first_existing(columns: list[str], candidates: list[str]) -> str:
+    """返回第一个存在的列名。"""
+
+    for candidate in candidates:
+        if candidate in columns:
+            return candidate
+    return ""
+
+
+def summarize_sql_row(row: dict[str, Any]) -> dict[str, Any]:
+    """压缩 SQLite 行，避免前端展示过大的 JSON 字段。"""
+
+    summarized: dict[str, Any] = {}
+    for key, value in row.items():
+        if value is None:
+            summarized[key] = ""
+            continue
+        text = str(value)
+        if key.endswith("_json") and len(text) > 1000:
+            summarized[key] = text[:1000] + "...(truncated)"
+        else:
+            summarized[key] = value
+    return summarized
 
 
 def read_json_report(path: Path) -> dict[str, Any]:
@@ -390,6 +724,87 @@ def parse_m3_stdout(output: str) -> dict[str, Any]:
         if match:
             parsed[key] = match.group(1)
     return parsed
+
+
+def parse_m4_stdout(output: str) -> dict[str, Any]:
+    """从 M4 stdout 中提取报告、妙记和任务确认摘要。"""
+
+    parsed: dict[str, Any] = {
+        "report_path": "",
+        "minute_token": "",
+        "meeting_id": "",
+        "pending_action_count": 0,
+        "action_item_count": 0,
+        "card_sent": False,
+    }
+    compact = extract_last_json_object(output)
+    if isinstance(compact, dict):
+        parsed["report_path"] = str(compact.get("report_path") or "")
+        workflow_input = compact.get("workflow_input") if isinstance(compact.get("workflow_input"), dict) else {}
+        parsed["minute_token"] = str(workflow_input.get("minute_token") or workflow_input.get("source_id") or "")
+        parsed["meeting_id"] = str(workflow_input.get("meeting_id") or "")
+        for key, target in (
+            ("pending_action_items", "pending_action_count"),
+            ("action_items", "action_item_count"),
+        ):
+            value = compact.get(key)
+            if isinstance(value, list):
+                parsed[target] = len(value)
+            elif isinstance(value, int):
+                parsed[target] = value
+        write_results = compact.get("write_results") if isinstance(compact.get("write_results"), dict) else {}
+        parsed["card_sent"] = bool(write_results and not write_results.get("skipped", False))
+    match = re.search(r'"report_path"\s*:\s*"([^"]+)"', output)
+    if match and not parsed["report_path"]:
+        parsed["report_path"] = match.group(1)
+    return parsed
+
+
+def parse_m5_stdout(output: str) -> dict[str, Any]:
+    """从 M5 stdout 中提取风险巡检和入队摘要。"""
+
+    parsed: dict[str, Any] = {
+        "should_notify": False,
+        "risk_count": 0,
+        "idempotency_key": "",
+        "job": {},
+    }
+    compact = extract_last_json_object(output)
+    if isinstance(compact, dict):
+        if "job_id" in compact:
+            parsed["job"] = compact
+        decision = compact.get("decision") if isinstance(compact.get("decision"), dict) else {}
+        scan_result = compact.get("scan_result") if isinstance(compact.get("scan_result"), dict) else {}
+        if decision:
+            parsed["should_notify"] = bool(decision.get("should_notify", False))
+            parsed["idempotency_key"] = str(decision.get("idempotency_key") or "")
+        risks = scan_result.get("risks") if isinstance(scan_result.get("risks"), list) else compact.get("risks")
+        if isinstance(risks, list):
+            parsed["risk_count"] = len(risks)
+    job_match = re.search(r'"job_id"\s*:\s*"([^"]+)"', output)
+    if job_match and not parsed["job"]:
+        parsed["job"] = {"job_id": job_match.group(1)}
+    key_match = re.search(r'"idempotency_key"\s*:\s*"([^"]+)"', output)
+    if key_match and not parsed["idempotency_key"]:
+        parsed["idempotency_key"] = key_match.group(1)
+    return parsed
+
+
+def extract_last_json_object(output: str) -> dict[str, Any]:
+    """尽量从脚本 stdout 尾部恢复一个 JSON 对象。"""
+
+    text = output.strip()
+    if not text:
+        return {}
+    for start in (index for index, char in enumerate(text) if char == "{"):
+        candidate = text[start:]
+        try:
+            payload = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return {}
 
 
 def redact_sensitive(text: str) -> str:

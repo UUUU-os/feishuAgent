@@ -1,5 +1,6 @@
 import type {
   ApiResponse,
+  CommandRunResult,
   DashboardData,
   EvaluationReport,
   HealthStatus,
@@ -7,7 +8,14 @@ import type {
   LatestReport,
   M3SendCardRequest,
   M3SendCardResult,
+  M4ReadMinuteRequest,
+  M4SendCardsRequest,
+  M5RiskScanRequest,
+  ManagedServiceStatus,
   MigrationStatus,
+  RecordsResult,
+  ServiceLogsResult,
+  ServicesResult,
   WorkerRunResult
 } from "./types";
 
@@ -58,5 +66,37 @@ export const consoleApi = {
     request<WorkerRunResult>("/api/worker/run-once", {
       method: "POST",
       body: JSON.stringify({ dry_run: true })
-    })
+    }),
+  services: () => request<ServicesResult>("/api/services"),
+  serviceLogs: (name: string, tail = 200) =>
+    request<ServiceLogsResult>(`/api/services/logs?name=${encodeURIComponent(name)}&tail=${tail}`),
+  startService: (body: { name: string; profile: string; force_restart?: boolean }) =>
+    request<ManagedServiceStatus>("/api/services/start", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  stopService: (body: { name: string }) =>
+    request<ManagedServiceStatus>("/api/services/stop", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  readM4Minute: (body: M4ReadMinuteRequest) =>
+    request<CommandRunResult>("/api/m4/read-minute", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  sendM4Cards: (body: M4SendCardsRequest) =>
+    request<CommandRunResult>("/api/m4/send-cards", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  runM5RiskScan: (body: M5RiskScanRequest) =>
+    request<CommandRunResult>("/api/m5/risk-scan", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+  reviewSessions: (limit = 20) => request<RecordsResult>(`/api/m4/review-sessions?limit=${limit}`),
+  pendingActions: (limit = 20) => request<RecordsResult>(`/api/m4/pending-actions?limit=${limit}`),
+  taskMappings: (limit = 20) => request<RecordsResult>(`/api/m4/task-mappings?limit=${limit}`),
+  riskNotifications: (limit = 20) => request<RecordsResult>(`/api/m5/risk-notifications?limit=${limit}`)
 };

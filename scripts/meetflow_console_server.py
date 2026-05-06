@@ -18,9 +18,13 @@ from core.console_api import (
     ConsoleAPIError,
     EvaluationRunRequest,
     M3SendCardRequest,
+    M4ReadMinuteRequest,
+    M4SendCardsRequest,
+    M5RiskScanRequest,
     MeetFlowConsoleAPI,
     make_api,
 )
+from core.service_manager import ServiceManagerError, ServiceStartRequest
 
 
 def parse_args() -> argparse.Namespace:
@@ -96,6 +100,45 @@ def build_handler(api: MeetFlowConsoleAPI, static_dir: Path) -> type[BaseHTTPReq
                 if parsed.path == "/api/migrations/status":
                     self.write_json({"ok": True, "data": api.get_migration_status(), "error": ""})
                     return
+                if parsed.path == "/api/services":
+                    self.write_json({"ok": True, "data": api.list_services(), "error": ""})
+                    return
+                if parsed.path == "/api/services/logs":
+                    self.write_json(
+                        {
+                            "ok": True,
+                            "data": api.tail_service_logs(
+                                first_query(query, "name", ""),
+                                tail=int(first_query(query, "tail", "200")),
+                            ),
+                            "error": "",
+                        }
+                    )
+                    return
+                if parsed.path == "/api/m4/review-sessions":
+                    self.write_json(
+                        {"ok": True, "data": api.list_review_sessions(limit=int(first_query(query, "limit", "20"))), "error": ""}
+                    )
+                    return
+                if parsed.path == "/api/m4/pending-actions":
+                    self.write_json(
+                        {"ok": True, "data": api.list_pending_actions(limit=int(first_query(query, "limit", "20"))), "error": ""}
+                    )
+                    return
+                if parsed.path == "/api/m4/task-mappings":
+                    self.write_json(
+                        {"ok": True, "data": api.list_task_mappings(limit=int(first_query(query, "limit", "20"))), "error": ""}
+                    )
+                    return
+                if parsed.path == "/api/m5/risk-notifications":
+                    self.write_json(
+                        {
+                            "ok": True,
+                            "data": api.list_risk_notifications(limit=int(first_query(query, "limit", "20"))),
+                            "error": "",
+                        }
+                    )
+                    return
                 self.serve_static(parsed.path)
             except Exception as error:  # noqa: BLE001 - API 层需要统一错误响应。
                 self.write_error(error)
@@ -139,6 +182,61 @@ def build_handler(api: MeetFlowConsoleAPI, static_dir: Path) -> type[BaseHTTPReq
                         }
                     )
                     return
+                if parsed.path == "/api/services/start":
+                    request = ServiceStartRequest(
+                        name=str(payload.get("name") or ""),
+                        profile=str(payload.get("profile") or "default"),
+                        force_restart=bool(payload.get("force_restart", False)),
+                    )
+                    self.write_json({"ok": True, "data": api.start_service(request), "error": ""})
+                    return
+                if parsed.path == "/api/services/stop":
+                    self.write_json({"ok": True, "data": api.stop_service(str(payload.get("name") or "")), "error": ""})
+                    return
+                if parsed.path == "/api/m4/read-minute":
+                    request = M4ReadMinuteRequest(
+                        minute=str(payload.get("minute") or ""),
+                        identity=str(payload.get("identity") or "user"),
+                        content_limit=int(payload.get("content_limit") or 800),
+                        show_card_json=bool(payload.get("show_card_json", False)),
+                        timeout_seconds=int(payload.get("timeout_seconds") or 180),
+                    )
+                    self.write_json({"ok": True, "data": api.run_m4_read_minute(request), "error": ""})
+                    return
+                if parsed.path == "/api/m4/send-cards":
+                    request = M4SendCardsRequest(
+                        minute=str(payload.get("minute") or ""),
+                        identity=str(payload.get("identity") or "user"),
+                        chat_id=str(payload.get("chat_id") or ""),
+                        receive_id_type=str(payload.get("receive_id_type") or "chat_id"),
+                        content_limit=int(payload.get("content_limit") or 300),
+                        related_top_n=int(payload.get("related_top_n") or 5),
+                        skip_related_knowledge=bool(payload.get("skip_related_knowledge", False)),
+                        show_card_json=bool(payload.get("show_card_json", False)),
+                        allow_write=bool(payload.get("allow_write", False)),
+                        timeout_seconds=int(payload.get("timeout_seconds") or 180),
+                    )
+                    self.write_json({"ok": True, "data": api.run_m4_send_cards(request), "error": ""})
+                    return
+                if parsed.path == "/api/m5/risk-scan":
+                    request = M5RiskScanRequest(
+                        backend=str(payload.get("backend") or "local"),
+                        mode=str(payload.get("mode") or "direct"),
+                        chat_id=str(payload.get("chat_id") or ""),
+                        identity=str(payload.get("identity") or "user"),
+                        send_identity=str(payload.get("send_identity") or "tenant"),
+                        completed=str(payload.get("completed") or "false"),
+                        page_size=int(payload.get("page_size") or 50),
+                        page_limit=int(payload.get("page_limit") or 20),
+                        stale_update_days=int(payload.get("stale_update_days") or 0),
+                        due_soon_hours=int(payload.get("due_soon_hours") or 0),
+                        max_reminders=int(payload.get("max_reminders") or 0),
+                        show_card=bool(payload.get("show_card", True)),
+                        allow_write=bool(payload.get("allow_write", False)),
+                        timeout_seconds=int(payload.get("timeout_seconds") or 180),
+                    )
+                    self.write_json({"ok": True, "data": api.run_m5_risk_scan(request), "error": ""})
+                    return
                 self.write_json({"ok": False, "data": {}, "error": "not found"}, status=404)
             except Exception as error:  # noqa: BLE001 - API 层需要统一错误响应。
                 self.write_error(error)
@@ -173,7 +271,7 @@ def build_handler(api: MeetFlowConsoleAPI, static_dir: Path) -> type[BaseHTTPReq
         def write_error(self, error: BaseException) -> None:
             """写统一错误响应。"""
 
-            status = 400 if isinstance(error, (ConsoleAPIError, ValueError, json.JSONDecodeError)) else 500
+            status = 400 if isinstance(error, (ConsoleAPIError, ServiceManagerError, ValueError, json.JSONDecodeError)) else 500
             self.write_json({"ok": False, "data": {}, "error": str(error)}, status=status)
 
         def serve_static(self, request_path: str) -> None:
@@ -217,4 +315,3 @@ def first_query(query: dict[str, list[str]], key: str, default: str) -> str:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

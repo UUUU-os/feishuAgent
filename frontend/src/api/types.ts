@@ -96,6 +96,7 @@ export type DashboardData = {
   evaluation: LatestReport<EvaluationReport>;
   m3: LatestReport<Record<string, unknown>>;
   m4: LatestReport<Record<string, unknown>>;
+  m5?: LatestReport<Record<string, unknown>>;
   job_status_counts: Record<string, number>;
   recent_jobs: JobsResult;
 };
@@ -147,4 +148,79 @@ export type WorkerRunResult = {
   returncode: number;
   command: string[];
   stdout: string;
+};
+
+export type CommandRunResult = {
+  ok: boolean;
+  returncode: number;
+  dry_run: boolean;
+  command: string[];
+  stdout: string;
+  stderr?: string;
+  parsed: Record<string, unknown>;
+  report_path?: string;
+  job?: Record<string, unknown>;
+};
+
+export type ManagedServiceStatus = {
+  name: string;
+  profile: string;
+  status: string;
+  pid: number;
+  started_at: number;
+  command: string[];
+  log_path: string;
+  error: string;
+};
+
+export type ServicesResult = {
+  items: ManagedServiceStatus[];
+};
+
+export type ServiceLogsResult = {
+  name: string;
+  log_path: string;
+  content: string;
+};
+
+export type M4ReadMinuteRequest = {
+  minute: string;
+  identity: string;
+  content_limit: number;
+  show_card_json: boolean;
+  timeout_seconds: number;
+};
+
+export type M4SendCardsRequest = {
+  minute: string;
+  identity: string;
+  chat_id: string;
+  receive_id_type: string;
+  content_limit: number;
+  related_top_n: number;
+  skip_related_knowledge: boolean;
+  show_card_json: boolean;
+  allow_write: boolean;
+  timeout_seconds: number;
+};
+
+export type M5RiskScanRequest = {
+  backend: string;
+  mode: string;
+  chat_id: string;
+  identity: string;
+  send_identity: string;
+  completed: string;
+  page_size: number;
+  page_limit: number;
+  stale_update_days: number;
+  due_soon_hours: number;
+  max_reminders: number;
+  show_card: boolean;
+  allow_write: boolean;
+  timeout_seconds: number;
+};
+
+export type RecordsResult = {
+  items: Array<Record<string, unknown>>;
 };
