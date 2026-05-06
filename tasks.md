@@ -41,6 +41,29 @@
 
 当前开发重点在 [M3：会前知识卡片工作流](docs/tasks/m3-pre-meeting.md)。
 
+2026-05-06 重写 MeetFlow 整体测试命令文档，补齐前端启动与终端分工。
+本轮重写 `docs/overall-test-commands.md`，在不改变原有测试命令含义的前提下，
+将文档整理为 16 个执行章节：文档用途、快速启动总览、终端分工、最小测试流程、
+前端启动、后端基础检查、SDK/HTTP 回调、Worker/Daemon、OAuth/飞书基础读、
+M3/M4/M5 真实测试、SQLite 排查、提交前检查、按改动类型选择测试范围和常见问题
+排查。新增 `frontend/` 启动命令、`npm run build` 构建检查、`127.0.0.1:5173`
+访问地址，以及 Vite `/api` 代理到 `127.0.0.1:8787` 的说明；同时明确终端 1-5
+分别用于前端、Console API/HTTP fallback、SDK 回调、Worker 和一次性测试排查。
+已执行 `git diff --check -- docs/overall-test-commands.md` 通过。
+
+2026-05-06 完成 MeetFlow Console 前端 UI/UX 优化。
+本轮在不修改后端接口路径、不删除既有功能的前提下，重点优化 `frontend/src/**`
+展示层。新增 `PageHeader`、`FeatureCard`、`StepList` 三个通用展示组件，改造
+`App.tsx` 侧边导航、Dashboard、M3 会前背景卡、Agent 评测中心和 Jobs/Health 页面，
+让首屏具备系统状态、核心能力入口、功能说明、状态标签、空状态提示和操作引导。M3
+页面补充“配置参数 -> 连接飞书 -> Dry-run/真实发卡 -> 查看结果”步骤感，真实发卡仍
+保留 `allow_write` 与二次确认弹窗；评测和 Jobs 页面补充质量门禁、migration、worker
+dry-run 的说明和结果摘要。样式集中更新在 `frontend/src/styles/app.css`，采用更清晰的
+SaaS/AI Agent 工作台布局、卡片层级、按钮状态、响应式布局和窄屏适配。已执行
+`git diff --check` 通过；当前机器仍未安装 Node.js/npm，`node -v`、`npm -v` 不可用，
+因此 `npm run build` 尚未在本机执行。`docs/overall-test-commands.md` 已补充前端
+UI/UX 回归检查步骤。
+
 2026-05-06 修正 M3 真实发卡日期窗口排查说明。
 用户在 2026-05-06 执行 `scripts/card_send_live.py m3 --date tomorrow --event-title "MeetFlow 测试会议"`
 时，实际查询窗口为 2026-05-07 本地整天；飞书日历中该窗口没有匹配会议，因此

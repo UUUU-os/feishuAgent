@@ -1,4 +1,4 @@
-import { Activity, BarChart3, CalendarClock, ClipboardList } from "lucide-react";
+import { Activity, BarChart3, CalendarClock, ClipboardList, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { DashboardPage } from "./pages/DashboardPage";
 import { EvaluationPage } from "./pages/EvaluationPage";
@@ -7,11 +7,11 @@ import { M3ConsolePage } from "./pages/M3ConsolePage";
 
 type PageKey = "dashboard" | "m3" | "evaluation" | "jobs";
 
-const navItems: Array<{ key: PageKey; label: string; icon: typeof Activity }> = [
-  { key: "dashboard", label: "Dashboard", icon: Activity },
-  { key: "m3", label: "M3 发卡", icon: CalendarClock },
-  { key: "evaluation", label: "评测", icon: BarChart3 },
-  { key: "jobs", label: "Jobs", icon: ClipboardList }
+const navItems: Array<{ key: PageKey; label: string; description: string; icon: typeof Activity }> = [
+  { key: "dashboard", label: "Dashboard", description: "系统总览", icon: Activity },
+  { key: "m3", label: "M3 会前", description: "生成背景卡", icon: CalendarClock },
+  { key: "evaluation", label: "Agent 评测", description: "质量门禁", icon: BarChart3 },
+  { key: "jobs", label: "Jobs / Health", description: "队列与服务", icon: ClipboardList }
 ];
 
 export default function App() {
@@ -26,6 +26,10 @@ export default function App() {
             <small>Console</small>
           </div>
         </div>
+        <div className="sidebar__summary">
+          <Sparkles size={16} />
+          <span>会议知识闭环 Agent 的本地驾驶舱</span>
+        </div>
         <nav>
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -36,7 +40,10 @@ export default function App() {
                 onClick={() => setPage(item.key)}
               >
                 <Icon size={18} />
-                {item.label}
+                <span>
+                  <strong>{item.label}</strong>
+                  <small>{item.description}</small>
+                </span>
               </button>
             );
           })}

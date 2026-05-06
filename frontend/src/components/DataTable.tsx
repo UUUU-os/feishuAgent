@@ -10,11 +10,17 @@ type DataTableProps<T> = {
   columns: Column<T>[];
   rows: T[];
   empty: string;
+  emptyHint?: string;
 };
 
-export function DataTable<T>({ columns, rows, empty }: DataTableProps<T>) {
+export function DataTable<T>({ columns, rows, empty, emptyHint }: DataTableProps<T>) {
   if (!rows.length) {
-    return <div className="empty-state">{empty}</div>;
+    return (
+      <div className="empty-state">
+        <strong>{empty}</strong>
+        {emptyHint ? <span>{emptyHint}</span> : null}
+      </div>
+    );
   }
   return (
     <div className="table-wrap">
