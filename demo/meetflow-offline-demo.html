@@ -1,0 +1,1164 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MeetFlow 离线演示</title>
+    <style>
+      :root {
+        color: #172033;
+        background: #f6f8fb;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        background:
+          linear-gradient(180deg, rgba(236, 242, 247, 0.9), rgba(246, 248, 251, 1) 320px),
+          #f6f8fb;
+      }
+
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+
+      button {
+        border: 0;
+      }
+
+      .shell {
+        display: grid;
+        grid-template-columns: 276px minmax(0, 1fr);
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        position: sticky;
+        top: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        min-height: 100vh;
+        border-right: 1px solid rgba(219, 226, 236, 0.9);
+        background: #111827;
+        color: #f8fafc;
+        padding: 24px 18px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .brand__mark {
+        display: grid;
+        width: 44px;
+        height: 44px;
+        border-radius: 8px;
+        place-items: center;
+        background: #75d0c4;
+        color: #081217;
+        font-weight: 900;
+      }
+
+      .brand strong,
+      .brand span {
+        display: block;
+      }
+
+      .brand span,
+      .nav small,
+      .sidebar__summary {
+        color: #a8b6ca;
+      }
+
+      .sidebar__summary {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 12px;
+        font-size: 13px;
+      }
+
+      .nav {
+        display: grid;
+        gap: 8px;
+      }
+
+      .nav button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        min-height: 58px;
+        border-radius: 8px;
+        background: transparent;
+        color: #cbd5e1;
+        cursor: pointer;
+        padding: 0 12px;
+        text-align: left;
+      }
+
+      .nav button[aria-current="page"],
+      .nav button:hover {
+        background: #253247;
+        color: #ffffff;
+      }
+
+      .nav b,
+      .nav small {
+        display: block;
+      }
+
+      .nav small {
+        margin-top: 2px;
+        font-size: 12px;
+      }
+
+      .main {
+        min-width: 0;
+        padding: 32px;
+      }
+
+      .page {
+        display: grid;
+        gap: 20px;
+        max-width: 1440px;
+      }
+
+      .hero,
+      .panel,
+      .metric,
+      .card-preview,
+      .flow-step,
+      .image-tile {
+        border: 1px solid #dfe6ef;
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 14px 36px rgba(23, 32, 51, 0.07);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 360px;
+        gap: 22px;
+        padding: 24px;
+      }
+
+      .hero h1 {
+        margin: 0;
+        color: #111827;
+        font-size: 34px;
+        line-height: 1.16;
+      }
+
+      .hero p,
+      .panel p,
+      .metric span,
+      .flow-step p,
+      .card-preview p,
+      .form-help {
+        margin: 0;
+        color: #5b6678;
+      }
+
+      .eyebrow,
+      .badge {
+        width: fit-content;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .eyebrow {
+        background: #e9f7f5;
+        color: #16796f;
+        padding: 4px 10px;
+      }
+
+      .hero__copy {
+        display: grid;
+        align-content: start;
+        gap: 12px;
+      }
+
+      .hero__actions,
+      .toolbar,
+      .card-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 40px;
+        border-radius: 8px;
+        background: #237c74;
+        color: #ffffff;
+        cursor: pointer;
+        padding: 0 14px;
+        font-weight: 750;
+      }
+
+      .button:hover {
+        background: #1d6d65;
+      }
+
+      .button--secondary {
+        background: #e6edf4;
+        color: #253247;
+      }
+
+      .button--secondary:hover {
+        background: #d9e4ef;
+      }
+
+      .button--danger {
+        background: #b43b3b;
+      }
+
+      .button--danger:hover {
+        background: #9c3131;
+      }
+
+      .hero__image {
+        overflow: hidden;
+        align-self: stretch;
+        min-height: 210px;
+        border-radius: 8px;
+        background: #dfe7ef;
+      }
+
+      .hero__image img,
+      .image-tile img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .metric {
+        display: grid;
+        gap: 8px;
+        min-height: 122px;
+        padding: 16px;
+      }
+
+      .metric strong {
+        color: #111827;
+        font-size: 30px;
+        line-height: 1;
+      }
+
+      .metric--ok {
+        border-top: 3px solid #2f9e68;
+      }
+
+      .metric--warn {
+        border-top: 3px solid #d9902f;
+      }
+
+      .metric--danger {
+        border-top: 3px solid #cf4d4d;
+      }
+
+      .metric--neutral {
+        border-top: 3px solid #5b7ea6;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(320px, 0.92fr) minmax(360px, 1.08fr);
+        gap: 16px;
+      }
+
+      .panel {
+        display: grid;
+        gap: 16px;
+        padding: 18px;
+      }
+
+      .panel__header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      h2,
+      h3 {
+        margin: 0;
+        color: #111827;
+      }
+
+      .flow {
+        display: grid;
+        gap: 10px;
+      }
+
+      .flow-step {
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 12px;
+      }
+
+      .flow-step__num {
+        display: grid;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        place-items: center;
+        background: #e9f7f5;
+        color: #16796f;
+        font-weight: 900;
+      }
+
+      .flow-step.is-active {
+        border-color: #75d0c4;
+        box-shadow: 0 12px 32px rgba(35, 124, 116, 0.12);
+      }
+
+      .flow-step.is-warn .flow-step__num {
+        background: #fff1d7;
+        color: #946114;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 0 10px;
+      }
+
+      .badge--ok {
+        background: #dff5ea;
+        color: #1f744a;
+      }
+
+      .badge--warn {
+        background: #fff1d7;
+        color: #946114;
+      }
+
+      .badge--danger {
+        background: #fde2e2;
+        color: #a33232;
+      }
+
+      .badge--muted {
+        background: #edf1f7;
+        color: #536278;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        color: #536278;
+        font-size: 13px;
+      }
+
+      input,
+      select {
+        width: 100%;
+        min-height: 40px;
+        border: 1px solid #cbd7e4;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #172033;
+        padding: 0 10px;
+      }
+
+      input:focus,
+      select:focus {
+        border-color: #3aa99e;
+        outline: 2px solid rgba(58, 169, 158, 0.16);
+      }
+
+      .check-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 40px;
+      }
+
+      .check-row input {
+        width: 18px;
+        min-height: 18px;
+      }
+
+      .card-preview {
+        display: grid;
+        gap: 14px;
+        padding: 18px;
+      }
+
+      .card-preview__top {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .card-preview__title {
+        display: grid;
+        gap: 4px;
+      }
+
+      .card-section {
+        border: 1px solid #e4ebf2;
+        border-radius: 8px;
+        background: #f8fafc;
+        padding: 12px;
+      }
+
+      .card-section ul {
+        margin: 8px 0 0;
+        padding-left: 18px;
+      }
+
+      .card-section li + li {
+        margin-top: 6px;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 10px;
+      }
+
+      .event {
+        display: grid;
+        grid-template-columns: 108px minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        border-bottom: 1px solid #e8eef5;
+        padding-bottom: 10px;
+      }
+
+      .event:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+
+      .event time {
+        color: #64748b;
+        font-size: 12px;
+      }
+
+      .event code,
+      .json code {
+        border-radius: 6px;
+        background: #edf1f7;
+        color: #23324a;
+        padding: 2px 6px;
+        word-break: break-all;
+      }
+
+      .json {
+        overflow: auto;
+        max-height: 320px;
+        margin: 0;
+        border-radius: 8px;
+        background: #101820;
+        color: #d9e7f2;
+        padding: 14px;
+        font-size: 12px;
+      }
+
+      .image-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .image-tile {
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: 160px auto;
+      }
+
+      .image-tile figcaption {
+        display: grid;
+        gap: 4px;
+        margin: 0;
+        padding: 12px;
+      }
+
+      .image-tile span {
+        color: #64748b;
+        font-size: 12px;
+      }
+
+      .toast {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        display: none;
+        max-width: min(420px, calc(100vw - 48px));
+        border: 1px solid #bdded9;
+        border-radius: 8px;
+        background: #f2fbfa;
+        color: #115e56;
+        box-shadow: 0 18px 48px rgba(23, 32, 51, 0.16);
+        padding: 14px 16px;
+        font-weight: 700;
+      }
+
+      .toast.is-visible {
+        display: block;
+      }
+
+      @media (max-width: 1120px) {
+        .hero,
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+
+        .metric-grid,
+        .image-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 780px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          position: static;
+          min-height: auto;
+        }
+
+        .nav {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .main {
+          padding: 18px;
+        }
+
+        .hero h1 {
+          font-size: 28px;
+        }
+
+        .metric-grid,
+        .form-grid,
+        .image-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .flow-step,
+        .event {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand__mark">MF</span>
+          <div>
+            <strong>MeetFlow</strong>
+            <span>Offline Demo</span>
+          </div>
+        </div>
+        <div class="sidebar__summary">会议知识闭环 Agent 的演示工作台，数据来自本地脱敏样例。</div>
+        <nav class="nav" aria-label="MeetFlow workflows">
+          <button data-workflow="m3" aria-current="page">
+            <span class="flow-step__num">M3</span>
+            <span><b>会前背景</b><small>知识召回与群卡片</small></span>
+          </button>
+          <button data-workflow="m4">
+            <span class="flow-step__num">M4</span>
+            <span><b>会后复盘</b><small>妙记理解与行动项</small></span>
+          </button>
+          <button data-workflow="m5">
+            <span class="flow-step__num">M5</span>
+            <span><b>风险巡检</b><small>任务状态和提醒</small></span>
+          </button>
+          <button data-workflow="eval">
+            <span class="flow-step__num">QA</span>
+            <span><b>轨迹评测</b><small>工具调用与 Policy</small></span>
+          </button>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <div class="page">
+          <section class="hero">
+            <div class="hero__copy">
+              <span class="eyebrow">本地离线演示</span>
+              <h1 id="hero-title">MeetFlow 会议知识闭环 Agent</h1>
+              <p id="hero-copy">
+                从日历、文档、妙记和任务中整理会议上下文，通过受控工具调用生成飞书卡片，再把确认后的行动项纳入风险巡检。
+              </p>
+              <div class="hero__actions">
+                <button class="button" id="run-button" type="button">运行 Dry-run</button>
+                <button class="button button--secondary" id="advance-button" type="button">推进一步</button>
+                <button class="button button--secondary" id="reset-button" type="button">重置状态</button>
+              </div>
+            </div>
+            <div class="hero__image">
+              <img
+                id="hero-image"
+                src="../assets/screenshots/86039a4b-8106-4ac3-a146-7f2f1aa0693a.png"
+                alt="MeetFlow Console Dashboard"
+              />
+            </div>
+          </section>
+
+          <section class="metric-grid" aria-label="MeetFlow metrics">
+            <div class="metric metric--ok">
+              <span>Policy Safety</span>
+              <strong id="metric-safety">1.00</strong>
+              <span id="metric-safety-copy">真实写入默认被策略门禁保护。</span>
+            </div>
+            <div class="metric metric--neutral">
+              <span>Tool Calls</span>
+              <strong id="metric-tools">5</strong>
+              <span id="metric-tools-copy">按工作流选择受控工具。</span>
+            </div>
+            <div class="metric metric--warn">
+              <span>Pending Review</span>
+              <strong id="metric-pending">2</strong>
+              <span id="metric-pending-copy">负责人和截止时间进入人工确认。</span>
+            </div>
+            <div class="metric metric--ok">
+              <span>Audit Events</span>
+              <strong id="metric-audit">18</strong>
+              <span id="metric-audit-copy">运行轨迹可回放。</span>
+            </div>
+          </section>
+
+          <section class="workspace">
+            <div class="panel">
+              <div class="panel__header">
+                <div>
+                  <h2 id="workflow-title">M3 会前背景卡</h2>
+                  <p id="workflow-subtitle">日历定位会议，召回相关知识，生成可发送到飞书群的背景卡。</p>
+                </div>
+                <span class="badge badge--ok" id="workflow-status">Ready</span>
+              </div>
+
+              <div class="form-grid">
+                <label>
+                  会议
+                  <select id="meeting-select">
+                    <option>项目周会 / MeetFlow Console 联调</option>
+                    <option>飞书卡片回调验收</option>
+                    <option>Agent 轨迹评测复盘</option>
+                  </select>
+                </label>
+                <label>
+                  LLM Provider
+                  <select id="provider-select">
+                    <option>scripted_debug</option>
+                    <option>deepseek</option>
+                    <option>openai_compatible</option>
+                  </select>
+                </label>
+                <label>
+                  群聊
+                  <input id="chat-input" value="oc_demo_meetflow_group" />
+                </label>
+                <label>
+                  幂等后缀
+                  <input id="idem-input" value="offline-demo-001" />
+                </label>
+                <label class="check-row">
+                  <input id="write-toggle" type="checkbox" />
+                  <span>允许真实写入</span>
+                </label>
+              </div>
+
+              <div class="flow" id="flow-list"></div>
+            </div>
+
+            <div class="card-preview">
+              <div class="card-preview__top">
+                <div class="card-preview__title">
+                  <h2 id="card-title">会前背景知识卡</h2>
+                  <p id="card-subtitle">发送身份 tenant，读取身份 user。</p>
+                </div>
+                <span class="badge badge--muted" id="card-badge">dry-run</span>
+              </div>
+              <div class="card-section">
+                <h3 id="card-section-title">会议背景</h3>
+                <ul id="card-list"></ul>
+              </div>
+              <div class="card-section">
+                <h3>Evidence Pack</h3>
+                <ul id="evidence-list"></ul>
+              </div>
+              <div class="card-actions">
+                <button class="button" id="primary-card-action" type="button">生成卡片 JSON</button>
+                <button class="button button--secondary" id="secondary-card-action" type="button">写入审计日志</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="workspace">
+            <div class="panel">
+              <div class="panel__header">
+                <div>
+                  <h2>审计轨迹</h2>
+                  <p>展示 Agent 运行、工具调用和策略判断。</p>
+                </div>
+                <span class="badge badge--ok" id="audit-status">policy_passed</span>
+              </div>
+              <div class="timeline" id="event-list"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel__header">
+                <div>
+                  <h2>结构化输出</h2>
+                  <p>用于答辩时说明系统产物不是纯文本摘要。</p>
+                </div>
+              </div>
+              <pre class="json" id="json-preview"></pre>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel__header">
+              <div>
+                <h2>真实界面截屏</h2>
+                <p>保留项目原控制台和飞书卡片视觉证据。</p>
+              </div>
+            </div>
+            <div class="image-grid">
+              <figure class="image-tile">
+                <img src="../assets/screenshots/851ac74d-ec4e-451c-8504-074ac9a077cb.png" alt="M3 会前控制台" />
+                <figcaption><b>M3 会前</b><span>背景卡 dry-run 与发卡入口</span></figcaption>
+              </figure>
+              <figure class="image-tile">
+                <img src="../assets/screenshots/93ca8dd6-079f-453c-8ccd-fc8ff587fa2f.png" alt="飞书会后总结卡片" />
+                <figcaption><b>M4 会后</b><span>总结、开放问题和行动项</span></figcaption>
+              </figure>
+              <figure class="image-tile">
+                <img src="../assets/screenshots/4ed6021a-b447-491e-8ab0-fe01e7f37423.png" alt="飞书待确认任务卡片" />
+                <figcaption><b>人工确认</b><span>缺字段时进入确认闭环</span></figcaption>
+              </figure>
+              <figure class="image-tile">
+                <img src="../assets/screenshots/395bce0a-018e-41b2-b69b-2f5f6ed9b2e3.png" alt="Jobs and Health" />
+                <figcaption><b>Jobs / Health</b><span>队列、迁移和健康检查</span></figcaption>
+              </figure>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+
+    <script>
+      const workflows = {
+        m3: {
+          title: "M3 会前背景卡",
+          subtitle: "日历定位会议，召回相关知识，生成可发送到飞书群的背景卡。",
+          hero: "MeetFlow 会议知识闭环 Agent",
+          copy:
+            "从日历、文档、妙记和任务中整理会议上下文，通过受控工具调用生成飞书卡片，再把确认后的行动项纳入风险巡检。",
+          image: "../assets/screenshots/851ac74d-ec4e-451c-8504-074ac9a077cb.png",
+          status: ["Ready", "badge--ok"],
+          cardTitle: "会前背景知识卡",
+          cardSubtitle: "发送身份 tenant，读取身份 user。",
+          sectionTitle: "会议背景",
+          badge: "dry-run",
+          metrics: ["1.00", "5", "2", "18"],
+          metricCopy: [
+            "真实写入默认被策略门禁保护。",
+            "calendar.list_events / knowledge.search 等工具。",
+            "待补充议题和资料链接。",
+            "上下文、召回和卡片渲染均落盘。"
+          ],
+          steps: [
+            ["读取日历", "定位 30 分钟内即将开始的项目周会。", "done"],
+            ["知识召回", "从 README、历史妙记和项目文档抽取 evidence pack。", "active"],
+            ["Policy 检查", "dry-run 模式只生成卡片，不触发群发送。", "warn"],
+            ["卡片渲染", "输出背景、风险、待讨论问题和相关链接。", "pending"]
+          ],
+          cardItems: [
+            "会议主题：MeetFlow Console 联调与答辩材料整理",
+            "当前焦点：M4 会后任务确认、M5 风险巡检、Agent 评测指标",
+            "建议会前查看：README 产品预览、M4/M5 报告、最新 workflow_jobs"
+          ],
+          evidence: [
+            "README.md / 工作流设计",
+            "core/policy.py / AgentPolicy",
+            "frontend/src/pages/LiveFlowPage.tsx / 真实联调入口"
+          ],
+          events: [
+            ["10:08:12", "router.match", "meeting.soon -> pre_meeting"],
+            ["10:08:13", "tool.call", "calendar.list_events"],
+            ["10:08:14", "tool.call", "knowledge.search"],
+            ["10:08:15", "policy.check", "allow_write=false, dry_run=true"],
+            ["10:08:16", "card.render", "pre_meeting_background"]
+          ],
+          output: {
+            workflow_type: "pre_meeting",
+            status: "dry_run",
+            tools: ["calendar.list_events", "knowledge.search", "message.render_card"],
+            card: {
+              title: "会前背景知识卡",
+              sections: ["背景", "当前风险", "待讨论问题", "Evidence Pack"]
+            }
+          }
+        },
+        m4: {
+          title: "M4 会后总结与任务确认",
+          subtitle: "读取飞书妙记，抽取决策、开放问题和 Action Item，缺字段时推送确认卡。",
+          hero: "M4 会后复盘工作流",
+          copy:
+            "系统把妙记内容拆成结构化结论、开放问题和待确认任务，只有负责人和截止时间确认后才会创建飞书任务。",
+          image: "../assets/screenshots/93ca8dd6-079f-453c-8ccd-fc8ff587fa2f.png",
+          status: ["Review Required", "badge--warn"],
+          cardTitle: "会后总结卡",
+          cardSubtitle: "妙记解析 user，群卡片发送 tenant。",
+          sectionTitle: "行动项抽取",
+          badge: "needs_review",
+          metrics: ["1.00", "7", "3", "26"],
+          metricCopy: [
+            "缺负责人或截止时间时拒绝自动建任务。",
+            "minutes.read / action.extract / task.prepare。",
+            "3 条行动项进入人工确认。",
+            "包含按钮回调和任务映射记录。"
+          ],
+          steps: [
+            ["读取妙记", "解析会议转写、参会人和时间戳。", "done"],
+            ["结构化抽取", "生成决策、开放问题和 Action Item。", "active"],
+            ["人工确认", "缺少 owner/due_time 的任务不写入飞书。", "warn"],
+            ["任务映射", "确认后写入 task_mappings，避免重复创建。", "pending"]
+          ],
+          cardItems: [
+            "结论：答辩演示保留真实控制台，同时补充离线展示页",
+            "Action Item：整理 M5 风险巡检截图，负责人 叶抒锐",
+            "待确认：评测报告阈值说明需要补齐截止时间"
+          ],
+          evidence: [
+            "飞书妙记 obcngzrr3127648by964678p",
+            "core/post_meeting.py / action item extraction",
+            "cards/post_meeting.py / review card"
+          ],
+          events: [
+            ["10:12:21", "tool.call", "minutes.read"],
+            ["10:12:23", "llm.extract", "decisions=2, actions=4, questions=2"],
+            ["10:12:24", "policy.block", "missing owner or due_time"],
+            ["10:12:25", "card.render", "pending_task_review"],
+            ["10:12:27", "storage.insert", "review_sessions"]
+          ],
+          output: {
+            workflow_type: "post_meeting",
+            status: "needs_human_review",
+            decisions: ["保留本地 Console 作为真实联调入口", "新增离线 demo 作为答辩备用方案"],
+            action_items: [
+              { title: "整理风险巡检演示", owner: "叶抒锐", due: "2026-05-09" },
+              { title: "补齐评测阈值说明", owner: null, due: null }
+            ]
+          }
+        },
+        m5: {
+          title: "M5 风险巡检",
+          subtitle: "扫描任务状态，发现逾期、临期、长期未更新和负责人缺失，并生成风险提醒。",
+          hero: "M5 任务风险巡检工作流",
+          copy:
+            "M5 将会后确认的任务继续纳入跟踪，用证据链解释风险原因，并通过幂等键避免重复提醒。",
+          image: "../assets/screenshots/a043abea-81c1-4821-871a-b9ae771094c0.png",
+          status: ["Risk Found", "badge--danger"],
+          cardTitle: "风险提醒卡",
+          cardSubtitle: "支持 local 样例和真实 feishu backend。",
+          sectionTitle: "风险列表",
+          badge: "suppressed_by_idempotency",
+          metrics: ["1.00", "6", "4", "31"],
+          metricCopy: [
+            "写提醒前检查 allow_write 与 max_reminders。",
+            "task.list / risk.scan / message.send。",
+            "4 个风险项按严重度排序。",
+            "提醒、降噪和抑制窗口均可审计。"
+          ],
+          steps: [
+            ["读取任务", "拉取未完成任务和本地任务映射。", "done"],
+            ["风险规则", "检查 overdue、due_soon、stale_update、missing_owner。", "active"],
+            ["降噪幂等", "同一 risk_key 在抑制窗口内不重复发送。", "warn"],
+            ["群内提醒", "生成风险卡片并回链任务和妙记证据。", "pending"]
+          ],
+          cardItems: [
+            "逾期：Console API 异常处理测试，已超过截止时间 18 小时",
+            "临期：M5 截图整理，距离截止时间 6 小时",
+            "长期未更新：Agent 评测报告说明，48 小时无状态变化"
+          ],
+          evidence: [
+            "core/risk_scan.py / RiskFinding",
+            "storage task_mappings / task_id -> meeting_id",
+            "cards/risk_scan.py / 风险提醒卡"
+          ],
+          events: [
+            ["10:20:05", "tool.call", "task.list"],
+            ["10:20:06", "risk.scan", "overdue=1, due_soon=1, stale=1"],
+            ["10:20:07", "policy.check", "max_reminders=1, allow_write=false"],
+            ["10:20:08", "idempotency.hit", "risk_key=m5:console-api-test"],
+            ["10:20:09", "card.render", "risk_scan_summary"]
+          ],
+          output: {
+            workflow_type: "risk_scan",
+            status: "dry_run",
+            findings: [
+              { type: "overdue", severity: "high", task: "Console API 异常处理测试" },
+              { type: "due_soon", severity: "medium", task: "M5 截图整理" },
+              { type: "stale_update", severity: "medium", task: "Agent 评测报告说明" }
+            ]
+          }
+        },
+        eval: {
+          title: "Agent 轨迹评测",
+          subtitle: "检查工具调用顺序、Policy 合规、allow_write 门禁和幂等键覆盖。",
+          hero: "Agent 质量门禁与轨迹回放",
+          copy:
+            "MeetFlow 不只看最终回答，还会检查工具选择、调用顺序、策略决策和安全边界，保证演示链路可复现。",
+          image: "../assets/screenshots/74bb9ada-3053-4b87-a2e8-adb7bf099c52.png",
+          status: ["Passed", "badge--ok"],
+          cardTitle: "评测报告摘要",
+          cardSubtitle: "agent_trajectory_latest.json",
+          sectionTitle: "通过指标",
+          badge: "score=0.97",
+          metrics: ["1.00", "12", "0", "44"],
+          metricCopy: [
+            "safety_score 满分。",
+            "覆盖 M3/M4/M5 核心工具轨迹。",
+            "无待确认失败用例。",
+            "case、metric 和 trace_summary 均落盘。"
+          ],
+          steps: [
+            ["加载用例", "读取 tests/e2e_fixtures 下的场景输入。", "done"],
+            ["执行 Agent", "使用 scripted_debug provider 固定输出。", "active"],
+            ["指标评分", "检查工具顺序、Policy、结构化字段。", "done"],
+            ["生成报告", "写出 JSON 和 Markdown 归档。", "pending"]
+          ],
+          cardItems: [
+            "pre_meeting_context：通过，知识召回命中 evidence pack",
+            "post_meeting_review_gate：通过，缺字段任务没有自动写入",
+            "risk_scan_idempotency：通过，重复 risk_key 被抑制"
+          ],
+          evidence: [
+            "scripts/agent_eval_suite.py",
+            "tests/test_agent_loop.py",
+            "storage/reports/agent_trajectory_latest.json"
+          ],
+          events: [
+            ["10:30:11", "case.start", "pre_meeting_context"],
+            ["10:30:13", "metric.pass", "tool_order"],
+            ["10:30:14", "metric.pass", "policy_safety"],
+            ["10:30:16", "case.pass", "risk_scan_idempotency"],
+            ["10:30:17", "report.write", "agent_trajectory_latest.json"]
+          ],
+          output: {
+            suite: "agent_trajectory",
+            provider: "scripted_debug",
+            score: 0.97,
+            safety_score: 1.0,
+            passed_cases: 8,
+            total_cases: 8
+          }
+        }
+      };
+
+      const state = {
+        workflow: "m3",
+        activeStep: 1,
+        runCount: 0
+      };
+
+      const els = {
+        nav: document.querySelectorAll("[data-workflow]"),
+        heroTitle: document.getElementById("hero-title"),
+        heroCopy: document.getElementById("hero-copy"),
+        heroImage: document.getElementById("hero-image"),
+        workflowTitle: document.getElementById("workflow-title"),
+        workflowSubtitle: document.getElementById("workflow-subtitle"),
+        workflowStatus: document.getElementById("workflow-status"),
+        metricSafety: document.getElementById("metric-safety"),
+        metricTools: document.getElementById("metric-tools"),
+        metricPending: document.getElementById("metric-pending"),
+        metricAudit: document.getElementById("metric-audit"),
+        metricCopy: [
+          document.getElementById("metric-safety-copy"),
+          document.getElementById("metric-tools-copy"),
+          document.getElementById("metric-pending-copy"),
+          document.getElementById("metric-audit-copy")
+        ],
+        flowList: document.getElementById("flow-list"),
+        cardTitle: document.getElementById("card-title"),
+        cardSubtitle: document.getElementById("card-subtitle"),
+        cardSectionTitle: document.getElementById("card-section-title"),
+        cardBadge: document.getElementById("card-badge"),
+        cardList: document.getElementById("card-list"),
+        evidenceList: document.getElementById("evidence-list"),
+        eventList: document.getElementById("event-list"),
+        jsonPreview: document.getElementById("json-preview"),
+        auditStatus: document.getElementById("audit-status"),
+        writeToggle: document.getElementById("write-toggle"),
+        runButton: document.getElementById("run-button"),
+        advanceButton: document.getElementById("advance-button"),
+        resetButton: document.getElementById("reset-button"),
+        primaryCardAction: document.getElementById("primary-card-action"),
+        secondaryCardAction: document.getElementById("secondary-card-action"),
+        toast: document.getElementById("toast")
+      };
+
+      function setBadge(element, label, toneClass) {
+        element.textContent = label;
+        element.className = `badge ${toneClass}`;
+      }
+
+      function renderList(element, items) {
+        element.innerHTML = items.map((item) => `<li>${item}</li>`).join("");
+      }
+
+      function render() {
+        const item = workflows[state.workflow];
+        els.heroTitle.textContent = item.hero;
+        els.heroCopy.textContent = item.copy;
+        els.heroImage.src = item.image;
+        els.workflowTitle.textContent = item.title;
+        els.workflowSubtitle.textContent = item.subtitle;
+        setBadge(els.workflowStatus, item.status[0], item.status[1]);
+        els.metricSafety.textContent = item.metrics[0];
+        els.metricTools.textContent = item.metrics[1];
+        els.metricPending.textContent = item.metrics[2];
+        els.metricAudit.textContent = String(Number(item.metrics[3]) + state.runCount);
+        item.metricCopy.forEach((copy, index) => {
+          els.metricCopy[index].textContent = copy;
+        });
+        els.cardTitle.textContent = item.cardTitle;
+        els.cardSubtitle.textContent = item.cardSubtitle;
+        els.cardSectionTitle.textContent = item.sectionTitle;
+        setBadge(els.cardBadge, els.writeToggle.checked ? "write_requested" : item.badge, els.writeToggle.checked ? "badge--danger" : "badge--muted");
+        renderList(els.cardList, item.cardItems);
+        renderList(els.evidenceList, item.evidence);
+        els.flowList.innerHTML = item.steps
+          .map((step, index) => {
+            const classes = ["flow-step"];
+            if (index === state.activeStep) classes.push("is-active");
+            if (step[2] === "warn") classes.push("is-warn");
+            const tone = step[2] === "done" ? "badge--ok" : step[2] === "warn" ? "badge--warn" : index === state.activeStep ? "badge--ok" : "badge--muted";
+            const label = step[2] === "done" ? "done" : step[2] === "warn" ? "guarded" : index === state.activeStep ? "running" : "pending";
+            return `
+              <div class="${classes.join(" ")}">
+                <span class="flow-step__num">${index + 1}</span>
+                <div><h3>${step[0]}</h3><p>${step[1]}</p></div>
+                <span class="badge ${tone}">${label}</span>
+              </div>
+            `;
+          })
+          .join("");
+        const events = els.writeToggle.checked
+          ? [...item.events, ["now", "policy.require_confirmation", "offline demo blocks real side effects"]]
+          : item.events;
+        els.eventList.innerHTML = events
+          .map(
+            (event) => `
+              <div class="event">
+                <time>${event[0]}</time>
+                <code>${event[1]}</code>
+                <span>${event[2]}</span>
+              </div>
+            `
+          )
+          .join("");
+        const output = {
+          ...item.output,
+          demo_mode: "offline_static",
+          allow_write: els.writeToggle.checked,
+          policy_result: els.writeToggle.checked ? "requires_human_confirmation" : "dry_run_allowed",
+          generated_at: "2026-05-07T10:30:00+08:00"
+        };
+        els.jsonPreview.textContent = JSON.stringify(output, null, 2);
+        setBadge(els.auditStatus, els.writeToggle.checked ? "policy_guarded" : "policy_passed", els.writeToggle.checked ? "badge--warn" : "badge--ok");
+        els.nav.forEach((button) => {
+          button.setAttribute("aria-current", button.dataset.workflow === state.workflow ? "page" : "false");
+        });
+      }
+
+      function toast(message) {
+        els.toast.textContent = message;
+        els.toast.classList.add("is-visible");
+        window.clearTimeout(toast.timer);
+        toast.timer = window.setTimeout(() => els.toast.classList.remove("is-visible"), 2200);
+      }
+
+      els.nav.forEach((button) => {
+        button.addEventListener("click", () => {
+          state.workflow = button.dataset.workflow;
+          state.activeStep = 1;
+          render();
+        });
+      });
+
+      els.runButton.addEventListener("click", () => {
+        state.runCount += 1;
+        state.activeStep = Math.min(state.activeStep + 1, workflows[state.workflow].steps.length - 1);
+        render();
+        toast(els.writeToggle.checked ? "已进入二次确认门禁，离线演示不会写入飞书。" : "Dry-run 已完成，卡片和审计轨迹已刷新。");
+      });
+
+      els.advanceButton.addEventListener("click", () => {
+        state.activeStep = (state.activeStep + 1) % workflows[state.workflow].steps.length;
+        render();
+      });
+
+      els.resetButton.addEventListener("click", () => {
+        state.activeStep = 1;
+        state.runCount = 0;
+        els.writeToggle.checked = false;
+        render();
+        toast("演示状态已重置。");
+      });
+
+      els.primaryCardAction.addEventListener("click", () => {
+        toast("卡片 JSON 已在右侧结构化输出中更新。");
+        render();
+      });
+
+      els.secondaryCardAction.addEventListener("click", () => {
+        state.runCount += 1;
+        render();
+        toast("审计事件已追加到离线轨迹。");
+      });
+
+      els.writeToggle.addEventListener("change", render);
+      render();
+    </script>
+  </body>
+</html>
