@@ -13,6 +13,8 @@
 ![Feishu](https://img.shields.io/badge/Feishu-Calendar%20%7C%20Minutes%20%7C%20IM%20%7C%20Tasks-3370FF)
 ![Safety](https://img.shields.io/badge/Safety-Policy%20Gate-10B981)
 
+[在线 Demo](https://uuuu-os.github.io/feishuAgent/) · [离线 HTML](demo/meetflow-offline-demo.html)
+
 </div>
 
 > MeetFlow 不是一个“把妙记丢给大模型总结”的脚本，而是一个嵌入飞书真实协作流程的垂直业务 Agent。它会读取飞书日历和妙记，结合知识检索和项目记忆生成上下文，通过受控工具调用发送群卡片，在用户确认负责人和截止时间后再创建飞书任务，并持续巡检任务风险。
@@ -99,9 +101,11 @@ MeetFlow Console 把飞书真实业务、Agent 运行、后台队列和评测报
 
 ## 离线演示
 
-如果只是先体验 Demo，不想先配置 Python 环境、飞书密钥、SQLite 和前端服务，可以直接打开 [demo/meetflow-offline-demo.html](demo/meetflow-offline-demo.html)。
+如果在 GitHub 网页阅读 README，可以直接点击：[在线 Demo](https://uuuu-os.github.io/feishuAgent/)。
 
-这个页面是纯静态单文件演示，双击即可在浏览器中打开。它使用本地脱敏样例和仓库内截图素材模拟 M3 会前、M4 会后、M5 风险巡检和 Agent 评测流程，不会访问后端 API，也不会写入飞书。
+如果是在本地查看仓库，不想先配置 Python 环境、飞书密钥、SQLite 和前端服务，可以双击打开 [demo/meetflow-offline-demo.html](demo/meetflow-offline-demo.html)。
+
+`docs/index.html` 是 GitHub Pages 版本，需要在 GitHub 仓库 Settings -> Pages 中把发布目录设为当前分支的 `/docs`。两个页面都使用脱敏样例和截图素材模拟 M3 会前、M4 会后、M5 风险巡检和 Agent 评测流程，不会访问后端 API，也不会写入飞书。
 
 ## 核心亮点
 
