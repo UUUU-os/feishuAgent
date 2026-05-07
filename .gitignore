@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.venv-lark-oapi/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+npm-debug.log*
+
+# Local secrets
+.env
+*.local.json
+config/settings.local.json
+config/llm_providers.local.json
+
+# Runtime data
+storage/*.sqlite
+storage/*.db
+storage/*.jsonl
+storage/post_meeting_pending_actions.json
+storage/knowledge/
+storage/projects/*.json
+storage/reports/*
+!storage/reports/.gitkeep
+storage/runtime/*
+!storage/runtime/.gitkeep
+!storage/runtime/logs/
+storage/runtime/logs/*
+!storage/runtime/logs/.gitkeep
+storage/tmp/*
+!storage/tmp/.gitkeep
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/

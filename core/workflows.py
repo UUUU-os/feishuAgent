@@ -1,0 +1,627 @@
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass, field
+from typing import Any
+
+from core.agent_loop import MeetFlowAgentLoop
+from core.llm import GenerationSettings
+from core.models import AgentDecision, AgentRunResult, WorkflowContext
+from core.post_meeting import build_post_meeting_artifacts
+from core.pre_meeting import build_pre_meeting_brief_artifacts
+from core.risk_scan import (
+    decide_risk_notification,
+    enrich_risks_with_task_mappings,
+    normalize_task_snapshots,
+    scan_risks,
+)
+from core.storage import MeetFlowStorage
+
+
+class WorkflowRunnerError(RuntimeError):
+    """工作流骨架执行异常。"""
+
+
+@dataclass(slots=True)
+class WorkflowSpec:
+    """确定性工作流骨架的静态规格。
+
+    这个规格描述当前工作流允许哪些工具、期望输出什么、是否允许写操作。
+    它不是为了取代 Agent Loop，而是给 Agent Loop 划定可解释、可测试的业务边界。
+    """
+
+    workflow_type: str
+    allowed_tools: list[str] = field(default_factory=list)
+    workflow_goal: str = ""
+    output_schema: dict[str, Any] = field(default_factory=dict)
+    allow_write: bool = False
+    validation_rules: list[str] = field(default_factory=list)
+
+    def resolve_tools(self, requested_tools: list[str]) -> list[str]:
+        """在路由工具集和工作流允许工具集之间取交集。
+
+        如果规格没有声明 `allowed_tools`，说明这个工作流暂时沿用路由结果。
+        这样可以兼容 M2.8 已经完成的调试链路，同时为 M3-M5 的细粒度工具边界预留位置。
+        """
+
+        if not self.allowed_tools:
+            return list(requested_tools)
+        allowed = set(self.allowed_tools)
+        return [tool_name for tool_name in requested_tools if tool_name in allowed]
+
+
+@dataclass(slots=True)
+class WorkflowValidationResult:
+    """工作流确定性校验结果。"""
+
+    ok: bool
+    warnings: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """转换为审计友好的字典。"""
+
+        return {
+            "ok": self.ok,
+            "warnings": list(self.warnings),
+            "errors": list(self.errors),
+        }
+
+
+@dataclass(slots=True)
+class WorkflowRunner:
+    """确定性工作流骨架基类。
+
+    Runner 负责固定流程阶段：
+    - 准备上下文
+    - 整理工具边界
+    - 调用 Agent Loop 这个 LLM 槽位
+    - 做确定性校验
+    - 把骨架信息写入结果，方便审计和调试
+    """
+
+    spec: WorkflowSpec
+
+    def run(
+        self,
+        context: WorkflowContext,
+        decision: AgentDecision,
+        loop: MeetFlowAgentLoop,
+        required_tools: list[str],
+        workflow_goal: str = "",
+        generation_settings: GenerationSettings | None = None,
+        storage: MeetFlowStorage | None = None,
+        allow_write: bool = False,
+    ) -> AgentRunResult:
+        """执行一次带骨架的工作流。"""
+
+        started_at = int(time.time())
+        self.prepare_context(context=context, decision=decision, storage=storage)
+        effective_tools = self.spec.resolve_tools(required_tools)
+        final_goal = self.build_workflow_goal(workflow_goal or decision.reason)
+        result = loop.run(
+            context=context,
+            required_tools=effective_tools,
+            workflow_goal=final_goal,
+            generation_settings=generation_settings,
+            allow_write=allow_write,
+        )
+        self.post_process_result(
+            result=result,
+            context=context,
+            decision=decision,
+            storage=storage,
+        )
+        validation = self.validate_output(result)
+        result.payload["workflow_runner"] = {
+            "workflow_type": self.spec.workflow_type,
+            "stages": [
+                "prepare_context",
+                "build_plan_or_query",
+                "agent_loop",
+                "post_process_result",
+                "validate_output",
+                "persist_and_audit",
+            ],
+            "requested_tools": list(required_tools),
+            "effective_tools": list(effective_tools),
+            "workflow_goal": final_goal,
+            "validation": validation.to_dict(),
+            "started_at": started_at,
+            "finished_at": int(time.time()),
+        }
+        return result
+
+    def prepare_context(
+        self,
+        context: WorkflowContext,
+        decision: AgentDecision,
+        storage: MeetFlowStorage | None = None,
+    ) -> None:
+        """准备工作流上下文。
+
+        基类只记录骨架信息；具体工作流可以在这里构造检索计划、清洗输入等。
+        """
+
+        context.raw_context.setdefault("workflow_runner", {})
+        context.raw_context["workflow_runner"].update(
+            {
+                "workflow_type": self.spec.workflow_type,
+                "decision": decision.to_dict(),
+            }
+        )
+
+    def build_workflow_goal(self, workflow_goal: str) -> str:
+        """合成进入 Agent Loop 的目标描述。"""
+
+        spec_goal = self.spec.workflow_goal.strip()
+        if spec_goal and workflow_goal:
+            return f"{spec_goal}\n\n本次具体目标：{workflow_goal}"
+        return spec_goal or workflow_goal
+
+    def post_process_result(
+        self,
+        result: AgentRunResult,
+        context: WorkflowContext,
+        decision: AgentDecision,
+        storage: MeetFlowStorage | None = None,
+    ) -> None:
+        """Agent Loop 结束后的确定性业务后处理。
+
+        基类默认不做处理；M5 风险巡检会在这里从工具结果生成结构化风险产物。
+        """
+
+    def validate_output(self, result: AgentRunResult) -> WorkflowValidationResult:
+        """校验 Agent Loop 输出。
+
+        M2.8 阶段先做最小校验：必须有最终回答或受控终态。
+        M3-M5 可以在具体 Runner 中升级为结构化 schema 校验。
+        """
+
+        if result.status in {"success", "max_iterations"}:
+            return WorkflowValidationResult(ok=True)
+        return WorkflowValidationResult(
+            ok=False,
+            errors=[f"Agent Loop 状态不是成功或受控终态：{result.status}"],
+        )
+
+
+@dataclass(slots=True)
+class PreMeetingBriefWorkflow(WorkflowRunner):
+    """会前背景卡片工作流骨架。
+
+    当前先落地确定性阶段和检索计划草案，M3 后续再接入真正的知识检索工具、
+    `MeetingBrief` 结构化解析和卡片渲染。
+    """
+
+    def prepare_context(
+        self,
+        context: WorkflowContext,
+        decision: AgentDecision,
+        storage: MeetFlowStorage | None = None,
+    ) -> None:
+        """构造会前工作流输入输出壳，并写入上下文。"""
+
+        WorkflowRunner.prepare_context(self, context=context, decision=decision, storage=storage)
+        artifacts = build_pre_meeting_brief_artifacts(context, storage=storage)
+        artifacts_dict = artifacts.to_dict()
+        context.raw_context["pre_meeting_brief"] = artifacts_dict
+        context.raw_context["pre_meeting_stage_plan"] = artifacts_dict["stage_plan"]
+        context.raw_context["pre_meeting_input"] = artifacts_dict["workflow_input"]
+        context.raw_context["retrieval_query"] = artifacts_dict["retrieval_query"]
+        context.raw_context["retrieval_query_draft"] = artifacts_dict["retrieval_query"]
+        context.raw_context["retrieval_result"] = artifacts_dict["retrieval_result"]
+        context.raw_context["meeting_brief_draft"] = artifacts_dict["meeting_brief"]
+        context.raw_context["pre_meeting_card_payload"] = artifacts_dict["card_payload"]
+
+    def build_workflow_goal(self, workflow_goal: str) -> str:
+        """强化会前工作流的输出要求。"""
+
+        base_goal = WorkflowRunner.build_workflow_goal(self, workflow_goal)
+        return (
+            f"{base_goal}\n\n"
+            "会前工作流约束：\n"
+            "- 先基于上下文判断是否需要调用工具补充证据。\n"
+            "- 优先调用 knowledge_search 获取压缩证据包，必要时再用 knowledge_fetch_chunk 展开指定 ref_id。\n"
+            "- 生成结论时必须说明来源或指出证据不足。\n"
+            "- 不要把未验证资料写成确定性事实。\n"
+            "- 如果只拿到候选资料，请明确标记为“可能相关资料”。"
+        )
+
+    def validate_output(self, result: AgentRunResult) -> WorkflowValidationResult:
+        """会前工作流的最小确定性校验。"""
+
+        base = WorkflowRunner.validate_output(self, result)
+        warnings = list(base.warnings)
+        errors = list(base.errors)
+        context_payload = result.payload.get("context", {}) if isinstance(result.payload, dict) else {}
+        raw_context = context_payload.get("raw_context", {}) if isinstance(context_payload, dict) else {}
+        pre_meeting_artifacts = raw_context.get("pre_meeting_brief", {}) if isinstance(raw_context, dict) else {}
+        if result.status == "success" and not result.final_answer.strip():
+            errors.append("会前工作流没有生成最终回答。")
+        if result.status == "success" and not pre_meeting_artifacts:
+            errors.append("会前工作流缺少 T3.1 输入输出结构。")
+        if result.status == "success" and pre_meeting_artifacts and not pre_meeting_artifacts.get("card_payload"):
+            errors.append("会前工作流缺少可供卡片渲染的 payload。")
+        if result.status == "success" and result.loop_state and not result.loop_state.tool_results:
+            warnings.append("本次会前工作流没有调用任何工具，可能缺少外部证据。")
+        return WorkflowValidationResult(ok=not errors, warnings=warnings, errors=errors)
+
+
+@dataclass(slots=True)
+class PostMeetingFollowupWorkflow(WorkflowRunner):
+    """会后总结与任务落地工作流骨架。
+
+    当前固定会后流程边界，并在进入 Agent Loop 前生成确定性 M4 artifacts：
+    - 拉取妙记和纪要清洗可由工具继续补全
+    - Action Item 结构化结果先进入待确认材料
+    - 任务创建必须先由人确认，再继续经过 AgentPolicy
+    """
+
+    def prepare_context(
+        self,
+        context: WorkflowContext,
+        decision: AgentDecision,
+        storage: MeetFlowStorage | None = None,
+    ) -> None:
+        """构造会后处理计划草案，并写入上下文。"""
+
+        WorkflowRunner.prepare_context(self, context=context, decision=decision, storage=storage)
+        context.raw_context["post_meeting_plan"] = build_post_meeting_plan_draft(context)
+        artifacts = build_post_meeting_artifacts(context)
+        artifacts_dict = artifacts.to_dict()
+        context.raw_context["post_meeting_artifacts"] = artifacts_dict
+        context.raw_context["post_meeting_input"] = artifacts_dict["workflow_input"]
+        context.raw_context["cleaned_transcript"] = artifacts_dict["cleaned_transcript"]
+        context.raw_context["meeting_summary_draft"] = artifacts_dict["meeting_summary"]
+        context.raw_context["post_meeting_card_payloads"] = artifacts_dict["card_payloads"]
+        context.raw_context["pending_action_items"] = artifacts_dict["pending_action_items"]
+        context.raw_context["auto_create_candidates"] = [
+            item for item in artifacts_dict["action_items"] if not item.get("needs_confirm")
+        ]
+        context.raw_context["human_review_candidates"] = artifacts_dict["pending_action_items"]
+        context.raw_context["related_knowledge"] = artifacts_dict.get("extra", {}).get("related_knowledge_hits", [])
+
+    def build_workflow_goal(self, workflow_goal: str) -> str:
+        """强化会后工作流的输出和安全要求。"""
+
+        base_goal = WorkflowRunner.build_workflow_goal(self, workflow_goal)
+        return (
+            f"{base_goal}\n\n"
+            "会后工作流约束：\n"
+            "- 先获取或确认妙记/纪要来源，再抽取结论和 Action Items。\n"
+            "- Action Item 必须包含事项、负责人、截止时间、置信度和证据引用；缺失字段要标记待确认。\n"
+            "- 如果负责人是“我”或具体姓名，必须先通过通讯录工具解析 open_id，不能编造 assignee_ids。\n"
+            "- 不要在会后主链路自动创建任务；所有任务都先发送待确认材料，由人工确认入口触发创建。\n"
+            "- 人工确认后的任务创建仍属于写操作，最终必须经过 AgentPolicy。\n"
+            "- 不要把低置信度或缺少证据的待办直接描述为已创建任务。"
+        )
+
+    def validate_output(self, result: AgentRunResult) -> WorkflowValidationResult:
+        """会后工作流的最小确定性校验。"""
+
+        base = WorkflowRunner.validate_output(self, result)
+        warnings = list(base.warnings)
+        errors = list(base.errors)
+        if result.status == "success" and not result.final_answer.strip():
+            errors.append("会后工作流没有生成最终回答。")
+        if result.status == "success" and result.loop_state and not result.loop_state.tool_results:
+            warnings.append("本次会后工作流没有调用任何工具，可能尚未读取妙记或上下文证据。")
+        for side_effect in result.side_effects:
+            if side_effect.get("side_effect") == "create_task":
+                warnings.append("本次会后工作流触发了任务创建副作用，请确认 AgentPolicy 审核记录。")
+        return WorkflowValidationResult(ok=not errors, warnings=warnings, errors=errors)
+
+
+@dataclass(slots=True)
+class RiskScanWorkflow(WorkflowRunner):
+    """任务风险巡检工作流骨架。
+
+    当前只固定 M5 的确定性边界：
+    - 风险规则预筛和任务状态读取后续由具体工具实现
+    - Agent 负责解释风险原因和生成提醒草案
+    - 是否推送仍由幂等、降噪和 AgentPolicy 决定
+    """
+
+    def prepare_context(
+        self,
+        context: WorkflowContext,
+        decision: AgentDecision,
+        storage: MeetFlowStorage | None = None,
+    ) -> None:
+        """构造风险巡检计划草案，并写入上下文。"""
+
+        WorkflowRunner.prepare_context(self, context=context, decision=decision, storage=storage)
+        context.raw_context["risk_scan_plan"] = build_risk_scan_plan_draft(context)
+        context.raw_context["risk_rule_settings"] = build_risk_rule_settings(context)
+
+    def build_workflow_goal(self, workflow_goal: str) -> str:
+        """强化风险巡检工作流的低噪声要求。"""
+
+        base_goal = WorkflowRunner.build_workflow_goal(self, workflow_goal)
+        return (
+            f"{base_goal}\n\n"
+            "风险巡检工作流约束：\n"
+            "- 先基于任务状态、截止时间、更新时间和历史提醒判断是否真的需要提醒。\n"
+            "- 风险提醒必须说明风险原因、建议动作和来源，不要制造噪声。\n"
+            "- 对已提醒过或证据不足的风险，应输出观察或待确认，而不是重复推送。\n"
+            "- 推送消息属于写操作，只能作为工具请求发起，最终必须经过 AgentPolicy 和幂等/降噪规则。"
+        )
+
+    def validate_output(self, result: AgentRunResult) -> WorkflowValidationResult:
+        """风险巡检工作流的最小确定性校验。"""
+
+        base = WorkflowRunner.validate_output(self, result)
+        warnings = list(base.warnings)
+        errors = list(base.errors)
+        risk_payload = result.payload.get("risk_scan", {}) if isinstance(result.payload, dict) else {}
+        if result.status == "success" and not result.final_answer.strip():
+            errors.append("风险巡检工作流没有生成最终回答。")
+        if result.status == "success" and result.loop_state and not result.loop_state.tool_results:
+            warnings.append("本次风险巡检没有调用任何任务读取工具，可能缺少任务状态证据。")
+        if result.status == "success" and has_successful_task_tool_result(result) and not risk_payload.get("scan_result"):
+            errors.append("风险巡检读取了任务，但没有生成确定性 risk_scan.scan_result。")
+        scan_result = risk_payload.get("scan_result") if isinstance(risk_payload, dict) else {}
+        notification_decision = risk_payload.get("notification_decision") if isinstance(risk_payload, dict) else {}
+        if isinstance(scan_result, dict) and int(scan_result.get("risk_count", 0) or 0) > 0 and not notification_decision:
+            errors.append("风险巡检命中风险，但缺少 notification_decision。")
+        if isinstance(notification_decision, dict) and notification_decision.get("should_notify") and not risk_payload.get("card_payload"):
+            errors.append("风险巡检需要提醒，但缺少 card_payload。")
+        for side_effect in result.side_effects:
+            if side_effect.get("side_effect") == "send_message":
+                warnings.append("本次风险巡检触发了消息发送副作用，请确认降噪和幂等记录。")
+        return WorkflowValidationResult(ok=not errors, warnings=warnings, errors=errors)
+
+    def post_process_result(
+        self,
+        result: AgentRunResult,
+        context: WorkflowContext,
+        decision: AgentDecision,
+        storage: MeetFlowStorage | None = None,
+    ) -> None:
+        """从任务工具结果生成确定性风险扫描产物。"""
+
+        task_items = extract_task_items_for_risk_scan(result=result, context=context)
+        if task_items is None:
+            return
+
+        settings = build_risk_rule_settings(context)
+        now = int(context.event.event_time or 0) or int(time.time())
+        snapshots = normalize_task_snapshots(task_items)
+        scan_result = scan_risks(
+            tasks=snapshots,
+            now=now,
+            stale_update_days=int(settings["stale_update_days"]),
+            due_soon_hours=int(settings["due_soon_hours"]),
+        )
+        scan_result = enrich_risks_with_task_mappings(scan_result=scan_result, storage=storage)
+        notification_decision = decide_risk_notification(
+            scan_result=scan_result,
+            storage=storage,
+            max_reminders_per_day=int(settings["max_reminders_per_day"]),
+            now=now,
+        )
+        # 风险卡片渲染依赖 cards 包；这里懒加载，避免 cards 与 core 初始化时互相导入。
+        from cards.risk_scan import build_risk_scan_card
+
+        card_payload = build_risk_scan_card(
+            decision=notification_decision,
+            scan_result=scan_result,
+        )
+        result.payload["risk_scan"] = {
+            "settings": settings,
+            "scan_result": scan_result.to_dict(),
+            "notification_decision": notification_decision.to_dict(),
+            "card_payload": card_payload,
+            "source": "tasks.list_my_tasks",
+        }
+
+
+def build_default_workflow_runners() -> dict[str, WorkflowRunner]:
+    """构建默认工作流 Runner。
+
+    当前为会前、会后、风险巡检都提供专用骨架。
+    这些骨架只固定阶段和安全边界，不提前替代 M3-M5 的具体业务实现。
+    """
+
+    return {
+        "pre_meeting_brief": PreMeetingBriefWorkflow(
+            spec=WorkflowSpec(
+                workflow_type="pre_meeting_brief",
+                allowed_tools=[
+                    "calendar.list_events",
+                    "knowledge.search",
+                    "knowledge.fetch_chunk",
+                    "docs.fetch_resource",
+                    "minutes.fetch_resource",
+                    "tasks.list_my_tasks",
+                    "im.send_card",
+                ],
+                workflow_goal="生成带来源约束的会前背景知识卡片草案。",
+                output_schema={
+                    "type": "object",
+                    "description": "MeetingBrief 草案，后续 M3 会升级为严格结构。",
+                },
+                allow_write=False,
+                validation_rules=[
+                    "final_answer_required",
+                    "evidence_or_uncertainty_required",
+                ],
+            )
+        ),
+        "post_meeting_followup": PostMeetingFollowupWorkflow(
+            spec=WorkflowSpec(
+                workflow_type="post_meeting_followup",
+                allowed_tools=[
+                    "minutes.fetch_resource",
+                    "docs.fetch_resource",
+                    "knowledge.search",
+                    "knowledge.fetch_chunk",
+                    "post_meeting.build_artifacts",
+                    "post_meeting.enrich_related_knowledge",
+                    "post_meeting.prepare_task",
+                    "post_meeting.send_summary_card",
+                    "post_meeting.save_pending_actions",
+                    "contact.get_current_user",
+                    "contact.search_user",
+                    "im.send_card",
+                ],
+                workflow_goal="生成会后总结和 Action Item 草案，写操作必须交给 Policy 审核。",
+                output_schema={
+                    "type": "object",
+                    "description": "MeetingSummary + ActionItem[] 草案，后续 M4 会升级为严格结构。",
+                },
+                allow_write=False,
+                validation_rules=[
+                    "action_items_require_owner_due_date_or_needs_confirm",
+                    "evidence_refs_required",
+                    "write_operations_policy_required",
+                ],
+            )
+        ),
+        "risk_scan": RiskScanWorkflow(
+            spec=WorkflowSpec(
+                workflow_type="risk_scan",
+                allowed_tools=[
+                    "tasks.list_my_tasks",
+                    "calendar.list_events",
+                    "im.send_card",
+                ],
+                workflow_goal="生成低噪声风险巡检结果，避免重复提醒。",
+                output_schema={
+                    "type": "object",
+                    "description": "RiskAlert[] 草案，后续 M5 会升级为严格结构。",
+                },
+                allow_write=False,
+                validation_rules=[
+                    "risk_reason_required",
+                    "dedupe_before_notify",
+                    "write_operations_policy_required",
+                ],
+            )
+        ),
+        "manual_qa": WorkflowRunner(
+            spec=WorkflowSpec(
+                workflow_type="manual_qa",
+                workflow_goal="在受控工具集内回答用户问题，输出必须基于工具或上下文。",
+            )
+        ),
+    }
+
+
+def build_retrieval_query_draft(context: WorkflowContext) -> dict[str, Any]:
+    """根据会前上下文生成检索计划草案。
+
+    这里保留旧函数名，兼容 T2.14 以来的 demo。T3.1 起内部已经统一使用
+    `RetrievalQuery` 模型，返回值仍转换成字典，方便审计和 JSON 落盘。
+    """
+
+    return build_pre_meeting_brief_artifacts(context).retrieval_query.to_dict()
+
+
+def build_post_meeting_plan_draft(context: WorkflowContext) -> dict[str, Any]:
+    """根据会后上下文生成处理计划草案。"""
+
+    return {
+        "meeting_id": context.meeting_id,
+        "calendar_event_id": context.calendar_event_id,
+        "minute_token": context.minute_token,
+        "project_id": context.project_id,
+        "expected_steps": [
+            "fetch_minutes_or_summary",
+            "clean_transcript",
+            "extract_decisions_and_action_items",
+            "validate_owner_due_date_evidence",
+            "send_confirmation_before_task_creation",
+        ],
+        "required_fields_for_task_creation": [
+            "human_confirmation",
+            "summary",
+            "assignee_ids",
+            "due_timestamp_ms",
+            "confidence",
+            "evidence_refs",
+        ],
+        "missing_context": [] if context.minute_token else ["minute_token"],
+    }
+
+
+def build_risk_scan_plan_draft(context: WorkflowContext) -> dict[str, Any]:
+    """根据风险巡检上下文生成处理计划草案。"""
+
+    return {
+        "task_id": context.task_id,
+        "project_id": context.project_id,
+        "expected_steps": [
+            "fetch_task_status",
+            "apply_risk_rules",
+            "check_recent_notifications",
+            "generate_risk_alert_draft",
+            "notify_or_skip",
+        ],
+        "risk_signals": [
+            "overdue",
+            "due_soon",
+            "stale_update",
+            "missing_owner",
+            "blocked_dependency",
+        ],
+        "missing_context": [] if context.task_id or context.project_id else ["task_id_or_project_id"],
+    }
+
+
+def build_risk_rule_settings(context: WorkflowContext) -> dict[str, int]:
+    """从 payload 中读取风险规则配置，没有则使用当前 M5 默认值。"""
+
+    payload = context.raw_context.get("payload", {})
+    risk_rules = payload.get("risk_rules", {}) if isinstance(payload, dict) else {}
+    if not isinstance(risk_rules, dict):
+        risk_rules = {}
+    return {
+        "stale_update_days": int(first_non_empty(risk_rules, "stale_update_days") or payload.get("stale_update_days", 3) or 3),
+        "due_soon_hours": int(first_non_empty(risk_rules, "due_soon_hours") or payload.get("due_soon_hours", 24) or 24),
+        "max_reminders_per_day": int(first_non_empty(risk_rules, "max_reminders_per_day") or payload.get("max_reminders_per_day", 1) or 1),
+    }
+
+
+def extract_task_items_for_risk_scan(
+    result: AgentRunResult,
+    context: WorkflowContext,
+) -> list[Any] | None:
+    """从工具结果或 payload 中提取风险扫描任务列表。"""
+
+    if result.loop_state:
+        for tool_result in reversed(result.loop_state.tool_results):
+            if tool_result.tool_name != "tasks.list_my_tasks" or tool_result.status != "success":
+                continue
+            items = tool_result.data.get("items") if isinstance(tool_result.data, dict) else None
+            if isinstance(items, list):
+                return items
+
+    payload = context.raw_context.get("payload", {})
+    if isinstance(payload, dict):
+        payload_tasks = payload.get("tasks") or payload.get("task_items")
+        if isinstance(payload_tasks, list):
+            return payload_tasks
+    return None
+
+
+def has_successful_task_tool_result(result: AgentRunResult) -> bool:
+    """判断本次 Agent Loop 是否成功读取过任务。"""
+
+    if not result.loop_state:
+        return False
+    return any(
+        tool_result.tool_name == "tasks.list_my_tasks" and tool_result.status == "success"
+        for tool_result in result.loop_state.tool_results
+    )
+
+
+def first_non_empty(data: dict[str, Any], *keys: str) -> str:
+    """读取第一个非空字段。"""
+
+    for key in keys:
+        value = data.get(key)
+        if value is not None and value != "":
+            return str(value)
+    return ""

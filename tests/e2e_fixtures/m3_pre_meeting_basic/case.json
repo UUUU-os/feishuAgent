@@ -1,0 +1,52 @@
+{
+  "case_id": "m3_pre_meeting_basic",
+  "workflow": "m3_pre_meeting",
+  "description": "M3 会前卡片应识别 MeetFlow 主题，并从脱敏资源中生成待读资料、当前问题和风险提示。",
+  "input": {
+    "meeting_id": "meeting_eval_m3",
+    "calendar_event_id": "event_eval_m3",
+    "project_id": "meetflow",
+    "meeting_title": "MeetFlow M3 方案评审",
+    "meeting_description": "评审会前卡片、知识检索和刷新按钮链路。",
+    "start_time": "2026-05-06 10:00",
+    "end_time": "2026-05-06 10:30",
+    "timezone": "Asia/Shanghai",
+    "organizer": "张三",
+    "participants": [
+      {"display_name": "张三", "role": "owner"},
+      {"display_name": "李四", "role": "developer"}
+    ],
+    "memory_snapshot": {
+      "summary": "MeetFlow 聚焦飞书会议知识服务，当前重点是 M3/M4/M5 闭环。"
+    },
+    "related_resources": [
+      {
+        "resource_id": "minute_eval_001",
+        "resource_type": "minute",
+        "title": "上次评审结论 - MeetFlow M3",
+        "content": "上次决定优先完成会前卡片和知识检索闭环。",
+        "source_url": "https://example.feishu.cn/minutes/minute_eval_001"
+      },
+      {
+        "resource_id": "doc_eval_001",
+        "resource_type": "doc",
+        "title": "当前问题清单 - 负责人字段",
+        "content": "待确认 create_task_draft 的负责人解析策略。",
+        "source_url": "https://example.feishu.cn/docx/doc_eval_001"
+      },
+      {
+        "resource_id": "task_eval_001",
+        "resource_type": "task",
+        "title": "未完成待办 - 刷新背景幂等键",
+        "content": "存在重复点击被判重的风险，需要修复。",
+        "source_url": "https://example.feishu.cn/task/task_eval_001"
+      }
+    ]
+  },
+  "expected": {
+    "topic_contains": "MeetFlow",
+    "min_must_read_resources": 1,
+    "min_current_questions": 1,
+    "min_risks": 1
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "case_id": "m4_post_meeting_with_tasks",
+  "workflow": "m4_post_meeting",
+  "description": "M4 应从妙记正文中抽取待确认行动项，并保留负责人、截止时间和证据。",
+  "input": {
+    "meeting_id": "minute_eval_m4",
+    "calendar_event_id": "",
+    "minute_token": "minute_eval_m4",
+    "project_id": "meetflow",
+    "topic": "MeetFlow 测试会议",
+    "source_type": "feishu_minute",
+    "source_id": "minute_eval_m4",
+    "source_url": "https://example.feishu.cn/minutes/minute_eval_m4",
+    "raw_text": "# MeetFlow 测试会议\n\n## 决策\n- 本周先稳定 M4 待确认任务卡片。\n\n## 待办\n1. 测试报告整理：整理 meet flow 的 M4 测试报告，于明天下午 6 点前完成 @张三\n2. 回调链路检查：检查飞书卡片按钮回调日志，后天中午前完成 @李四"
+  },
+  "expected": {
+    "min_action_items": 2,
+    "min_pending_action_items": 2,
+    "title_contains": "测试报告整理",
+    "owner": "张三",
+    "due_date_contains": "明天下午"
+  }
+}

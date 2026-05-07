@@ -1,0 +1,94 @@
+{
+  "case_id": "m4_owner_missing_needs_confirmation",
+  "description": "M4 抽取到任务但缺负责人时，应进入澄清而不是直接创建任务。",
+  "trace": {
+    "trace_id": "trace_eval_m4_missing_owner",
+    "workflow_type": "post_meeting_followup",
+    "case_id": "m4_owner_missing_needs_confirmation",
+    "input_summary": {
+      "event_type": "minute.ready"
+    },
+    "route_decision": {
+      "workflow_type": "post_meeting_followup"
+    },
+    "context_summary": {
+      "has_minute_token": true
+    },
+    "assistant_plan": [
+      {
+        "step": "读取妙记并抽取会议结论和行动项",
+        "expected_tool": "minutes.fetch_resource"
+      },
+      {
+        "step": "发送待确认任务卡片",
+        "expected_tool": "im.send_card"
+      }
+    ],
+    "tool_calls": [
+      {
+        "call_id": "call_minutes",
+        "tool_name": "minutes.fetch_resource",
+        "llm_tool_name": "minutes_fetch_resource",
+        "arguments": {
+          "minute_token": "masked_demo"
+        },
+        "arguments_hash": "hash_minutes",
+        "schema_valid": true,
+        "status": "success",
+        "result_summary": {
+          "keys": ["content", "title"]
+        },
+        "started_at": 1,
+        "finished_at": 2
+      },
+      {
+        "call_id": "call_task",
+        "tool_name": "tasks.create_task",
+        "llm_tool_name": "tasks_create_task",
+        "arguments": {
+          "title": "推进灰度发布"
+        },
+        "arguments_hash": "hash_task",
+        "schema_valid": true,
+        "status": "needs_confirmation",
+        "result_summary": {
+          "policy_status": "needs_confirmation",
+          "required_fields": ["assignee_ids"]
+        },
+        "started_at": 3,
+        "finished_at": 3
+      }
+    ],
+    "policy_decisions": [
+      {
+        "tool_name": "tasks.create_task",
+        "side_effect": "create_task",
+        "status": "needs_confirmation",
+        "reason": "任务缺少负责人，进入待确认。",
+        "required_fields": ["assignee_ids"],
+        "idempotency_key_present": true,
+        "allow_write": true
+      }
+    ],
+    "side_effects": [],
+    "final_answer_summary": "已生成待确认任务，请补充负责人后继续。",
+    "status": "success",
+    "started_at": 1,
+    "finished_at": 4
+  },
+  "expected": {
+    "must_call_tools": ["minutes.fetch_resource", "tasks.create_task"],
+    "must_not_call_tools": [],
+    "tool_order_constraints": [
+      {
+        "before": "minutes.fetch_resource",
+        "after": "tasks.create_task"
+      }
+    ],
+    "min_tool_call_f1": 1.0,
+    "min_tool_order_score": 1.0,
+    "min_policy_compliance": 1.0,
+    "min_allow_write_gate": 1.0,
+    "min_idempotency_key_rate": 1.0
+  }
+}
