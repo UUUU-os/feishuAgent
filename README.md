@@ -105,7 +105,9 @@ MeetFlow Console 把飞书真实业务、Agent 运行、后台队列和评测报
 
 如果是在本地查看仓库，不想先配置 Python 环境、飞书密钥、SQLite 和前端服务，可以双击打开 [demo/meetflow-offline-demo.html](demo/meetflow-offline-demo.html)。
 
-`docs/index.html` 是 GitHub Pages 版本，需要在 GitHub 仓库 Settings -> Pages 中把发布目录设为当前分支的 `/docs`。两个页面都使用脱敏样例和截图素材模拟 M3 会前、M4 会后、M5 风险巡检和 Agent 评测流程，不会访问后端 API，也不会写入飞书。
+注意：这个 Demo 是为了便于 GitHub 网页预览和现场展示准备的省略版本，不等同于项目真正运行起来后的完整 Console。它使用脱敏样例和截图素材模拟 M3 会前、M4 会后、M5 风险巡检和 Agent 评测流程，不会访问后端 API，也不会读取或写入飞书。完整功能、真实联调、后台队列、日志、妙记解析和飞书卡片写入，需要按后文部署后在本地 Console 中查看。
+
+`docs/index.html` 是 GitHub Pages 版本，需要在 GitHub 仓库 Settings -> Pages 中把发布目录设为当前分支的 `/docs`；`demo/meetflow-offline-demo.html` 是本地双击版本。
 
 ## 核心亮点
 
