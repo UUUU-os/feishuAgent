@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650" role="img" aria-labelledby="title desc">
+  <title id="title">MeetFlow 安全策略图</title>
+  <desc id="desc">展示 AgentPolicy 如何控制写操作、幂等键、字段完整性和人工确认。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#eef2ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="650" fill="url(#bg)"/>
+  <text x="60" y="70" font-family="Inter, system-ui, sans-serif" font-size="34" font-weight="800" fill="#0f172a">Agent 写操作安全边界</text>
+  <text x="60" y="106" font-family="Inter, system-ui, sans-serif" font-size="16" fill="#475569">MeetFlow 不允许 LLM 直接操作飞书，所有副作用必须经过工具注册表和策略校验。</text>
+
+  <g font-family="Inter, system-ui, sans-serif">
+    <rect x="80" y="205" width="205" height="92" rx="18" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+    <text x="112" y="241" font-size="18" font-weight="800" fill="#0f172a">LLM 生成计划</text>
+    <text x="112" y="270" font-size="14" fill="#475569">只提出工具调用意图</text>
+
+    <rect x="355" y="205" width="205" height="92" rx="18" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+    <text x="386" y="241" font-size="18" font-weight="800" fill="#0f172a">ToolRegistry</text>
+    <text x="386" y="270" font-size="14" fill="#475569">映射内部工具与 schema</text>
+
+    <rect x="630" y="205" width="205" height="92" rx="18" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+    <text x="660" y="241" font-size="18" font-weight="800" fill="#0f172a">AgentPolicy</text>
+    <text x="660" y="270" font-size="14" fill="#475569">判断是否允许写入</text>
+
+    <rect x="905" y="205" width="205" height="92" rx="18" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+    <text x="936" y="241" font-size="18" font-weight="800" fill="#0f172a">FeishuClient</text>
+    <text x="936" y="270" font-size="14" fill="#475569">执行真实 API 请求</text>
+
+    <path d="M285 251 L355 251" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+    <path d="M560 251 L630 251" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+    <path d="M835 251 L905 251" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+  </g>
+
+  <g font-family="Inter, system-ui, sans-serif">
+    <rect x="170" y="400" width="190" height="86" rx="16" fill="#fee2e2" stroke="#fecaca"/>
+    <text x="202" y="435" font-size="17" font-weight="800" fill="#991b1b">字段缺失</text>
+    <text x="202" y="463" font-size="14" fill="#7f1d1d">负责人 / 截止时间为空</text>
+
+    <rect x="395" y="400" width="190" height="86" rx="16" fill="#fef3c7" stroke="#fde68a"/>
+    <text x="427" y="435" font-size="17" font-weight="800" fill="#92400e">置信度不足</text>
+    <text x="427" y="463" font-size="14" fill="#78350f">进入人工确认</text>
+
+    <rect x="620" y="400" width="190" height="86" rx="16" fill="#e0f2fe" stroke="#bae6fd"/>
+    <text x="652" y="435" font-size="17" font-weight="800" fill="#075985">幂等校验</text>
+    <text x="652" y="463" font-size="14" fill="#0c4a6e">避免重复发卡 / 建任务</text>
+
+    <rect x="845" y="400" width="190" height="86" rx="16" fill="#dcfce7" stroke="#bbf7d0"/>
+    <text x="877" y="435" font-size="17" font-weight="800" fill="#166534">显式写开关</text>
+    <text x="877" y="463" font-size="14" fill="#14532d">必须启用 allow_write</text>
+  </g>
+
+  <path d="M733 297 C733 350 265 350 265 400" stroke="#94a3b8" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+  <path d="M733 297 C733 350 490 350 490 400" stroke="#94a3b8" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+  <path d="M733 297 C733 350 715 350 715 400" stroke="#94a3b8" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+  <path d="M733 297 C733 350 940 350 940 400" stroke="#94a3b8" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+
+  <rect x="300" y="545" width="600" height="48" rx="24" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="342" y="576" font-family="Inter, system-ui, sans-serif" font-size="17" font-weight="700" fill="#0f172a">策略结果：允许执行 / dry-run / needs_confirmation / reject</text>
+</svg>

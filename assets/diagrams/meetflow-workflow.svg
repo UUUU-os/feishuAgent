@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" role="img" aria-labelledby="title desc">
+  <title id="title">MeetFlow 会议闭环流程图</title>
+  <desc id="desc">展示 M3 会前准备、M4 会后复盘和 M5 风险巡检的业务闭环。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff7ed"/>
+      <stop offset="100%" stop-color="#f0f9ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="680" fill="url(#bg)"/>
+  <text x="60" y="70" font-family="Inter, system-ui, sans-serif" font-size="34" font-weight="800" fill="#0f172a">从会前到会后的真实飞书群闭环</text>
+  <text x="60" y="106" font-family="Inter, system-ui, sans-serif" font-size="16" fill="#475569">MeetFlow 将“总结会议”扩展为“准备、确认、落地、巡检”的完整智能工作流。</text>
+
+  <g font-family="Inter, system-ui, sans-serif">
+    <rect x="70" y="175" width="240" height="270" rx="22" fill="#ffffff" stroke="#fed7aa" filter="url(#shadow)"/>
+    <circle cx="115" cy="225" r="24" fill="#f97316"/>
+    <text x="105" y="234" font-size="22" font-weight="800" fill="#ffffff">M3</text>
+    <text x="150" y="218" font-size="23" font-weight="800" fill="#9a3412">会前智能准备</text>
+    <text x="100" y="275" font-size="15" fill="#334155">读取飞书日历</text>
+    <text x="100" y="308" font-size="15" fill="#334155">召回相关文档与项目记忆</text>
+    <text x="100" y="341" font-size="15" fill="#334155">LLM 生成会议背景摘要</text>
+    <text x="100" y="374" font-size="15" fill="#334155">向测试群发送会前卡片</text>
+
+    <rect x="480" y="175" width="240" height="270" rx="22" fill="#ffffff" stroke="#bfdbfe" filter="url(#shadow)"/>
+    <circle cx="525" cy="225" r="24" fill="#3370ff"/>
+    <text x="515" y="234" font-size="22" font-weight="800" fill="#ffffff">M4</text>
+    <text x="560" y="218" font-size="23" font-weight="800" fill="#1e3a8a">会后智能复盘</text>
+    <text x="510" y="275" font-size="15" fill="#334155">读取飞书妙记</text>
+    <text x="510" y="308" font-size="15" fill="#334155">抽取结论、问题、行动项</text>
+    <text x="510" y="341" font-size="15" fill="#334155">发送总结卡和任务确认卡</text>
+    <text x="510" y="374" font-size="15" fill="#334155">按钮回调后创建飞书任务</text>
+
+    <rect x="890" y="175" width="240" height="270" rx="22" fill="#ffffff" stroke="#bbf7d0" filter="url(#shadow)"/>
+    <circle cx="935" cy="225" r="24" fill="#10b981"/>
+    <text x="925" y="234" font-size="22" font-weight="800" fill="#ffffff">M5</text>
+    <text x="970" y="218" font-size="23" font-weight="800" fill="#065f46">风险巡检提醒</text>
+    <text x="920" y="275" font-size="15" fill="#334155">读取任务映射与任务状态</text>
+    <text x="920" y="308" font-size="15" fill="#334155">扫描逾期、临期、长期未更新</text>
+    <text x="920" y="341" font-size="15" fill="#334155">生成风险等级与建议动作</text>
+    <text x="920" y="374" font-size="15" fill="#334155">向群聊发送风险提醒卡</text>
+  </g>
+
+  <path d="M310 310 C380 310 410 310 480 310" stroke="#475569" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M720 310 C790 310 820 310 890 310" stroke="#475569" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M1010 445 C1010 560 190 560 190 445" stroke="#475569" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+
+  <rect x="216" y="530" width="770" height="62" rx="31" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="260" y="568" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="700" fill="#0f172a">闭环产物：会前卡片 → 会后总结 → 待确认任务 → 飞书任务 → 风险提醒 → 下一次会议上下文</text>
+</svg>
