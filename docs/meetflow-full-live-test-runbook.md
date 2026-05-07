@@ -128,7 +128,7 @@ cd /home/tanyd/ye/workhard/feishuAgent-main
 
 ```bash
 /home/tanyd/anaconda3/envs/meetflow/bin/python scripts/minutes_live_test.py \
-  --minute "https://jcneyh7qlo8i.feishu.cn/minutes/obcnf14z4qh9i2o846jy56ae"
+  --minute "https://你的飞书域名.feishu.cn/minutes/你的妙记token"
 ```
 
 ## 5. 终端 1：启动 Console API 后端

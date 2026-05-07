@@ -227,6 +227,75 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
         self.assertEqual(client.updated_cards[0]["identity"], "tenant")
         self.assertIn("字段已暂存", str(client.updated_cards[0]["card"]))
 
+    def test_schema2_nested_form_value_updates_and_confirms_task(self) -> None:
+        """schema 2.0 可能按 form name 嵌套提交值，回调解析必须能读到。"""
+
+        client = FakeFeishuClient()
+        nested_edit_payload = {
+            "event": {
+                "context": {"open_message_id": "om_test_nested"},
+                "action": {
+                    "value": {
+                        "action": "edit_task_fields",
+                        "item_id": "action_test_001",
+                        "owner_field": "owner_override__action_test_001",
+                        "due_date_field": "due_date_override__action_test_001",
+                    },
+                    "form_value": {
+                        "pending_form_action_test_001": {
+                            "owner_override__action_test_001": "李健文\u0000",
+                            "due_date_override__action_test_001": "2026-05-13",
+                        }
+                    },
+                },
+            }
+        }
+
+        edit_result = handle_post_meeting_card_callback(
+            payload=nested_edit_payload,
+            settings=self.settings,
+            client=client,
+            storage=self.storage,
+            policy=AgentPolicy(),
+        )
+
+        self.assertEqual(edit_result.status, "success")
+        records = load_pending_action_records(self.settings)
+        self.assertEqual(records["action_test_001"]["value"]["owner"], "李健文")
+        self.assertEqual(records["action_test_001"]["value"]["due_date"], "2026-05-13")
+
+        stale_confirm_payload = {
+            "event": {
+                "context": {"open_message_id": "om_test_nested"},
+                "action": {
+                    "value": {
+                        "action": "confirm_create_task",
+                        "item_id": "action_test_001",
+                        "title": "整理答辩材料",
+                        "owner": "",
+                        "due_date": "",
+                        "meeting_id": "meeting_test_001",
+                        "minute_token": "minute_test_001",
+                        "project_id": "meetflow",
+                    }
+                },
+            }
+        }
+        with patch("adapters.create_feishu_tool_registry", return_value=FakeRegistry()):
+            confirm_result = handle_post_meeting_card_callback(
+                payload=stale_confirm_payload,
+                settings=self.settings,
+                client=client,
+                storage=self.storage,
+                policy=AgentPolicy(),
+            )
+
+        self.assertEqual(confirm_result.status, "success")
+        mapping = confirm_result.data["task_mapping"]
+        self.assertEqual(mapping["owner"], "李健文")
+        self.assertEqual(mapping["due_date"], "2026-05-13")
+        self.assertEqual(load_pending_action_records(self.settings)["action_test_001"]["status"], "created")
+
     def test_confirm_button_creates_task_and_marks_created(self) -> None:
         client = FakeFeishuClient()
         payload = {

@@ -434,26 +434,29 @@ def extract_edit_overrides(action_value: dict[str, Any]) -> dict[str, str]:
     form_value = action_value.get("form_value")
     if not isinstance(form_value, dict):
         form_value = {}
-    owner_field = str(action_value.get("owner_field") or "").strip()
-    due_date_field = str(action_value.get("due_date_field") or "").strip()
+    owner_field = sanitize_callback_text(action_value.get("owner_field"))
+    due_date_field = sanitize_callback_text(action_value.get("due_date_field"))
     owner = first_non_empty_form_value(
         action_value.get("owner_override"),
-        form_value.get(owner_field) if owner_field else None,
-        form_value.get("owner_override"),
-        form_value.get("owner_override_text"),
+        find_form_value_by_key(form_value, owner_field),
+        find_form_value_by_key(form_value, "owner_override"),
+        find_form_value_by_key(form_value, "owner_override_text"),
+        find_form_value_by_prefix(form_value, "owner_override"),
         edit.get("owner"),
     )
     due_date = normalize_due_date_override(
         first_non_empty_form_value(
             action_value.get("due_date_override"),
-            form_value.get(due_date_field) if due_date_field else None,
-            form_value.get("due_date_override"),
+            find_form_value_by_key(form_value, due_date_field),
+            find_form_value_by_key(form_value, "due_date_override"),
+            find_form_value_by_prefix(form_value, "due_date_override"),
             edit.get("due_date"),
         )
     )
     owner_open_id = first_non_empty_form_value(
         action_value.get("owner_open_id_override"),
-        form_value.get("owner_open_id_override"),
+        find_form_value_by_key(form_value, "owner_open_id_override"),
+        find_form_value_by_prefix(form_value, "owner_open_id_override"),
         edit.get("owner_open_id"),
     )
     return {
@@ -461,6 +464,54 @@ def extract_edit_overrides(action_value: dict[str, Any]) -> dict[str, str]:
         for key, value in {"owner": owner, "due_date": due_date, "owner_open_id": owner_open_id}.items()
         if value
     }
+
+
+def find_form_value_by_key(form_value: Any, key: str) -> Any:
+    """递归读取飞书 schema 2.0 表单字段。
+
+    飞书有时会把提交值包装成 `{form_name: {field_name: value}}`，不能只读
+    `form_value[field_name]`，否则用户已经填写的负责人/截止时间会在后端丢失。
+    """
+
+    if not key or not isinstance(form_value, (dict, list)):
+        return None
+    if isinstance(form_value, list):
+        for item in form_value:
+            found = find_form_value_by_key(item, key)
+            if found is not None:
+                return found
+        return None
+    if key in form_value:
+        return form_value[key]
+    for value in form_value.values():
+        found = find_form_value_by_key(value, key)
+        if found is not None:
+            return found
+    return None
+
+
+def find_form_value_by_prefix(form_value: Any, prefix: str) -> Any:
+    """按字段名前缀兜底读取表单值。
+
+    卡片字段会带 `__item_id` 后缀；当旧卡或 SDK 回调没有带回 owner_field /
+    due_date_field 时，使用前缀仍能找到同一类输入框。
+    """
+
+    if not prefix or not isinstance(form_value, (dict, list)):
+        return None
+    if isinstance(form_value, list):
+        for item in form_value:
+            found = find_form_value_by_prefix(item, prefix)
+            if found is not None:
+                return found
+        return None
+    for key, value in form_value.items():
+        if isinstance(key, str) and (key == prefix or key.startswith(f"{prefix}__")):
+            return value
+        found = find_form_value_by_prefix(value, prefix)
+        if found is not None:
+            return found
+    return None
 
 
 def first_non_empty_form_value(*values: Any) -> str:
@@ -479,7 +530,7 @@ def normalize_form_field_value(value: Any) -> str:
     if value is None:
         return ""
     if isinstance(value, str):
-        return value.strip()
+        return sanitize_callback_text(value)
     if isinstance(value, (int, float)):
         return str(value)
     if isinstance(value, list):
@@ -494,7 +545,18 @@ def normalize_form_field_value(value: Any) -> str:
             if normalized:
                 return normalized
         return ""
-    return str(value).strip()
+    return sanitize_callback_text(value)
+
+
+def sanitize_callback_text(value: Any) -> str:
+    """清理卡片回调文本里的控制字符。
+
+    用户从飞书卡片或外部文本复制内容时，偶尔会混入 NUL 等控制字符；这些字符
+    继续进入子进程、SQLite 或飞书 API 时会触发 `embedded null byte` 一类异常。
+    """
+
+    text = str(value or "").strip()
+    return "".join(ch for ch in text if ord(ch) >= 32 and ord(ch) != 127).strip()
 
 
 def normalize_due_date_override(value: str) -> str:
@@ -524,23 +586,23 @@ def action_item_from_callback_value(action_value: dict[str, Any]) -> ActionItem:
             continue
         evidence_refs.append(
             EvidenceRef(
-                source_type=str(ref.get("source_type") or ""),
-                source_id=str(ref.get("source_id") or ""),
-                source_url=str(ref.get("source_url") or ""),
-                snippet=str(ref.get("snippet") or ""),
-                updated_at=str(ref.get("updated_at") or ""),
+                source_type=sanitize_callback_text(ref.get("source_type")),
+                source_id=sanitize_callback_text(ref.get("source_id")),
+                source_url=sanitize_callback_text(ref.get("source_url")),
+                snippet=sanitize_callback_text(ref.get("snippet")),
+                updated_at=sanitize_callback_text(ref.get("updated_at")),
             )
         )
     return ActionItem(
-        item_id=str(action_value.get("item_id") or ""),
-        title=str(action_value.get("title") or "未命名任务"),
-        owner=str(action_value.get("owner") or ""),
-        due_date=str(action_value.get("due_date") or ""),
-        priority=str(action_value.get("priority") or "medium"),
+        item_id=sanitize_callback_text(action_value.get("item_id")),
+        title=sanitize_callback_text(action_value.get("title") or "未命名任务"),
+        owner=sanitize_callback_text(action_value.get("owner")),
+        due_date=sanitize_callback_text(action_value.get("due_date")),
+        priority=sanitize_callback_text(action_value.get("priority") or "medium"),
         confidence=float(action_value.get("confidence") or 0.0),
         needs_confirm=False,
         evidence_refs=evidence_refs,
-        extra={"callback_action": str(action_value.get("action") or "")},
+        extra={"callback_action": sanitize_callback_text(action_value.get("action"))},
     )
 
 

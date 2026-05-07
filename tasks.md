@@ -41,6 +41,52 @@
 
 当前开发重点在 [M3：会前知识卡片工作流](docs/tasks/m3-pre-meeting.md)。
 
+2026-05-06 修复 M4 飞书待确认任务卡填写后仍提示缺负责人/截止时间的问题。
+真实飞书群卡片中，用户在“修改字段”窗口填写负责人和截止时间后，点击“保存修改”或
+“确认创建”仍可能返回“任务缺少负责人或截止时间”。根因是飞书 schema 2.0 回调会把
+`form_value` 包装在表单名下，例如 `{pending_form_x: {owner_override__item: ...}}`，
+旧逻辑只读取顶层字段，导致后端继续拿到空值。本轮修改 `core/card_callback.py`，
+新增 `find_form_value_by_key()`、`find_form_value_by_prefix()` 和
+`sanitize_callback_text()`，支持递归读取嵌套表单字段，并清理 NUL 等控制字符，避免
+卡片输入继续触发 `embedded null byte`。新增
+`tests/test_post_meeting_card_callback.py` 回归用例，覆盖嵌套 form_value、负责人
+`李健文\u0000` 清理、保存后再用旧空按钮确认创建仍成功的完整路径。验证命令：
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile core/card_callback.py tests/test_post_meeting_card_callback.py`
+和 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_post_meeting_card_callback`，
+均通过；当前 M4 卡片回调测试 18 条通过。
+
+2026-05-06 修复真实联调页 M4 真实发送时 `embedded null byte` 与布局溢出问题。
+用户在前端点击 M4 真实发送后，Console API 返回底层 `embedded null byte`，页面同时出现
+局部布局被长内容撑开的现象。根因是 M4/M5 前端输入可能从飞书页面复制时混入不可见控制
+字符，后端直接把该字符串放入 `subprocess.run()` 参数时触发 Python 底层 ValueError。
+本轮修改 `core/console_api.py`，新增 `clean_text_argument()` 和
+`validate_command_arguments()`，在 M3/M4/M5 参数校验和命令执行前拒绝空字符及控制字符，
+并返回可读的中文业务错误；新增 `tests/test_console_api.py` 回归用例覆盖 M4 minute 中
+混入 `\x00` 的场景。前端修改 `frontend/src/pages/LiveFlowPage.tsx`，在 minute/chat_id
+输入时清理控制字符；修改 `frontend/src/styles/app.css`，为真实联调布局、面板、日志和
+表格长文本增加 `min-width: 0`、`overflow-wrap` 和 `pre-wrap`，避免错误或 stdout 撑坏页面。
+验证命令：
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile core/console_api.py tests/test_console_api.py`、
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_console_api` 和
+`git diff --check -- core/console_api.py tests/test_console_api.py frontend/src/pages/LiveFlowPage.tsx frontend/src/styles/app.css`，
+均通过；当前 Console API 测试 11 条通过。
+
+2026-05-06 按完整联调 Runbook 改进真实飞书群演示视频录制稿。
+本轮更新 `MeetFlow_真实飞书群联调演示视频录制稿.md`，将视频主线从早期命令行脚本演示
+调整为与 `docs/meetflow-full-live-test-runbook.md` 对齐的 Console 版真实联调录制方案。
+新增录制窗口布局、终端启动脚本、前端 Dashboard/Jobs/真实联调/M3/M4/M5 操作镜头、
+逐镜头解说词、飞书群按钮确认任务录制步骤、M5 风险巡检录制步骤、成片时间轴、失败兜底
+素材、项目亮点和录制收尾检查。原智能客服工单会议素材继续保留，作为 M4 妙记内容准备
+材料。本次为文档录制方案更新，未修改业务运行代码。
+
+2026-05-06 新增一键真实联调控制台第二阶段设计方案。
+本轮新增 `docs/one-click-live-test-console-phase2-design.md`，承接第一阶段真实联调
+控制台落地结果，规划第二阶段重点能力：M3/M4/M5 异步入队与 job 轮询、完整
+M3 -> M4 -> M5 演示模式、demo session 状态恢复、M4 待确认任务业务视图、M5
+风险提醒业务视图，以及 OAuth、默认群、SDK 环境、Worker/回调服务健康检查。文档
+包含后端 API、job payload、demo session 表、前端组件、实施顺序、测试计划和完成
+标准。本次为设计文档更新，未修改业务运行代码。
+
 2026-05-06 新增 MeetFlow 从零启动到真实飞书群完整联调 Runbook。
 本轮新增 `docs/meetflow-full-live-test-runbook.md`，用于指导从基础质量检查、OAuth
 授权、Console API、前端 Vite、前端真实联调页面，到 M3 会前卡片、M4 会后总结和待确认

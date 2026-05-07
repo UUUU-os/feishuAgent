@@ -22,6 +22,7 @@ from config import (
 )
 from config.loader import Settings
 from core.console_api import (
+    ConsoleAPIError,
     EvaluationRunRequest,
     M3SendCardRequest,
     M4ReadMinuteRequest,
@@ -158,6 +159,14 @@ class ConsoleAPITest(unittest.TestCase):
             command = run_mock.call_args.args[0]
             self.assertNotIn("--dry-run", command)
             self.assertFalse(result["dry_run"])
+
+    def test_run_m4_send_cards_rejects_embedded_null_byte(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = make_settings(temp_dir)
+            api = MeetFlowConsoleAPI(settings=settings, project_root=Path(temp_dir))
+
+            with self.assertRaisesRegex(ConsoleAPIError, "不可见控制字符"):
+                api.run_m4_send_cards(M4SendCardsRequest(minute="https://example.feishu.cn/minutes/abc\x00", allow_write=True))
 
     def test_run_m5_risk_scan_enqueue_wraps_existing_script(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

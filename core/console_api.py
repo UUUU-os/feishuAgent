@@ -473,6 +473,12 @@ class MeetFlowConsoleAPI:
 def validate_m3_request(request: M3SendCardRequest) -> None:
     """校验 M3 请求，避免前端传入不受控参数。"""
 
+    request.date = clean_text_argument("date", request.date)
+    request.event_title = clean_text_argument("event_title", request.event_title)
+    request.event_id = clean_text_argument("event_id", request.event_id)
+    request.llm_provider = clean_text_argument("llm_provider", request.llm_provider)
+    request.project_id = clean_text_argument("project_id", request.project_id)
+    request.idempotency_suffix = clean_text_argument("idempotency_suffix", request.idempotency_suffix)
     if request.llm_provider not in {"scripted_debug", "dry-run", "configured", "deepseek"}:
         raise ConsoleAPIError(f"不支持的 llm_provider：{request.llm_provider}")
     if not request.event_title and not request.event_id:
@@ -484,6 +490,8 @@ def validate_m3_request(request: M3SendCardRequest) -> None:
 def validate_m4_read_minute_request(request: M4ReadMinuteRequest) -> None:
     """校验 M4 妙记只读请求。"""
 
+    request.minute = clean_text_argument("minute", request.minute)
+    request.identity = clean_text_argument("identity", request.identity)
     if not str(request.minute or "").strip():
         raise ConsoleAPIError("请提供飞书妙记链接或 minute token。")
     if request.identity not in {"user", "tenant"}:
@@ -495,6 +503,10 @@ def validate_m4_read_minute_request(request: M4ReadMinuteRequest) -> None:
 def validate_m4_send_cards_request(request: M4SendCardsRequest) -> None:
     """校验 M4 发卡请求，避免前端传入不受控参数。"""
 
+    request.minute = clean_text_argument("minute", request.minute)
+    request.identity = clean_text_argument("identity", request.identity)
+    request.chat_id = clean_text_argument("chat_id", request.chat_id)
+    request.receive_id_type = clean_text_argument("receive_id_type", request.receive_id_type)
     if not str(request.minute or "").strip():
         raise ConsoleAPIError("请提供飞书妙记链接或 minute token。")
     if request.identity not in {"user", "tenant"}:
@@ -509,6 +521,12 @@ def validate_m4_send_cards_request(request: M4SendCardsRequest) -> None:
 def validate_m5_risk_scan_request(request: M5RiskScanRequest) -> None:
     """校验 M5 风险巡检请求。"""
 
+    request.backend = clean_text_argument("backend", request.backend)
+    request.mode = clean_text_argument("mode", request.mode)
+    request.chat_id = clean_text_argument("chat_id", request.chat_id)
+    request.identity = clean_text_argument("identity", request.identity)
+    request.send_identity = clean_text_argument("send_identity", request.send_identity)
+    request.completed = clean_text_argument("completed", request.completed)
     if request.backend not in {"local", "feishu"}:
         raise ConsoleAPIError("backend 只支持 local / feishu。")
     if request.mode not in {"direct", "enqueue"}:
@@ -531,6 +549,26 @@ def validate_int_range(name: str, value: int, minimum: int, maximum: int) -> Non
         raise ConsoleAPIError(f"{name} 只支持 {minimum}..{maximum}。")
 
 
+def clean_text_argument(name: str, value: str) -> str:
+    """清洗前端传来的命令参数，避免不可见控制字符进入 subprocess。
+
+    飞书链接和 chat_id 偶尔可能从网页复制时混入空字符；Python 在启动
+    子进程时会直接抛出 `embedded null byte`，这里提前转成可读的业务错误。
+    """
+
+    text = str(value or "").strip()
+    if any(ord(char) < 32 or ord(char) == 127 for char in text):
+        raise ConsoleAPIError(f"{name} 包含不可见控制字符，请重新粘贴或手动输入。")
+    return text
+
+
+def validate_command_arguments(command: list[str]) -> None:
+    """最后一道命令参数防线，避免 subprocess 抛出底层 ValueError。"""
+
+    for index, part in enumerate(command):
+        clean_text_argument(f"command[{index}]", part)
+
+
 def run_console_command(
     command: list[str],
     *,
@@ -541,6 +579,7 @@ def run_console_command(
 ) -> dict[str, Any]:
     """执行 Console 白名单命令，并统一脱敏输出。"""
 
+    validate_command_arguments(command)
     completed = subprocess.run(
         command,
         cwd=cwd,

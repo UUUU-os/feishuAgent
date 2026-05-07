@@ -244,7 +244,7 @@ export function LiveFlowPage() {
             飞书妙记链接
             <input
               value={m4Form.minute}
-              onChange={(event) => setM4Form({ ...m4Form, minute: event.target.value })}
+              onChange={(event) => setM4Form({ ...m4Form, minute: cleanControlChars(event.target.value) })}
               placeholder="https://xxx.feishu.cn/minutes/xxx"
             />
             <small>只读解析和真实发卡都需要填写。</small>
@@ -253,7 +253,7 @@ export function LiveFlowPage() {
             Chat ID
             <input
               value={m4Form.chat_id}
-              onChange={(event) => setM4Form({ ...m4Form, chat_id: event.target.value })}
+              onChange={(event) => setM4Form({ ...m4Form, chat_id: cleanControlChars(event.target.value) })}
               placeholder="可选：不填使用默认测试群"
             />
           </label>
@@ -352,7 +352,7 @@ export function LiveFlowPage() {
             Chat ID
             <input
               value={m5Form.chat_id}
-              onChange={(event) => setM5Form({ ...m5Form, chat_id: event.target.value })}
+              onChange={(event) => setM5Form({ ...m5Form, chat_id: cleanControlChars(event.target.value) })}
               placeholder="可选：不填使用默认测试群"
             />
           </label>
@@ -491,4 +491,8 @@ function SimpleRecordsTable({ title, rows, keys }: SimpleRecordsTableProps) {
       />
     </div>
   );
+}
+
+function cleanControlChars(value: string) {
+  return value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
 }
