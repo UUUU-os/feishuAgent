@@ -90,6 +90,18 @@
       "reasoning_effort": "",
       "enabled": false
     },
+    "litellm": {
+      "provider": "openai-compatible",
+      "display_name": "LiteLLM Proxy",
+      "api_base": "http://localhost:4000/v1",
+      "api_key": "replace-with-env-or-local-file",
+      "api_key_env": "LITELLM_API_KEY",
+      "model": "meetflow-default",
+      "temperature": 0.2,
+      "max_tokens": 4000,
+      "reasoning_effort": "",
+      "enabled": false
+    },
     "dry_run": {
       "provider": "dry-run",
       "display_name": "Dry Run",

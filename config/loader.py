@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -103,6 +103,31 @@ class KnowledgeSearchSettings:
 
 
 @dataclass(slots=True)
+class LiteLLMSettings:
+    """LiteLLM Proxy 配置，归属于 AI / RAG / LLM 边界。"""
+
+    enabled: bool = False
+    proxy_base_url: str = "http://localhost:4000/v1"
+    model_alias: str = "meetflow-default"
+    api_key: str = ""
+    request_timeout_seconds: int = 60
+    health_path: str = "/health"
+
+
+@dataclass(slots=True)
+class RuntimeSettings:
+    """运行服务层配置，归属于 Runtime / 高并发边界。"""
+
+    worker_max_concurrency: int = 1
+    queue_poll_interval_seconds: float = 2.0
+    db_wal_enabled: bool = True
+    db_busy_timeout_ms: int = 5000
+    console_host: str = "127.0.0.1"
+    console_port: int = 8766
+    health_check_timeout_seconds: int = 3
+
+
+@dataclass(slots=True)
 class SchedulerSettings:
     """调度器配置，负责会前提醒和失败重试等时机控制。"""
 
@@ -174,6 +199,35 @@ class ObservabilitySettings:
 
 
 @dataclass(slots=True)
+class AIConfigView:
+    """AI 能力层配置视图。
+
+    仅聚合 LLM、embedding、reranker、knowledge search 和 LiteLLM，
+    供新代码按边界取配置，不替代旧的 `settings.llm` 等入口。
+    """
+
+    llm: LLMSettings
+    embedding: EmbeddingSettings
+    reranker: RerankerSettings
+    knowledge_search: KnowledgeSearchSettings
+    litellm: LiteLLMSettings
+
+
+@dataclass(slots=True)
+class RuntimeConfigView:
+    """运行服务层配置视图。
+
+    仅聚合存储、任务队列、观测和 runtime 参数，避免 Runtime 代码直接依赖
+    AI/RAG/LLM 配置。
+    """
+
+    storage: StorageSettings
+    jobs: JobSettings
+    observability: ObservabilitySettings
+    runtime: RuntimeSettings
+
+
+@dataclass(slots=True)
 class Settings:
     """系统总配置对象，后续代码统一从这里取配置。"""
 
@@ -189,11 +243,36 @@ class Settings:
     storage: StorageSettings
     jobs: JobSettings
     observability: ObservabilitySettings
+    litellm: LiteLLMSettings = field(default_factory=LiteLLMSettings)
+    runtime: RuntimeSettings = field(default_factory=RuntimeSettings)
 
     def as_dict(self) -> dict[str, Any]:
         """便于调试或日志打印时转换为普通字典。"""
 
         return asdict(self)
+
+    @property
+    def ai_config(self) -> AIConfigView:
+        """返回 AI 能力层配置视图。"""
+
+        return AIConfigView(
+            llm=self.llm,
+            embedding=self.embedding,
+            reranker=self.reranker,
+            knowledge_search=self.knowledge_search,
+            litellm=self.litellm,
+        )
+
+    @property
+    def runtime_config(self) -> RuntimeConfigView:
+        """返回运行服务层配置视图。"""
+
+        return RuntimeConfigView(
+            storage=self.storage,
+            jobs=self.jobs,
+            observability=self.observability,
+            runtime=self.runtime,
+        )
 
 
 # 环境变量映射表：
@@ -257,6 +336,12 @@ ENV_MAPPING: dict[str, tuple[str, str, Any]] = {
     "MEETFLOW_RERANKER_TIMEOUT_SECONDS": ("reranker", "timeout_seconds", int),
     "MEETFLOW_KNOWLEDGE_FUSION_STRATEGY": ("knowledge_search", "fusion_strategy", str),
     "MEETFLOW_KNOWLEDGE_RRF_K": ("knowledge_search", "rrf_k", int),
+    "MEETFLOW_LITELLM_ENABLED": ("litellm", "enabled", lambda value: value.lower() in {"1", "true", "yes", "on"}),
+    "MEETFLOW_LITELLM_PROXY_BASE_URL": ("litellm", "proxy_base_url", str),
+    "MEETFLOW_LITELLM_MODEL_ALIAS": ("litellm", "model_alias", str),
+    "MEETFLOW_LITELLM_API_KEY": ("litellm", "api_key", str),
+    "MEETFLOW_LITELLM_REQUEST_TIMEOUT_SECONDS": ("litellm", "request_timeout_seconds", int),
+    "MEETFLOW_LITELLM_HEALTH_PATH": ("litellm", "health_path", str),
     "MEETFLOW_SCHEDULER_PRE_MEETING_MINUTES": ("scheduler", "pre_meeting_minutes_before", int),
     "MEETFLOW_SCHEDULER_RISK_SCAN_CRON": ("scheduler", "risk_scan_cron", str),
     "MEETFLOW_SCHEDULER_MINUTE_RETRY_INTERVAL": ("scheduler", "minute_retry_interval_minutes", int),
@@ -300,6 +385,13 @@ ENV_MAPPING: dict[str, tuple[str, str, Any]] = {
         "daily_rotate",
         lambda value: value.lower() in {"1", "true", "yes", "on"},
     ),
+    "MEETFLOW_RUNTIME_WORKER_MAX_CONCURRENCY": ("runtime", "worker_max_concurrency", int),
+    "MEETFLOW_RUNTIME_QUEUE_POLL_INTERVAL_SECONDS": ("runtime", "queue_poll_interval_seconds", float),
+    "MEETFLOW_RUNTIME_DB_WAL_ENABLED": ("runtime", "db_wal_enabled", lambda value: value.lower() in {"1", "true", "yes", "on"}),
+    "MEETFLOW_RUNTIME_DB_BUSY_TIMEOUT_MS": ("runtime", "db_busy_timeout_ms", int),
+    "MEETFLOW_RUNTIME_CONSOLE_HOST": ("runtime", "console_host", str),
+    "MEETFLOW_RUNTIME_CONSOLE_PORT": ("runtime", "console_port", int),
+    "MEETFLOW_RUNTIME_HEALTH_CHECK_TIMEOUT_SECONDS": ("runtime", "health_check_timeout_seconds", int),
 }
 
 
@@ -429,4 +521,6 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
         storage=StorageSettings(**merged["storage"]),
         jobs=JobSettings(**merged["jobs"]),
         observability=ObservabilitySettings(**merged["observability"]),
+        litellm=LiteLLMSettings(**merged.get("litellm", {})),
+        runtime=RuntimeSettings(**merged.get("runtime", {})),
     )

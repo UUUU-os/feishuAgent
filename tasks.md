@@ -56,7 +56,7 @@
 
 ### TASK-00-02 固化 AI 与 Runtime 的调用契约
 
-- 状态：`[ ]`
+- 状态：`[x]`
 - 负责人：共享，建议由 AI 负责人先起草，Runtime 负责人确认字段。
 - 任务目标：新增最小共享契约，让 Runtime 只依赖稳定输入输出，不依赖 RAG/LLM 内部实现。
 - 建议修改文件：
@@ -73,16 +73,16 @@
   - 有单测覆盖默认值和序列化/字典化需求。
 
 完成记录：
-- 状态：
-- 分支 / 提交：
-- 修改文件：
-- 实现功能：
-- 验证方式：
-- 遗留问题：
+- 状态：已完成
+- 分支 / 提交：`feature/ai-rag-auto-strategy/lear` / 待提交
+- 修改文件：`core/contracts.py`、`tests/test_ai_facade.py`
+- 实现功能：新增 `AIWorkflowInput`、`AIWorkflowResult`，支持默认值、`to_dict()`、`from_dict()`，字段覆盖 Runtime 与 AI 的最小共享契约。
+- 验证方式：`python3 -m unittest tests.test_ai_facade tests.test_config_loader`；`python3 -m py_compile core/*.py adapters/*.py cards/*.py scripts/*.py config/*.py`；`python3 -m unittest discover -s tests -p 'test_*.py'`
+- 遗留问题：无。
 
 ### TASK-00-03 新增 AI Facade 空壳
 
-- 状态：`[ ]`
+- 状态：`[x]`
 - 负责人：AI/RAG/LLM
 - 任务目标：提供 Runtime 可调用的唯一 AI 入口，先返回可测试的稳定结果，后续逐步接入真实 RAG 和 LLM。
 - 建议修改文件：
@@ -96,16 +96,16 @@
   - Runtime 不需要 import `core/knowledge.py` 或 `core/llm.py`。
 
 完成记录：
-- 状态：
-- 分支 / 提交：
-- 修改文件：
-- 实现功能：
-- 验证方式：
-- 遗留问题：
+- 状态：已完成
+- 分支 / 提交：`feature/ai-rag-auto-strategy/lear` / 待提交
+- 修改文件：`core/ai_facade.py`、`tests/test_ai_facade.py`
+- 实现功能：新增 `run_ai_workflow()`、`run_pre_meeting_brief()`、`run_post_meeting_summary()`、`run_risk_scan_reasoning()`，先返回稳定 stub 结果，不依赖 `core/knowledge.py` 或 `core/llm.py`。
+- 验证方式：`python3 -m unittest tests.test_ai_facade tests.test_config_loader`；`python3 -m py_compile core/*.py adapters/*.py cards/*.py scripts/*.py config/*.py`；`python3 -m unittest discover -s tests -p 'test_*.py'`
+- 遗留问题：后续 TASK-03 集成时再接入真实 AI 工作流。
 
 ### TASK-00-04 明确配置边界
 
-- 状态：`[ ]`
+- 状态：`[x]`
 - 负责人：共享
 - 任务目标：把 AI 配置和 Runtime 配置分区，减少双方同时修改 `config/settings.example.json` 的冲突。
 - 建议修改文件：
@@ -119,12 +119,12 @@
   - 本地配置文件不进入提交。
 
 完成记录：
-- 状态：
-- 分支 / 提交：
-- 修改文件：
-- 实现功能：
-- 验证方式：
-- 遗留问题：
+- 状态：已完成
+- 分支 / 提交：`feature/ai-rag-auto-strategy/lear` / 待提交
+- 修改文件：`config/loader.py`、`config/__init__.py`、`config/settings.example.json`、`config/llm_providers.example.json`、`tests/test_config_loader.py`
+- 实现功能：新增 LiteLLM 配置、Runtime 配置、`ai_config` 和 `runtime_config` 只读边界视图；`llm_providers.example.json` 增加 LiteLLM Proxy provider 示例。
+- 验证方式：`python3 -m json.tool config/settings.example.json`；`python3 -m json.tool config/llm_providers.example.json`；`python3 -m unittest tests.test_ai_facade tests.test_config_loader`；`python3 -m unittest discover -s tests -p 'test_*.py'`
+- 遗留问题：无。
 
 ## 1. AI/RAG/LLM 任务线
 
