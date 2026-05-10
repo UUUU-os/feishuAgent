@@ -229,6 +229,15 @@ def build_readonly_report(artifacts: Any, content_limit: int) -> dict[str, Any]:
         },
         "decisions": [item.to_dict() for item in artifacts.decisions],
         "open_questions": [item.to_dict() for item in artifacts.open_questions],
+        "risks": [item.to_dict() for item in artifacts.risks],
+        "disagreements": [item.to_dict() for item in artifacts.disagreements],
+        "follow_up_suggestions": [item.to_dict() for item in artifacts.follow_up_suggestions],
+        "evidence_pack": dict(getattr(artifacts, "evidence_pack", {}) or {}),
+        "d3_review": {
+            "review_summary": artifacts.extra.get("review_summary", ""),
+            "action_item_owner_groups": artifacts.extra.get("action_item_owner_groups", []),
+            "metrics": artifacts.extra.get("d3_metrics", {}),
+        },
         "action_items": [item.to_dict() for item in artifacts.action_items],
         "pending_action_items": [item.to_dict() for item in artifacts.pending_action_items],
         "related_knowledge": {
@@ -274,6 +283,10 @@ def build_compact_console_summary(report: dict[str, Any]) -> dict[str, Any]:
         "minute_token": report.get("workflow_input", {}).get("minute_token", ""),
         "action_item_count": len(report.get("action_items", [])),
         "pending_action_item_count": len(report.get("pending_action_items", [])),
+        "risk_count": len(report.get("risks", [])),
+        "disagreement_count": len(report.get("disagreements", [])),
+        "suggestion_count": len(report.get("follow_up_suggestions", [])),
+        "evidence_ref_count": int((report.get("evidence_pack", {}) or {}).get("total_count", 0) or 0),
         "related_knowledge": report.get("related_knowledge", {}),
         "created_tasks": len(write_results.get("created_tasks", [])) if isinstance(write_results, dict) else 0,
         "sent_cards": len(write_results.get("sent_cards", [])) if isinstance(write_results, dict) else 0,
@@ -362,6 +375,48 @@ def render_markdown_report(args: argparse.Namespace, artifacts: Any, report: dic
     lines.append(f"- open_questions_count: `{len(artifacts.open_questions)}`")
     for item in artifacts.open_questions:
         lines.append(f"  - `{item.question_id}` {item.content}")
+    lines.append("")
+
+    lines.extend(["## 5.1 D3 结构化复盘字段", ""])
+    d3_metrics = artifacts.extra.get("d3_metrics", {}) or {}
+    lines.append(f"- review_summary: {artifacts.extra.get('review_summary', '') or '暂无'}")
+    lines.append(f"- risks_count: `{len(artifacts.risks)}`")
+    lines.append(f"- disagreements_count: `{len(artifacts.disagreements)}`")
+    lines.append(f"- follow_up_suggestions_count: `{len(artifacts.follow_up_suggestions)}`")
+    lines.append(f"- evidence_ref_count: `{d3_metrics.get('evidence_ref_count', 0)}`")
+    lines.append("")
+    if artifacts.risks:
+        lines.append("### 风险提示")
+        lines.append("")
+        for item in artifacts.risks:
+            lines.append(f"- `{item.severity}` {item.content}；建议：{item.suggestion}")
+        lines.append("")
+    if artifacts.disagreements:
+        lines.append("### 争议点 / 分歧点")
+        lines.append("")
+        for item in artifacts.disagreements:
+            viewpoints = " / ".join(item.viewpoints)
+            suffix = f"；观点：{viewpoints}" if viewpoints else ""
+            lines.append(f"- `{item.status}` {item.topic}{suffix}")
+        lines.append("")
+    if artifacts.follow_up_suggestions:
+        lines.append("### 后续建议")
+        lines.append("")
+        for item in artifacts.follow_up_suggestions:
+            lines.append(f"- `{item.priority}` {item.content}；原因：{item.reason}")
+        lines.append("")
+
+    lines.extend(["## 5.2 Evidence Pack", ""])
+    evidence_pack = getattr(artifacts, "evidence_pack", {}) or {}
+    lines.append(f"- evidence_pack_reason: {evidence_pack.get('reason', '')}")
+    lines.append(f"- total_count: `{evidence_pack.get('total_count', 0)}`")
+    for item in list(evidence_pack.get("items", []) or [])[:12]:
+        lines.append(
+            f"  - `{item.get('category', '')}` `{item.get('item_id', '')}` "
+            f"{item.get('title', '')} source=`{item.get('source_id', '')}`"
+        )
+        if item.get("snippet"):
+            lines.append(f"    - snippet: {item.get('snippet', '')}")
     lines.append("")
 
     lines.extend(["## 6. 卡片产物", ""])

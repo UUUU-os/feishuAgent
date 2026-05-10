@@ -140,6 +140,12 @@ class CardActionRouter:
             return self._create_task_draft(action_input)
         if action == "send_summary_to_me":
             return self._send_summary_to_me(action_input)
+        if action == "view_pending_tasks":
+            return self._view_pending_tasks(action_input)
+        if action == "start_risk_scan":
+            return self._start_risk_scan(action_input)
+        if action == "view_post_meeting_report":
+            return self._view_post_meeting_report(action_input)
         if action in {"confirm_create_task", "edit_task_fields", "reject_create_task"}:
             return self._post_meeting_task_review_action(action_input)
         return CardActionResult(
@@ -223,6 +229,69 @@ class CardActionRouter:
             message="已收到，私聊发送属于写操作，后续会在确认后只发送给点击人。",
             trace_id=action_input.trace_id,
             metadata={"operator_open_id": action_input.operator_open_id},
+        )
+
+    def _view_pending_tasks(self, action_input: CardActionInput) -> CardActionResult:
+        """D3 快捷入口：提示查看会后待确认任务卡。"""
+
+        return CardActionResult(
+            status="accepted",
+            action=action_input.action,
+            message="请查看同一会话中的 MeetFlow 待确认任务卡，任务创建仍需人工确认。",
+            trace_id=action_input.trace_id,
+            metadata={"workflow_type": action_input.workflow_type or "post_meeting_followup"},
+        )
+
+    def _start_risk_scan(self, action_input: CardActionInput) -> CardActionResult:
+        """D3 快捷入口：把风险巡检请求转换为受控 AgentInput。"""
+
+        idempotency_key = action_input.idempotency_key or build_card_action_idempotency_key(
+            source_card=action_input.source_card or "post_meeting_summary",
+            calendar_event_id=action_input.calendar_event_id or action_input.meeting_id,
+            action=action_input.action,
+        )
+        agent_input = AgentInput(
+            trigger_type="card_action",
+            event_type="card.start_risk_scan",
+            source="feishu_card",
+            actor=action_input.operator_open_id,
+            event_id=action_input.event_id,
+            trace_id=action_input.trace_id,
+            created_at=action_input.created_at or int(time.time()),
+            payload={
+                "workflow_type": "risk_scan",
+                "meeting_id": action_input.meeting_id,
+                "calendar_event_id": action_input.calendar_event_id,
+                "minute_token": str((action_input.value or {}).get("minute_token") or ""),
+                "chat_id": action_input.chat_id,
+                "open_message_id": action_input.open_message_id,
+                "operator_open_id": action_input.operator_open_id,
+                "source_card": action_input.source_card or "post_meeting_summary",
+                "idempotency_key": idempotency_key,
+            },
+        )
+        return CardActionResult(
+            status="accepted",
+            action=action_input.action,
+            message="已收到风险巡检请求，将进入受控 M5 风险巡检链路。",
+            trace_id=action_input.trace_id,
+            agent_input=agent_input,
+            metadata={"workflow_type": "risk_scan"},
+        )
+
+    def _view_post_meeting_report(self, action_input: CardActionInput) -> CardActionResult:
+        """D3 快捷入口：提示查看完整复盘报告。"""
+
+        report_url = str((action_input.value or {}).get("report_url") or (action_input.value or {}).get("report_path") or "").strip()
+        message = "完整复盘报告已在本次联调输出中生成，请查看 report_path。"
+        if report_url:
+            message = f"完整复盘报告：{report_url}"
+        return CardActionResult(
+            status="accepted",
+            action=action_input.action,
+            message=message,
+            trace_id=action_input.trace_id,
+            metadata={"workflow_type": action_input.workflow_type or "post_meeting_followup"},
         )
 
     def _post_meeting_task_review_action(self, action_input: CardActionInput) -> CardActionResult:

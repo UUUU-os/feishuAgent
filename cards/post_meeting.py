@@ -24,24 +24,32 @@ def build_post_meeting_summary_card(artifacts: Any) -> dict[str, Any]:
     open_questions = normalize_text_items(
         getattr(artifacts, "open_questions", []) or getattr(summary, "open_questions", [])
     )
+    risks = normalize_text_items(getattr(artifacts, "risks", []) or getattr(summary, "risks", []))
+    disagreements = normalize_text_items(getattr(artifacts, "disagreements", []) or [])
+    suggestions = normalize_text_items(getattr(artifacts, "follow_up_suggestions", []) or [])
     source_url = safe_text(getattr(workflow_input, "source_url", ""))
     related_resources = collect_related_resources(artifacts)
 
     elements: list[dict[str, Any]] = [
         markdown(build_summary_overview_markdown(artifacts)),
         divider(),
+        lark_md_div(render_review_summary_markdown(artifacts)),
         lark_md_div(render_text_section("关键结论", decisions, "暂无明确结论")),
-        lark_md_div(render_action_items_markdown("字段完整候选（仍需确认）", ready_items, "暂无字段完整任务")),
-        lark_md_div(render_action_items_markdown("待确认任务", pending_items, "暂无待确认任务")),
         lark_md_div(render_text_section("开放问题", open_questions, "暂无开放问题")),
+        lark_md_div(render_action_item_overview_markdown(artifacts, ready_items=ready_items, pending_items=pending_items)),
+        lark_md_div(render_risks_markdown(risks)),
+        lark_md_div(render_disagreements_markdown(disagreements)),
+        lark_md_div(render_follow_up_suggestions_markdown(suggestions)),
+        lark_md_div(render_evidence_pack_markdown(artifacts)),
     ]
     elements.extend(render_related_resource_elements(related_resources))
     if source_url:
         elements.append(markdown(f"**原始资料**：{render_link('查看会议纪要', source_url)}"))
+    elements.extend(render_post_meeting_quick_action_elements(artifacts))
 
     return build_interactive_card(
-        title=f"MeetFlow 会后总结：{safe_text(getattr(summary, 'topic', '')) or '待识别会议'}",
-        template=choose_summary_header_template(ready_items, pending_items),
+        title=f"MeetFlow 会后复盘：{safe_text(getattr(summary, 'topic', '')) or '待识别会议'}",
+        template=choose_summary_header_template(ready_items, pending_items, risks),
         elements=elements,
     )
 
@@ -531,13 +539,212 @@ def build_summary_overview_markdown(artifacts: Any) -> str:
     if not pending_items:
         pending_items = [item for item in action_items if getattr(item, "needs_confirm", False)]
     ready_count = len([item for item in action_items if not getattr(item, "needs_confirm", False)])
+    risks = list(getattr(artifacts, "risks", []) or getattr(summary, "risks", []) or [])
+    disagreements = list(getattr(artifacts, "disagreements", []) or [])
+    suggestions = list(getattr(artifacts, "follow_up_suggestions", []) or [])
     return "\n".join(
         [
             f"**主题**：{safe_text(getattr(summary, 'topic', '')) or safe_text(getattr(workflow_input, 'topic', '')) or '待识别'}",
             f"**项目**：{safe_text(getattr(summary, 'project_id', '')) or safe_text(getattr(workflow_input, 'project_id', '')) or '未指定'}",
-            f"**行动项**：{len(action_items)} 条  |  **字段完整候选**：{ready_count} 条  |  **需人工确认**：{len(pending_items)} 条",
+            f"**复盘结构**：结论 {len(getattr(artifacts, 'decisions', []) or [])} 条｜开放问题 {len(getattr(artifacts, 'open_questions', []) or [])} 条｜行动项 {len(action_items)} 条｜风险 {len(risks)} 条",
+            f"**任务状态**：字段完整候选 {ready_count} 条｜需人工确认 {len(pending_items)} 条｜争议 {len(disagreements)} 条｜建议 {len(suggestions)} 条",
         ]
     )
+
+
+def render_review_summary_markdown(artifacts: Any) -> str:
+    """渲染 D3 会议复盘摘要。"""
+
+    extra = getattr(artifacts, "extra", {}) or {}
+    summary = safe_text(extra.get("review_summary", ""))
+    if not summary:
+        summary = "暂无可展示的复盘摘要。"
+    return f"**会议复盘摘要**\n{summary}"
+
+
+def render_action_item_overview_markdown(artifacts: Any, ready_items: list[Any], pending_items: list[Any]) -> str:
+    """按负责人渲染行动项概览。"""
+
+    groups = list((getattr(artifacts, "extra", {}) or {}).get("action_item_owner_groups", []) or [])
+    if not groups:
+        items = list(getattr(artifacts, "action_items", []) or [])
+        groups = build_local_owner_groups_for_card(items)
+    lines = ["**行动项概览**"]
+    if not groups:
+        lines.append("暂无明确行动项")
+        return "\n".join(lines)
+    lines.append(f"共 {sum(int(group.get('total_count', 0) or 0) for group in groups)} 条，待确认 {len(pending_items)} 条。")
+    for group in groups[:4]:
+        owner = safe_text(group.get("owner", "")) or "待确认负责人"
+        total_count = int(group.get("total_count", 0) or 0)
+        pending_count = int(group.get("pending_count", 0) or 0)
+        high_count = int(group.get("high_priority_count", 0) or 0)
+        lines.append(f"- **{owner}**：{total_count} 条，待确认 {pending_count} 条，高优 {high_count} 条")
+        for item in list(group.get("items", []) or [])[:2]:
+            title = safe_text(item.get("title", "")) or "未命名任务"
+            due_date = safe_text(item.get("due_date", "")) or "待确认截止时间"
+            priority = safe_text(item.get("priority", "")) or "medium"
+            state = "待确认" if item.get("needs_confirm") else "字段完整"
+            lines.append(f"  - {title}（{state}，{priority}，{due_date}）")
+    if len(groups) > 4:
+        lines.append(f"... 另有 {len(groups) - 4} 个负责人分组未展示")
+    return "\n".join(lines)
+
+
+def build_local_owner_groups_for_card(items: list[Any]) -> list[dict[str, Any]]:
+    """卡片层兜底聚合行动项，避免旧 artifacts 缺 D3 extra 时空白。"""
+
+    groups: dict[str, dict[str, Any]] = {}
+    for item in items:
+        owner = safe_text(getattr(item, "owner", "")) or "待确认负责人"
+        group = groups.setdefault(
+            owner,
+            {"owner": owner, "total_count": 0, "pending_count": 0, "high_priority_count": 0, "items": []},
+        )
+        group["total_count"] += 1
+        if getattr(item, "needs_confirm", False):
+            group["pending_count"] += 1
+        if safe_text(getattr(item, "priority", "")) == "high":
+            group["high_priority_count"] += 1
+        group["items"].append(
+            {
+                "title": safe_text(getattr(item, "title", "")),
+                "due_date": safe_text(getattr(item, "due_date", "")),
+                "priority": safe_text(getattr(item, "priority", "")) or "medium",
+                "needs_confirm": bool(getattr(item, "needs_confirm", False)),
+            }
+        )
+    return list(groups.values())
+
+
+def render_risks_markdown(risks: list[Any]) -> str:
+    """渲染 D3 风险提示区块。"""
+
+    lines = ["**风险提示**"]
+    if not risks:
+        lines.append("暂无明确风险")
+        return "\n".join(lines)
+    for index, risk in enumerate(risks[:3], start=1):
+        content = safe_text(getattr(risk, "content", risk))
+        severity = safe_text(getattr(risk, "severity", "")) or "medium"
+        suggestion = safe_text(getattr(risk, "suggestion", ""))
+        level = {"high": "高风险", "medium": "中风险", "low": "低风险"}.get(severity, severity)
+        line = f"{index}. **{level}**：{content}"
+        if suggestion:
+            line += f"\n   建议：{suggestion}"
+        lines.append(line)
+    if len(risks) > 3:
+        lines.append(f"... 另有 {len(risks) - 3} 条风险进入完整报告")
+    return "\n".join(lines)
+
+
+def render_disagreements_markdown(disagreements: list[Any]) -> str:
+    """渲染 D3 争议点区块。"""
+
+    lines = ["**争议点 / 分歧点**"]
+    if not disagreements:
+        lines.append("暂无明确分歧")
+        return "\n".join(lines)
+    for index, item in enumerate(disagreements[:3], start=1):
+        topic = safe_text(getattr(item, "topic", item))
+        status = safe_text(getattr(item, "status", "")) or "unresolved"
+        viewpoints = [safe_text(view) for view in list(getattr(item, "viewpoints", []) or []) if safe_text(view)]
+        status_text = {"resolved": "已解决", "partially_resolved": "部分解决", "unresolved": "未解决"}.get(status, status)
+        lines.append(f"{index}. **{status_text}**：{topic}")
+        if viewpoints:
+            lines.append(f"   观点：{' / '.join(viewpoints[:3])}")
+    return "\n".join(lines)
+
+
+def render_follow_up_suggestions_markdown(suggestions: list[Any]) -> str:
+    """渲染 D3 后续建议区块。"""
+
+    lines = ["**后续建议**"]
+    if not suggestions:
+        lines.append("暂无自动建议")
+        return "\n".join(lines)
+    for index, suggestion in enumerate(suggestions[:4], start=1):
+        content = safe_text(getattr(suggestion, "content", suggestion))
+        priority = safe_text(getattr(suggestion, "priority", "")) or "medium"
+        reason = safe_text(getattr(suggestion, "reason", ""))
+        line = f"{index}. `{priority}` {content}"
+        if reason:
+            line += f"\n   原因：{reason}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def render_evidence_pack_markdown(artifacts: Any) -> str:
+    """渲染 D3 Evidence Pack 摘要。"""
+
+    evidence_pack = getattr(artifacts, "evidence_pack", {}) or {}
+    items = list(evidence_pack.get("items", []) or [])
+    lines = ["**Evidence Pack**"]
+    if not items:
+        lines.append("暂无可追踪证据")
+        return "\n".join(lines)
+    for index, item in enumerate(items[:5], start=1):
+        category = safe_text(item.get("category", "")) or "evidence"
+        title = safe_text(item.get("title", "")) or safe_text(item.get("item_id", "")) or f"证据 {index}"
+        source_url = safe_text(item.get("source_url", ""))
+        snippet = safe_text(item.get("snippet", ""))[:90]
+        lines.append(f"{index}. `{category}` {render_link(title[:40], source_url)}")
+        if snippet:
+            lines.append(f"   {snippet}")
+    total_count = int(evidence_pack.get("total_count", len(items)) or len(items))
+    if total_count > 5:
+        lines.append(f"... 另有 {total_count - 5} 条证据进入完整报告")
+    return "\n".join(lines)
+
+
+def render_post_meeting_quick_action_elements(artifacts: Any) -> list[dict[str, Any]]:
+    """渲染 D3 快捷入口按钮。
+
+    这些按钮只传递受控 action value，不直接产生写操作。后端如果尚未接入某个
+    action，也会走统一卡片动作路由返回提示。
+    """
+
+    workflow_input = getattr(artifacts, "workflow_input", None)
+    extra = getattr(artifacts, "extra", {}) or {}
+    meeting_id = safe_text(getattr(workflow_input, "meeting_id", ""))
+    minute_token = safe_text(getattr(workflow_input, "minute_token", ""))
+    report_url = safe_text(extra.get("report_url", "")) or safe_text(extra.get("report_path", ""))
+    actions = [
+        build_quick_action_button("查看任务卡", "view_pending_tasks", meeting_id, minute_token),
+        build_quick_action_button("执行风险巡检", "start_risk_scan", meeting_id, minute_token),
+    ]
+    if report_url:
+        actions.append(build_quick_action_button("查看完整报告", "view_post_meeting_report", meeting_id, minute_token, url=report_url))
+    else:
+        actions.append(build_quick_action_button("查看完整报告", "view_post_meeting_report", meeting_id, minute_token))
+    return [divider(), {"tag": "action", "actions": actions}]
+
+
+def build_quick_action_button(
+    text: str,
+    action: str,
+    meeting_id: str,
+    minute_token: str,
+    *,
+    url: str = "",
+) -> dict[str, Any]:
+    """构造会后复盘卡快捷按钮。"""
+
+    button: dict[str, Any] = {
+        "tag": "button",
+        "text": {"tag": "plain_text", "content": text},
+        "type": "default",
+        "value": {
+            "action": action,
+            "source_card": "post_meeting_summary",
+            "workflow_type": "post_meeting_followup",
+            "meeting_id": meeting_id,
+            "minute_token": minute_token,
+        },
+    }
+    if url:
+        button["url"] = url
+    return button
 
 
 def render_action_items_markdown(title: str, items: list[Any], empty_text: str) -> str:
@@ -783,9 +990,11 @@ def first_evidence_snippet(item: Any) -> str:
     return safe_text(getattr(evidence_refs[0], "snippet", ""))[:100]
 
 
-def choose_summary_header_template(ready_items: list[Any], pending_items: list[Any]) -> str:
+def choose_summary_header_template(ready_items: list[Any], pending_items: list[Any], risks: list[Any] | None = None) -> str:
     """根据任务状态选择会后总结卡片颜色。"""
 
+    if any(safe_text(getattr(item, "severity", "")) == "high" for item in list(risks or [])):
+        return "red"
     if pending_items:
         return "orange"
     if ready_items:

@@ -35,16 +35,18 @@ SIGNAL_KEYWORDS: dict[str, tuple[str, ...]] = {
     "due_date": ("截止", "deadline", "ddl", "今天", "明天", "后天", "周一", "周二", "周三", "周四", "周五", "周六", "周日", "本周", "下周", "月底"),
     "decision": ("决定", "决策", "结论", "确定", "达成一致", "采用", "先按"),
     "open_question": ("问题", "待确认", "是否", "能否", "需要确认", "还不确定", "?"),
+    "risk": ("风险", "阻塞", "延期", "不稳定", "不足", "来不及", "依赖", "卡住", "失败", "回滚", "兜底", "需要关注", "可能影响"),
+    "disagreement": ("争议", "分歧", "不同意见", "未达成一致", "暂未统一", "方案A", "方案B", "两种方案", "倾向于", "但是"),
 }
 
 OWNER_PATTERNS = [
     re.compile(r"@(?P<owner>[\u4e00-\u9fa5A-Za-z0-9_ -]{2,20})"),
     re.compile(r"(?:负责人|owner)[:：]\s*(?P<owner>[^,，；;\s]+)", re.IGNORECASE),
+    re.compile(r"^(?:请|麻烦)?(?P<owner>[\u4e00-\u9fa5]{2,4}?)(?=今天|明天|后天|本周|下周|周[一二三四五六日天]|月底|\d{1,2}[/-]\d{1,2})"),
+    re.compile(r"^(?:请|麻烦)?(?P<owner>[\u4e00-\u9fa5A-Za-z][\u4e00-\u9fa5A-Za-z0-9_]{0,10}?)\s*(?:今天|明天|后天|本周|下周|周[一二三四五六日天]|月底|\d{1,2}[/-]\d{1,2})"),
+    re.compile(r"(?:请|麻烦)\s*(?P<owner>[^,，；;\s]+?)\s*(?:负责|跟进|推进|完成|整理|补充)"),
     re.compile(r"(?P<owner>[\u4e00-\u9fa5]{2,4}?)\s*(?:负责|跟进|推进|完成|整理|补充|发送|分享)"),
     re.compile(r"由\s*(?P<owner>[^,，；;\s]+?)\s*(?:负责|跟进|推进|完成)"),
-    re.compile(r"(?:请|麻烦)\s*(?P<owner>[^,，；;\s]+?)\s*(?:负责|跟进|推进|完成|整理|补充)"),
-    re.compile(r"^(?P<owner>[\u4e00-\u9fa5]{2,4})(?=今天|明天|后天|本周|下周|周[一二三四五六日天]|月底|\d{1,2}[/-]\d{1,2})"),
-    re.compile(r"^(?P<owner>[\u4e00-\u9fa5A-Za-z][\u4e00-\u9fa5A-Za-z0-9_]{0,10})\s*(?:今天|明天|后天|本周|下周|周[一二三四五六日天]|月底|\d{1,2}[/-]\d{1,2})"),
 ]
 
 DUE_DATE_PATTERNS = [
@@ -186,6 +188,58 @@ class ExtractedOpenQuestion(BaseModel):
 
 
 @dataclass(slots=True)
+class PostMeetingRisk(BaseModel):
+    """D3 会后复盘中的结构化风险。
+
+    风险只用于复盘卡和报告展示，不会被自动转换成飞书任务。这样可以把会议中
+    暴露的阻塞、延期和依赖问题直接呈现出来，同时继续遵守 M4 的人工确认边界。
+    """
+
+    risk_id: str
+    content: str
+    severity: str = "medium"
+    reason: str = ""
+    suggestion: str = ""
+    confidence: float = 0.0
+    evidence_refs: list[EvidenceRef] = field(default_factory=list)
+    source_line: int = 0
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class PostMeetingDisagreement(BaseModel):
+    """D3 会后复盘中的争议点或分歧点。
+
+    首版只记录明确出现在妙记中的不同观点和未统一事项，避免在没有证据时
+    推断复杂的辩论关系。
+    """
+
+    disagreement_id: str
+    topic: str
+    viewpoints: list[str] = field(default_factory=list)
+    status: str = "unresolved"
+    confidence: float = 0.0
+    evidence_refs: list[EvidenceRef] = field(default_factory=list)
+    source_line: int = 0
+    extra: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class FollowUpSuggestion(BaseModel):
+    """D3 会后复盘中的后续推进建议。
+
+    建议来自开放问题、风险和行动项等结构化事实，不直接产生外部副作用。
+    """
+
+    suggestion_id: str
+    content: str
+    priority: str = "medium"
+    reason: str = ""
+    related_item_ids: list[str] = field(default_factory=list)
+    evidence_refs: list[EvidenceRef] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class PostMeetingArtifacts(BaseModel):
     """M4 会后工作流的最终产物集合。
 
@@ -199,6 +253,10 @@ class PostMeetingArtifacts(BaseModel):
     meeting_summary: MeetingSummary
     decisions: list[ExtractedDecision] = field(default_factory=list)
     open_questions: list[ExtractedOpenQuestion] = field(default_factory=list)
+    risks: list[PostMeetingRisk] = field(default_factory=list)
+    disagreements: list[PostMeetingDisagreement] = field(default_factory=list)
+    follow_up_suggestions: list[FollowUpSuggestion] = field(default_factory=list)
+    evidence_pack: dict[str, Any] = field(default_factory=dict)
     action_items: list[ActionItem] = field(default_factory=list)
     pending_action_items: list[ActionItem] = field(default_factory=list)
     created_task_mappings: list[dict[str, Any]] = field(default_factory=list)
@@ -813,6 +871,198 @@ def normalize_open_question_content(line: str) -> str:
     return content.strip(" ，,；;。")
 
 
+def extract_post_meeting_risks(
+    cleaned_transcript: CleanedTranscript,
+    meeting_id: str = "",
+    source_url: str = "",
+) -> list[PostMeetingRisk]:
+    """从妙记中提炼 D3 会后复盘风险。
+
+    风险抽取优先依赖明确的风险/阻塞章节和信号词。每条风险都携带证据片段，
+    让卡片上的提醒可以回溯到原始妙记。
+    """
+
+    risks: list[PostMeetingRisk] = []
+    seen: set[str] = set()
+    for line_no, line, tags in iter_d3_signal_candidate_lines(cleaned_transcript, tag="risk"):
+        has_risk_prefix = bool(re.match(r"^(?:风险提示|风险|阻塞|问题|待关注)[:：]", line.strip()))
+        if "open_question" in tags and not re.match(r"^(?:风险提示|风险|阻塞|问题|待关注)[:：]", line.strip()):
+            continue
+        if "decision" in tags and not has_risk_prefix:
+            continue
+        if is_heading_like_line(line):
+            continue
+        content = normalize_risk_content(line)
+        if not content or content in seen:
+            continue
+        seen.add(content)
+        severity = infer_risk_severity(content)
+        risks.append(
+            PostMeetingRisk(
+                risk_id=stable_id("risk", meeting_id, line),
+                content=content,
+                severity=severity,
+                reason=build_risk_reason(content, severity),
+                suggestion=build_risk_suggestion(content, severity),
+                confidence=0.82 if "risk" in tags else 0.68,
+                evidence_refs=[
+                    build_evidence_ref(
+                        source_type=cleaned_transcript.source_type or "minute",
+                        source_id=cleaned_transcript.source_id or meeting_id or "post_meeting",
+                        source_url=source_url or cleaned_transcript.source_url,
+                        snippet=line,
+                    )
+                ],
+                source_line=line_no,
+                extra={"signal_tags": tags},
+            )
+        )
+    return risks[:6]
+
+
+def extract_disagreements(
+    cleaned_transcript: CleanedTranscript,
+    meeting_id: str = "",
+    source_url: str = "",
+) -> list[PostMeetingDisagreement]:
+    """从妙记中提炼争议点或分歧点。"""
+
+    disagreements: list[PostMeetingDisagreement] = []
+    seen: set[str] = set()
+    for line_no, line, tags in iter_d3_signal_candidate_lines(cleaned_transcript, tag="disagreement"):
+        if is_heading_like_line(line):
+            continue
+        topic = normalize_disagreement_topic(line)
+        if not topic or topic in seen:
+            continue
+        seen.add(topic)
+        disagreements.append(
+            PostMeetingDisagreement(
+                disagreement_id=stable_id("disagreement", meeting_id, line),
+                topic=topic,
+                viewpoints=extract_disagreement_viewpoints(line),
+                status=infer_disagreement_status(line),
+                confidence=0.74,
+                evidence_refs=[
+                    build_evidence_ref(
+                        source_type=cleaned_transcript.source_type or "minute",
+                        source_id=cleaned_transcript.source_id or meeting_id or "post_meeting",
+                        source_url=source_url or cleaned_transcript.source_url,
+                        snippet=line,
+                    )
+                ],
+                source_line=line_no,
+                extra={"signal_tags": tags},
+            )
+        )
+    return disagreements[:5]
+
+
+def iter_d3_signal_candidate_lines(
+    cleaned_transcript: CleanedTranscript,
+    *,
+    tag: str,
+) -> list[tuple[int, str, list[str]]]:
+    """枚举风险或争议候选行，兼顾显式章节和信号行。"""
+
+    candidates: list[tuple[int, str, list[str]]] = []
+    seen_lines: set[int] = set()
+    section_title_keywords = {
+        "risk": ("风险", "阻塞", "问题", "待关注"),
+        "disagreement": ("争议", "分歧", "讨论"),
+    }.get(tag, ())
+    for section in cleaned_transcript.sections:
+        title_hit = any(keyword in section.title for keyword in section_title_keywords)
+        if not title_hit and tag not in section.signal_tags:
+            continue
+        for offset, line in enumerate(section.lines):
+            line_no = section.start_line + offset
+            if line_no in seen_lines:
+                continue
+            tags = detect_signal_tags(line)
+            if title_hit or tag in tags:
+                seen_lines.add(line_no)
+                candidates.append((line_no, line, unique_non_empty([*tags, tag] if title_hit else tags)))
+
+    for signal in cleaned_transcript.signal_lines:
+        line_no = int(signal.get("line_no") or 0)
+        if line_no in seen_lines:
+            continue
+        tags = [str(item) for item in signal.get("signal_tags", [])]
+        if tag not in tags:
+            continue
+        line = str(signal.get("text") or "")
+        seen_lines.add(line_no)
+        candidates.append((line_no, line, tags))
+    return candidates
+
+
+def normalize_risk_content(line: str) -> str:
+    """清理风险行中的标题前缀。"""
+
+    content = re.sub(r"^(?:风险提示|风险|阻塞|问题|待关注)[:：]\s*", "", line.strip())
+    return content.strip(" ，,；;。")
+
+
+def infer_risk_severity(content: str) -> str:
+    """根据风险措辞给出保守等级。"""
+
+    if any(keyword in content for keyword in ("阻塞", "无法", "失败", "延期", "发布风险", "演示失败", "来不及")):
+        return "high"
+    if any(keyword in content for keyword in ("不稳定", "不足", "依赖", "待确认", "可能影响", "卡住")):
+        return "medium"
+    return "low"
+
+
+def build_risk_reason(content: str, severity: str) -> str:
+    """生成风险原因，方便卡片说明为什么被标记。"""
+
+    if severity == "high":
+        return "妙记中出现阻塞、失败或延期等高影响信号。"
+    if severity == "medium":
+        return "妙记中出现依赖、不稳定或待确认等需要关注的信号。"
+    return "妙记中出现轻微不确定性或提醒信号。"
+
+
+def build_risk_suggestion(content: str, severity: str) -> str:
+    """基于风险等级生成首版推进建议。"""
+
+    if severity == "high":
+        return "优先明确负责人和兜底方案，并在下次同步前更新处理状态。"
+    if severity == "medium":
+        return "安排一次短同步确认影响范围、依赖方和完成时间。"
+    return "纳入后续跟踪清单，避免小问题在执行阶段放大。"
+
+
+def normalize_disagreement_topic(line: str) -> str:
+    """清理争议行中的标题前缀。"""
+
+    topic = re.sub(r"^(?:争议点|分歧点|争议|分歧|不同意见)[:：]\s*", "", line.strip())
+    return topic.strip(" ，,；;。")
+
+
+def extract_disagreement_viewpoints(line: str) -> list[str]:
+    """从一句分歧描述中保守提取观点片段。"""
+
+    normalized = normalize_disagreement_topic(line)
+    parts = [
+        part.strip(" ，,；;。")
+        for part in re.split(r"(?:；|;|，但是|,但是|但是| vs | VS |、但)", normalized)
+        if part.strip(" ，,；;。")
+    ]
+    return unique_non_empty(parts[:3]) or [normalized]
+
+
+def infer_disagreement_status(line: str) -> str:
+    """根据措辞判断分歧当前状态。"""
+
+    if any(keyword in line for keyword in ("已统一", "达成一致", "最终采用", "已经确定")):
+        return "resolved"
+    if any(keyword in line for keyword in ("暂定", "先按", "部分达成", "阶段性")):
+        return "partially_resolved"
+    return "unresolved"
+
+
 def extract_owner_candidate(line: str) -> str:
     """从行动项候选行中提取负责人文本。"""
 
@@ -828,6 +1078,7 @@ def clean_owner_candidate(value: str) -> str:
     """清洗负责人候选，避免把“负责/整理”等动作词并进姓名。"""
 
     owner = str(value or "").strip(" @，,；;。)")
+    owner = re.sub(r"^(?:请|麻烦)", "", owner)
     owner = re.sub(r"(?:负责|跟进|推进|完成|整理|补充|发送|分享)$", "", owner)
     return owner.strip(" @，,；;。)")
 
@@ -985,6 +1236,16 @@ def build_post_meeting_artifacts_from_input(workflow_input: PostMeetingInput) ->
         meeting_id=workflow_input.meeting_id,
         source_url=workflow_input.source_url,
     )
+    risks = extract_post_meeting_risks(
+        cleaned_transcript,
+        meeting_id=workflow_input.meeting_id,
+        source_url=workflow_input.source_url,
+    )
+    disagreements = extract_disagreements(
+        cleaned_transcript,
+        meeting_id=workflow_input.meeting_id,
+        source_url=workflow_input.source_url,
+    )
     action_items = extract_action_items(
         cleaned_transcript,
         meeting_id=workflow_input.meeting_id,
@@ -1004,8 +1265,9 @@ def build_post_meeting_artifacts_from_input(workflow_input: PostMeetingInput) ->
         topic=workflow_input.topic,
         decisions=[item.content for item in decisions],
         open_questions=[item.content for item in open_questions],
+        risks=[item.content for item in risks],
         action_items=action_items,
-        evidence_refs=collect_artifact_evidence(decisions, open_questions, action_items),
+        evidence_refs=collect_artifact_evidence(decisions, open_questions, risks, disagreements, action_items),
     )
     artifacts = PostMeetingArtifacts(
         workflow_input=workflow_input,
@@ -1013,12 +1275,15 @@ def build_post_meeting_artifacts_from_input(workflow_input: PostMeetingInput) ->
         meeting_summary=meeting_summary,
         decisions=decisions,
         open_questions=open_questions,
+        risks=risks,
+        disagreements=disagreements,
         action_items=action_items,
         pending_action_items=pending_action_items,
         stage_plan=[
             "prepare_post_meeting_input",
             "clean_transcript",
-            "extract_decisions_and_action_items",
+            "extract_decisions_questions_risks_and_action_items",
+            "build_d3_review_fields",
             "validate_owner_due_date_evidence",
             "render_summary_or_confirmation_card",
             "request_human_confirmation_before_task_creation",
@@ -1029,6 +1294,7 @@ def build_post_meeting_artifacts_from_input(workflow_input: PostMeetingInput) ->
             "task_creation_requires_human_confirmation": True,
         },
     )
+    merge_d3_review_fields(artifacts)
     artifacts.card_payloads = {
         "summary_card": build_post_meeting_summary_card(artifacts),
         "pending_card": build_pending_action_items_card(artifacts),
@@ -1071,8 +1337,258 @@ def enrich_post_meeting_related_resources(
     artifacts.extra["related_knowledge_hits"] = hits
     artifacts.extra["related_knowledge_status"] = "hit" if hits else "empty"
     artifacts.extra["related_knowledge_reason"] = getattr(result, "reason", "")
+    merge_d3_review_fields(artifacts)
     artifacts.card_payloads["summary_card"] = build_post_meeting_summary_card(artifacts)
     return artifacts
+
+
+def merge_d3_review_fields(artifacts: PostMeetingArtifacts) -> PostMeetingArtifacts:
+    """补齐 D3 会后复盘字段并写入可观测摘要。
+
+    这里集中维护 D3 聚合逻辑，避免卡片、报告和工具返回各自重复计算。所有
+    新字段都只用于展示和审计，不影响任务创建策略。
+    """
+
+    artifacts.extra["review_summary"] = build_post_meeting_review_summary(artifacts)
+    artifacts.extra["action_item_owner_groups"] = group_action_items_by_owner(artifacts.action_items)
+    artifacts.follow_up_suggestions = generate_follow_up_suggestions(artifacts)
+    artifacts.evidence_pack = build_post_meeting_evidence_pack(artifacts)
+    artifacts.extra["d3_metrics"] = {
+        "risk_count": len(artifacts.risks),
+        "disagreement_count": len(artifacts.disagreements),
+        "suggestion_count": len(artifacts.follow_up_suggestions),
+        "evidence_ref_count": int(artifacts.evidence_pack.get("total_count", 0) or 0),
+        "owner_group_count": len(artifacts.extra.get("action_item_owner_groups", []) or []),
+    }
+    return artifacts
+
+
+def build_post_meeting_review_summary(artifacts: PostMeetingArtifacts) -> str:
+    """生成更像复盘的会议摘要。"""
+
+    topic = artifacts.meeting_summary.topic or artifacts.workflow_input.topic or "本次会议"
+    decision_count = len(artifacts.decisions)
+    question_count = len(artifacts.open_questions)
+    action_count = len(artifacts.action_items)
+    risk_count = len(artifacts.risks)
+    if not any([decision_count, question_count, action_count, risk_count]):
+        return f"{topic} 已完成纪要清洗，但暂未识别到明确结论、行动项或风险，需要人工补充复盘信息。"
+    focus_parts = []
+    if decision_count:
+        focus_parts.append(f"沉淀 {decision_count} 条关键结论")
+    if action_count:
+        focus_parts.append(f"形成 {action_count} 个待确认行动项")
+    if question_count:
+        focus_parts.append(f"留下 {question_count} 个开放问题")
+    if risk_count:
+        focus_parts.append(f"暴露 {risk_count} 个风险信号")
+    focus = "、".join(focus_parts)
+    return f"{topic} 的主要价值在于{focus}，会后需要围绕负责人确认、风险处理和未决问题继续推进。"
+
+
+def group_action_items_by_owner(action_items: list[ActionItem]) -> list[dict[str, Any]]:
+    """按负责人聚合行动项，给 D3 卡片提供一眼可读的任务视图。"""
+
+    groups: dict[str, dict[str, Any]] = {}
+    for item in action_items:
+        owner = item.owner.strip() or "待确认负责人"
+        group = groups.setdefault(
+            owner,
+            {
+                "owner": owner,
+                "total_count": 0,
+                "pending_count": 0,
+                "high_priority_count": 0,
+                "items": [],
+            },
+        )
+        group["total_count"] += 1
+        if item.needs_confirm:
+            group["pending_count"] += 1
+        if item.priority == "high":
+            group["high_priority_count"] += 1
+        group["items"].append(
+            {
+                "item_id": item.item_id,
+                "title": item.title,
+                "due_date": item.due_date,
+                "priority": item.priority,
+                "needs_confirm": item.needs_confirm,
+                "confidence": item.confidence,
+            }
+        )
+    return sorted(
+        groups.values(),
+        key=lambda group: (
+            group["owner"] == "待确认负责人",
+            -int(group["high_priority_count"]),
+            -int(group["total_count"]),
+            str(group["owner"]),
+        ),
+    )
+
+
+def generate_follow_up_suggestions(artifacts: PostMeetingArtifacts) -> list[FollowUpSuggestion]:
+    """基于结构化事实生成后续建议。"""
+
+    suggestions: list[FollowUpSuggestion] = []
+    if artifacts.open_questions:
+        question = artifacts.open_questions[0]
+        suggestions.append(
+            FollowUpSuggestion(
+                suggestion_id=stable_id("suggestion", artifacts.workflow_input.meeting_id, "open_question", question.content),
+                content=f"下次同步前先明确开放问题：{question.content}",
+                priority="high" if len(artifacts.open_questions) > 1 else "medium",
+                reason="会议仍存在未解决问题，需要形成可跟进判断。",
+                related_item_ids=[question.question_id],
+                evidence_refs=list(question.evidence_refs[:1]),
+            )
+        )
+    high_risks = [item for item in artifacts.risks if item.severity == "high"]
+    if high_risks:
+        risk = high_risks[0]
+        suggestions.append(
+            FollowUpSuggestion(
+                suggestion_id=stable_id("suggestion", artifacts.workflow_input.meeting_id, "high_risk", risk.content),
+                content=f"优先处理高风险：{risk.content}",
+                priority="high",
+                reason="会后复盘中出现高影响风险信号。",
+                related_item_ids=[risk.risk_id],
+                evidence_refs=list(risk.evidence_refs[:1]),
+            )
+        )
+    if artifacts.pending_action_items:
+        suggestions.append(
+            FollowUpSuggestion(
+                suggestion_id=stable_id("suggestion", artifacts.workflow_input.meeting_id, "pending_tasks"),
+                content="先在待确认任务卡中补齐负责人和截止时间，再创建飞书任务。",
+                priority="high",
+                reason="所有会后任务都需要人工确认后才能写入飞书，避免误创建。",
+                related_item_ids=[item.item_id for item in artifacts.pending_action_items[:5]],
+            )
+        )
+    owner_groups = artifacts.extra.get("action_item_owner_groups") or group_action_items_by_owner(artifacts.action_items)
+    if len(owner_groups) >= 2:
+        suggestions.append(
+            FollowUpSuggestion(
+                suggestion_id=stable_id("suggestion", artifacts.workflow_input.meeting_id, "owner_sync"),
+                content="按负责人同步行动项清单，避免多人任务在会后分散丢失。",
+                priority="medium",
+                reason="行动项分布在多个负责人之间，需要统一追踪。",
+                related_item_ids=[item.item_id for item in artifacts.action_items[:5]],
+            )
+        )
+    evidence_pack = build_post_meeting_evidence_pack(artifacts)
+    if int(evidence_pack.get("total_count", 0) or 0) < max(1, len(artifacts.decisions)):
+        suggestions.append(
+            FollowUpSuggestion(
+                suggestion_id=stable_id("suggestion", artifacts.workflow_input.meeting_id, "evidence_pack"),
+                content="补充关键结论对应的妙记片段或历史资料，提升复盘可信度。",
+                priority="medium",
+                reason="当前 Evidence Pack 覆盖不足。",
+            )
+        )
+    return dedupe_follow_up_suggestions(suggestions)[:5]
+
+
+def dedupe_follow_up_suggestions(suggestions: list[FollowUpSuggestion]) -> list[FollowUpSuggestion]:
+    """按建议内容去重。"""
+
+    deduped: list[FollowUpSuggestion] = []
+    seen: set[str] = set()
+    for suggestion in suggestions:
+        if suggestion.content in seen:
+            continue
+        seen.add(suggestion.content)
+        deduped.append(suggestion)
+    return deduped
+
+
+def build_post_meeting_evidence_pack(artifacts: PostMeetingArtifacts) -> dict[str, Any]:
+    """汇总 D3 Evidence Pack，服务卡片、报告和工具返回。"""
+
+    items: list[dict[str, Any]] = []
+    for category, records in [
+        ("decision", artifacts.decisions),
+        ("open_question", artifacts.open_questions),
+        ("risk", artifacts.risks),
+        ("disagreement", artifacts.disagreements),
+        ("action_item", artifacts.action_items),
+    ]:
+        items.extend(build_evidence_pack_items(category, records))
+    for hit in list((artifacts.extra or {}).get("related_knowledge_hits", []) or [])[:5]:
+        ref_id = safe_text(getattr(hit, "ref_id", "")) or safe_text(getattr(hit, "chunk_id", ""))
+        title = safe_text(getattr(hit, "title", "")) or "相关背景资料"
+        snippet = safe_text(getattr(hit, "snippet", "")) or safe_text(getattr(hit, "content", ""))[:160]
+        items.append(
+            {
+                "category": "related_knowledge",
+                "item_id": ref_id,
+                "title": title,
+                "source_type": safe_text(getattr(hit, "resource_type", "")) or "knowledge",
+                "source_id": ref_id,
+                "source_url": safe_text(getattr(hit, "source_url", "")),
+                "snippet": snippet,
+            }
+        )
+    deduped = dedupe_evidence_pack_items(items)
+    return {
+        "total_count": len(deduped),
+        "items": deduped[:12],
+        "reason": "汇总关键结论、开放问题、行动项、风险、争议和相关背景资料的来源片段。",
+    }
+
+
+def build_evidence_pack_items(category: str, records: list[Any]) -> list[dict[str, Any]]:
+    """把结构化记录转换成 Evidence Pack 条目。"""
+
+    items: list[dict[str, Any]] = []
+    for record in records:
+        record_id = (
+            safe_text(getattr(record, "decision_id", ""))
+            or safe_text(getattr(record, "question_id", ""))
+            or safe_text(getattr(record, "risk_id", ""))
+            or safe_text(getattr(record, "disagreement_id", ""))
+            or safe_text(getattr(record, "item_id", ""))
+        )
+        title = (
+            safe_text(getattr(record, "content", ""))
+            or safe_text(getattr(record, "topic", ""))
+            or safe_text(getattr(record, "title", ""))
+        )
+        for ref in list(getattr(record, "evidence_refs", []) or [])[:2]:
+            items.append(
+                {
+                    "category": category,
+                    "item_id": record_id,
+                    "title": title[:120],
+                    "source_type": safe_text(getattr(ref, "source_type", "")),
+                    "source_id": safe_text(getattr(ref, "source_id", "")),
+                    "source_url": safe_text(getattr(ref, "source_url", "")),
+                    "snippet": safe_text(getattr(ref, "snippet", ""))[:180],
+                }
+            )
+    return items
+
+
+def dedupe_evidence_pack_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Evidence Pack 去重，避免同一句妙记片段重复占据卡片空间。"""
+
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in items:
+        key = "|".join(
+            [
+                safe_text(item.get("category", "")),
+                safe_text(item.get("source_id", "")),
+                safe_text(item.get("snippet", "")),
+            ]
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
 
 
 def build_post_meeting_related_resource_query(artifacts: PostMeetingArtifacts) -> str:
