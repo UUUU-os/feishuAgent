@@ -225,7 +225,9 @@ class PreMeetingBriefWorkflow(WorkflowRunner):
             "- 优先调用 knowledge_search 获取压缩证据包，必要时再用 knowledge_fetch_chunk 展开指定 ref_id。\n"
             "- 生成结论时必须说明来源或指出证据不足。\n"
             "- 不要把未验证资料写成确定性事实。\n"
-            "- 如果只拿到候选资料，请明确标记为“可能相关资料”。"
+            "- 如果只拿到候选资料，请明确标记为“可能相关资料”。\n"
+            "- D2 会前智能准备卡需要体现历史会议、遗留行动项、历史风险、建议议题和会前 checklist。\n"
+            "- 使用豆包等真实模型时，只能基于当前上下文和工具证据做归纳，不要编造历史会议、负责人、截止时间或风险来源。"
         )
 
     def validate_output(self, result: AgentRunResult) -> WorkflowValidationResult:

@@ -142,6 +142,53 @@ class MeetFlowStorage:
                 return payload
         return None
 
+    def find_recent_workflow_results(
+        self,
+        workflow_name: str,
+        project_id: str = "",
+        meeting_id: str = "",
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """读取最近工作流结果，用于会前复用历史会议和风险事实。
+
+        `workflow_results` 早期没有独立 project_id 列，因此这里从 payload 中
+        解析项目和会议字段做过滤，避免为了 D2 首版强制迁移历史数据库。
+        """
+
+        normalized_workflow = str(workflow_name or "").strip()
+        if not normalized_workflow:
+            return []
+        normalized_project_id = str(project_id or "").strip()
+        normalized_meeting_id = str(meeting_id or "").strip()
+        query_limit = max(int(limit or 20), 1)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT trace_id, workflow_name, status, summary, payload_json, created_at
+                FROM workflow_results
+                WHERE workflow_name = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (normalized_workflow, query_limit * 5),
+            ).fetchall()
+
+        results: list[dict[str, Any]] = []
+        for row in rows:
+            item = self._normalize_workflow_result_row(row)
+            payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+            item_project_id = self._extract_project_id_from_payload(payload)
+            item_meeting_id = self._extract_meeting_id_from_payload(payload)
+            if normalized_project_id and item_project_id and item_project_id != normalized_project_id:
+                continue
+            if normalized_meeting_id and item_meeting_id and item_meeting_id != normalized_meeting_id:
+                continue
+            results.append(item)
+            if len(results) >= query_limit:
+                break
+        return results
+
     def record_idempotency_key(
         self,
         idempotency_key: str,
@@ -660,6 +707,111 @@ class MeetFlowStorage:
 
         return [item for row in rows if (item := self._normalize_task_mapping_row(row))]
 
+    def find_task_mappings(
+        self,
+        project_id: str = "",
+        meeting_id: str = "",
+        title_query: str = "",
+        statuses: set[str] | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """按项目、会议或标题查询任务映射，服务 D2 遗留行动项。
+
+        当前 `task_mappings` 未必有 project_id 列；首版优先用 meeting_id 和
+        title 过滤。如果调用方传入 project_id，会在 evidence/source_url 等
+        可用字段中做弱过滤，不命中时不强行排除，避免漏掉历史数据。
+        """
+
+        normalized_meeting_id = str(meeting_id or "").strip()
+        normalized_title_query = str(title_query or "").strip().lower()
+        normalized_project_id = str(project_id or "").strip().lower()
+        clauses: list[str] = []
+        params: list[Any] = []
+        if normalized_meeting_id:
+            clauses.append("meeting_id = ?")
+            params.append(normalized_meeting_id)
+        if normalized_title_query:
+            clauses.append("LOWER(title) LIKE ?")
+            params.append(f"%{normalized_title_query}%")
+        where_clause = f"WHERE {' OR '.join(clauses)}" if clauses else ""
+        params.append(max(int(limit or 20), 1) * 5)
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM task_mappings
+                {where_clause}
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+
+        status_filter = {item.lower() for item in statuses} if statuses else set()
+        results: list[dict[str, Any]] = []
+        for row in rows:
+            item = self._normalize_task_mapping_row(row)
+            if not item:
+                continue
+            status = str(item.get("status") or "").strip().lower()
+            if status_filter and status not in status_filter:
+                continue
+            if normalized_project_id and not self._task_mapping_mentions_project(item, normalized_project_id):
+                # 旧数据通常没有项目字段，不能把弱过滤变成硬过滤。
+                if item.get("meeting_id") or item.get("source_url"):
+                    continue
+            results.append(item)
+            if len(results) >= max(int(limit or 20), 1):
+                break
+        return results
+
+    def find_recent_risk_notifications(
+        self,
+        task_ids: list[str] | None = None,
+        statuses: set[str] | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """读取最近风险提醒记录，用于会前展示持续风险。"""
+
+        normalized_task_ids = [str(item).strip() for item in (task_ids or []) if str(item).strip()]
+        clauses: list[str] = []
+        params: list[Any] = []
+        if normalized_task_ids:
+            placeholders = ", ".join("?" for _ in normalized_task_ids)
+            clauses.append(f"task_id IN ({placeholders})")
+            params.extend(normalized_task_ids)
+        status_filter = {item.lower() for item in statuses} if statuses else set()
+        if status_filter:
+            placeholders = ", ".join("?" for _ in status_filter)
+            clauses.append(f"LOWER(status) IN ({placeholders})")
+            params.extend(sorted(status_filter))
+        where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        params.append(max(int(limit or 20), 1))
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                f"""
+                SELECT *
+                FROM risk_notifications
+                {where_clause}
+                ORDER BY notified_at DESC, id DESC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+
+        results: list[dict[str, Any]] = []
+        for row in rows:
+            data = dict(row)
+            try:
+                data["payload"] = json.loads(data.get("payload_json") or "{}")
+            except json.JSONDecodeError:
+                data["payload"] = {}
+            results.append(data)
+        return results
+
     @staticmethod
     def _normalize_task_mapping_row(row: sqlite3.Row | None) -> dict[str, Any] | None:
         """把 task_mappings 行转换成业务字典，并解析 evidence_refs。"""
@@ -672,6 +824,76 @@ class MeetFlowStorage:
         except json.JSONDecodeError:
             data["evidence_refs"] = []
         return data
+
+    @staticmethod
+    def _normalize_workflow_result_row(row: sqlite3.Row | None) -> dict[str, Any]:
+        """把 workflow_results 行转换成业务字典。"""
+
+        if row is None:
+            return {}
+        data = dict(row)
+        try:
+            payload = json.loads(data.get("payload_json") or "{}")
+        except json.JSONDecodeError:
+            payload = {}
+        data["payload"] = payload if isinstance(payload, dict) else {}
+        return data
+
+    @classmethod
+    def _extract_project_id_from_payload(cls, payload: dict[str, Any]) -> str:
+        """从工作流 payload 中尽量解析 project_id。"""
+
+        candidates = [
+            payload,
+            payload.get("payload") if isinstance(payload.get("payload"), dict) else {},
+            payload.get("context") if isinstance(payload.get("context"), dict) else {},
+        ]
+        raw_context = {}
+        context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
+        if isinstance(context.get("raw_context"), dict):
+            raw_context = context["raw_context"]
+            candidates.append(raw_context)
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            value = cls._first_non_empty(candidate, "project_id", "current_project_id")
+            if value:
+                return value
+        return ""
+
+    @classmethod
+    def _extract_meeting_id_from_payload(cls, payload: dict[str, Any]) -> str:
+        """从工作流 payload 中尽量解析 meeting_id。"""
+
+        candidates = [
+            payload,
+            payload.get("payload") if isinstance(payload.get("payload"), dict) else {},
+            payload.get("context") if isinstance(payload.get("context"), dict) else {},
+        ]
+        context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
+        if isinstance(context.get("raw_context"), dict):
+            candidates.append(context["raw_context"])
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            value = cls._first_non_empty(candidate, "meeting_id", "meetingId")
+            if value:
+                return value
+        return ""
+
+    @staticmethod
+    def _task_mapping_mentions_project(mapping: dict[str, Any], project_id: str) -> bool:
+        """判断 task mapping 是否包含项目线索。"""
+
+        text_parts = [
+            str(mapping.get("meeting_id") or ""),
+            str(mapping.get("minute_token") or ""),
+            str(mapping.get("title") or ""),
+            str(mapping.get("source_url") or ""),
+            json.dumps(mapping.get("evidence_refs") or [], ensure_ascii=False),
+        ]
+        haystack = "\n".join(text_parts).lower()
+        return bool(project_id and project_id in haystack)
 
     @staticmethod
     def _normalize_json_row(row: sqlite3.Row | None, json_columns: dict[str, str]) -> dict[str, Any] | None:

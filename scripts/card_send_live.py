@@ -38,7 +38,7 @@ def parse_args() -> argparse.Namespace:
     m3.add_argument(
         "--llm-provider",
         default="scripted_debug",
-        help="默认 scripted_debug，避免真实 LLM 接收飞书内容；确认风险后可传 deepseek 等 provider。",
+        help="默认 scripted_debug，避免真实 LLM 接收飞书内容；确认风险后可传 doubao/deepseek 等 provider。",
     )
     m3.add_argument("--max-iterations", type=int, default=5, help="Agent Loop 最大轮数。")
     m3.add_argument("--idempotency-suffix", default="", help="重复真实发送同一会议时建议传唯一后缀。")

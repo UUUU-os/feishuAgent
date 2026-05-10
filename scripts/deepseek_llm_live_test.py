@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -28,22 +27,20 @@ def parse_args() -> argparse.Namespace:
     """解析命令行参数。"""
 
     parser = argparse.ArgumentParser(
-        description="真实调用 DeepSeek OpenAI-compatible Chat Completions 接口。",
-    )
-    parser.add_argument(
-        "--api-key",
-        default=os.getenv("DEEPSEEK_API_KEY") or os.getenv("MEETFLOW_LLM_API_KEY", ""),
-        help="DeepSeek API Key。建议通过 DEEPSEEK_API_KEY 环境变量传入，不要写进命令历史。",
+        description=(
+            "真实调用当前项目 settings.local.json 中配置的 LLM。"
+            "脚本名保留 deepseek 仅为历史兼容。"
+        ),
     )
     parser.add_argument(
         "--api-base",
-        default=os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com"),
-        help="DeepSeek API base URL。官方默认是 https://api.deepseek.com。",
+        default="",
+        help="临时覆盖 settings.local.json 中的 llm.api_base；默认使用本地配置。",
     )
     parser.add_argument(
         "--model",
-        default=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
-        help="模型名。常用 deepseek-chat；也可按官方最新模型列表传入其他模型。",
+        default="",
+        help="临时覆盖 settings.local.json 中的 llm.model；默认使用本地配置。",
     )
     parser.add_argument(
         "--prompt",
@@ -58,14 +55,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0.2,
-        help="采样温度。",
+        default=None,
+        help="临时覆盖 settings.local.json 中的 llm.temperature。",
     )
     parser.add_argument(
         "--max-tokens",
         type=int,
-        default=512,
-        help="最大输出 token 数。",
+        default=None,
+        help="临时覆盖 settings.local.json 中的 llm.max_tokens。",
     )
     parser.add_argument(
         "--mode",
@@ -81,18 +78,27 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _build_provider_settings(args: argparse.Namespace) -> LLMSettings:
-    """基于命令行参数构造临时 LLMSettings，不修改本地配置文件。"""
+def _build_provider_settings(args: argparse.Namespace, fallback: LLMSettings) -> LLMSettings:
+    """基于 settings.local.json 构造临时 LLMSettings，不修改本地配置文件。"""
 
-    return LLMSettings(
-        provider="openai-compatible",
-        model=args.model,
-        api_base=args.api_base,
-        api_key=args.api_key,
-        temperature=args.temperature,
-        max_tokens=args.max_tokens,
+    settings = LLMSettings(
+        provider=fallback.provider,
+        model=fallback.model,
+        api_base=fallback.api_base,
+        api_key=fallback.api_key,
+        temperature=fallback.temperature,
+        max_tokens=fallback.max_tokens,
         reasoning_effort="",
     )
+    if args.model:
+        settings.model = args.model
+    if args.api_base:
+        settings.api_base = args.api_base
+    if args.temperature is not None:
+        settings.temperature = args.temperature
+    if args.max_tokens is not None:
+        settings.max_tokens = args.max_tokens
+    return settings
 
 
 def _build_tools(mode: str) -> list[ToolDefinition] | None:
@@ -132,14 +138,14 @@ def _build_tools(mode: str) -> list[ToolDefinition] | None:
 
 
 def main() -> int:
-    """执行 DeepSeek 真实模型连通性测试。"""
+    """执行 settings.local.json 中真实模型的连通性测试。"""
 
     args = parse_args()
     settings = load_settings()
     configure_logging(settings.logging)
-    logger = get_logger("meetflow.deepseek.live_test")
+    logger = get_logger("meetflow.llm.live_test")
 
-    provider_settings = _build_provider_settings(args)
+    provider_settings = _build_provider_settings(args, settings.llm)
     provider = create_llm_provider(provider_settings)
     messages = [
         AgentMessage(role="system", content=args.system),
@@ -147,9 +153,10 @@ def main() -> int:
     ]
 
     logger.info(
-        "准备真实调用 DeepSeek model=%s api_base=%s mode=%s",
-        args.model,
-        args.api_base,
+        "准备真实调用 settings.local LLM provider=%s model=%s api_base=%s mode=%s",
+        provider_settings.provider,
+        provider_settings.model,
+        provider_settings.api_base,
         args.mode,
     )
 
@@ -158,19 +165,20 @@ def main() -> int:
             messages=messages,
             tools=_build_tools(args.mode),
             settings=GenerationSettings(
-                model=args.model,
-                temperature=args.temperature,
-                max_tokens=args.max_tokens,
+                model=provider_settings.model,
+                temperature=provider_settings.temperature,
+                max_tokens=provider_settings.max_tokens,
                 timeout_seconds=60,
             ),
         )
     except (LLMConfigError, LLMAPIError) as error:
-        logger.error("DeepSeek 调用失败：%s", error)
-        print(f"\nDeepSeek 调用失败：{error}")
+        logger.error("settings.local LLM 调用失败：%s", error)
+        print(f"\nsettings.local LLM 调用失败：{error}")
         return 1
 
-    print("\nDeepSeek 调用成功。")
-    print(f"model: {response.model or args.model}")
+    print("\nsettings.local LLM 调用成功。")
+    print(f"provider: {provider_settings.provider}")
+    print(f"model: {response.model or provider_settings.model}")
     print(f"finish_reason: {response.finish_reason}")
 
     if response.content:

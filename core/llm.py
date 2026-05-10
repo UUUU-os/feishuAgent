@@ -138,6 +138,12 @@ class OpenAICompatibleProvider(LLMProvider):
         self.settings = settings
         self.logger = get_logger("meetflow.llm")
 
+    @property
+    def provider_label(self) -> str:
+        """返回观测日志里使用的 provider 标签。"""
+
+        return "openai-compatible"
+
     def chat(
         self,
         messages: list[AgentMessage],
@@ -165,8 +171,9 @@ class OpenAICompatibleProvider(LLMProvider):
             payload["tools"] = [tool.to_openai_tool() for tool in tools]
             payload["tool_choice"] = "auto"
 
-        endpoint = _join_url(self.settings.api_base, "chat/completions")
-        self.logger.info("准备调用 LLM provider=openai-compatible model=%s", generation.model)
+        endpoint = _chat_completions_endpoint(self.settings.api_base)
+        provider_label = self.provider_label
+        self.logger.info("准备调用 LLM provider=%s model=%s", provider_label, generation.model)
         try:
             raw_payload = self._post_json(
                 endpoint=endpoint,
@@ -176,7 +183,7 @@ class OpenAICompatibleProvider(LLMProvider):
             response = _parse_openai_response(raw_payload)
             emit_structured_event(
                 "llm_generation",
-                provider="openai-compatible",
+                provider=provider_label,
                 model=generation.model,
                 endpoint_path=urlparse(endpoint).path,
                 status="success",
@@ -190,7 +197,7 @@ class OpenAICompatibleProvider(LLMProvider):
         except Exception as error:
             emit_structured_event(
                 "llm_generation",
-                provider="openai-compatible",
+                provider=provider_label,
                 model=generation.model,
                 endpoint_path=urlparse(endpoint).path,
                 status="failed",
@@ -208,8 +215,9 @@ class OpenAICompatibleProvider(LLMProvider):
         if not self.settings.api_base:
             raise LLMConfigError("LLM api_base 为空，请在配置或环境变量中设置 MEETFLOW_LLM_API_BASE")
 
-        if not self.settings.api_key or self.settings.api_key == "replace-with-env-or-local-file":
-            raise LLMConfigError("LLM api_key 未配置，请设置 MEETFLOW_LLM_API_KEY 或 settings.local.json")
+        self.settings.api_key = _normalize_api_key(self.settings.api_key)
+        if not self.settings.api_key or _is_placeholder_api_key(self.settings.api_key):
+            raise LLMConfigError("LLM api_key 未配置，请在 config/settings.local.json 的 llm.api_key 中设置")
 
     def _post_json(
         self,
@@ -249,6 +257,44 @@ class OpenAICompatibleProvider(LLMProvider):
             raise LLMAPIError(f"LLM 响应类型异常 endpoint={endpoint} type={type(parsed).__name__}")
 
         return parsed
+
+
+class DoubaoArkProvider(OpenAICompatibleProvider):
+    """火山方舟 / 豆包 OpenAI-compatible Provider。
+
+    方舟对话接口兼容 OpenAI Chat Completions。`model` 可以填写豆包模型 ID，
+    也可以填写用户在方舟控制台创建的 `ep-...` 推理接入点 ID。
+    """
+
+    DEFAULT_API_BASE = "https://ark.cn-beijing.volces.com/api/v3"
+
+    @property
+    def provider_label(self) -> str:
+        """返回观测日志里使用的 provider 标签。"""
+
+        return "doubao-ark"
+
+    def _validate_config(self) -> None:
+        """检查豆包调用配置，并允许省略 api_base 使用方舟默认地址。"""
+
+        if not self.settings.api_base:
+            self.settings.api_base = self.DEFAULT_API_BASE
+        if not self.settings.model:
+            raise LLMConfigError("豆包模型 model 为空，请填写方舟模型 ID 或 ep-... 推理接入点 ID")
+        self.settings.api_key = _normalize_api_key(self.settings.api_key)
+        if not self.settings.api_key or _is_placeholder_api_key(self.settings.api_key):
+            raise LLMConfigError("豆包 API key 未配置，请在 config/settings.local.json 的 llm.api_key 中设置")
+        if self.settings.api_key.startswith("ep-"):
+            raise LLMConfigError(
+                "豆包 api_key 看起来填成了 ep-... 推理接入点 ID。"
+                "请把 ep-... 放到 model，把火山方舟 API Key 放到 api_key 或 ARK_API_KEY。"
+            )
+        if self.settings.api_key == self.settings.model:
+            raise LLMConfigError(
+                "豆包 api_key 与 model 完全相同，疑似把模型/接入点 ID 当成了 API Key。"
+                "请检查 config/settings.local.json。"
+            )
+        super()._validate_config()
 
 
 class DryRunLLMProvider(LLMProvider):
@@ -334,6 +380,8 @@ def create_llm_provider(settings: LLMSettings) -> LLMProvider:
     provider = settings.provider.strip().lower()
     if provider in {"openai-compatible", "openai_compatible", "openai"}:
         return OpenAICompatibleProvider(settings)
+    if provider in {"doubao", "doubao-ark", "volcengine", "volcengine-ark", "ark"}:
+        return DoubaoArkProvider(settings)
     if provider in {"dry-run", "dry_run", "mock"}:
         return DryRunLLMProvider(model=settings.model or "dry-run-model")
     raise LLMConfigError(f"暂不支持的 LLM provider: {settings.provider}")
@@ -348,6 +396,26 @@ def settings_from_config(settings: LLMSettings) -> GenerationSettings:
         max_tokens=settings.max_tokens,
         reasoning_effort=settings.reasoning_effort,
     )
+
+
+def _normalize_api_key(api_key: str) -> str:
+    """归一化本地配置中的 API Key。
+
+    业务配置里只应保存 key 本体；但真实联调时经常会从 curl 示例中整段复制
+    `Bearer xxx`。这里统一去掉 Bearer 前缀，避免发出 `Bearer Bearer xxx`。
+    """
+
+    value = (api_key or "").strip()
+    if value.lower().startswith("bearer "):
+        return value[7:].strip()
+    return value
+
+
+def _is_placeholder_api_key(api_key: str) -> bool:
+    """识别示例配置中的占位 key，避免占位符被当作真实密钥发到外部厂商。"""
+
+    value = (api_key or "").strip().lower()
+    return not value or value.startswith("replace-with") or "your-" in value
 
 
 def _agent_message_to_openai(message: AgentMessage) -> dict[str, Any]:
@@ -423,6 +491,20 @@ def _join_url(base_url: str, path: str) -> str:
     """拼接 API base 和相对路径，避免多斜杠或漏斜杠。"""
 
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
+
+
+def _chat_completions_endpoint(api_base: str) -> str:
+    """生成 Chat Completions 端点。
+
+    有些 OpenAI-compatible 厂商文档会把 api_base 写成 `/api/v3`，也有
+    文档或控制台会直接展示完整 `/api/v3/chat/completions` 地址。这里
+    兼容两种写法，避免重复拼接成 `.../chat/completions/chat/completions`。
+    """
+
+    normalized = str(api_base or "").strip().rstrip("/")
+    if normalized.endswith("/chat/completions"):
+        return normalized
+    return _join_url(normalized, "chat/completions")
 
 
 def _find_last_message_content(messages: list[AgentMessage], role: str) -> str:

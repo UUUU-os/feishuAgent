@@ -19,3 +19,9 @@
 - `prd.md`：需求分析文档
 - `architecture.md`：架构设计文档
 - `tasks.md`：开发任务拆解文档
+- `AGENTS.md`：Agent、协作者和自动化脚本必须遵守的项目开发规范
+- `git-instruction.md`：Git 分支、提交和 PR 协作规范
+- `team-work-division.md`：团队并行开发分工边界
+- `docs/tasks/shared-contracts.md`：开发约定 0，共享契约和开发护栏
+- `docs/tasks/openclaw-demo-enhancement.md`：OpenClaw / CLI / Console 智能化演示增强正式任务指引
+- `docs/meetflow-version-upgrade-plan.md`：项目版本提升计划

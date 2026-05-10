@@ -127,6 +127,7 @@ export function M3ConsolePage() {
               <option value="scripted_debug">scripted_debug：推荐联调</option>
               <option value="dry-run">dry-run：只验证链路</option>
               <option value="configured">configured：使用配置 provider</option>
+              <option value="doubao">doubao：豆包/火山方舟</option>
               <option value="deepseek">deepseek：真实模型</option>
             </select>
             <small>默认 scripted_debug，避免真实模型接收飞书内容。</small>

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 from datetime import datetime, timedelta
@@ -69,14 +68,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--llm-provider",
         default="scripted_calendar",
-        help="LLM 配置来源。scripted_calendar 会直接驱动日历工具；deepseek 使用真实模型。",
+        help=(
+            "LLM 配置来源。scripted_calendar 会直接驱动日历工具；"
+            "settings/default/configured 以及 doubao/deepseek 等真实 provider 名都读取 config/settings.local.json。"
+        ),
     )
     parser.add_argument("--model", default="", help="临时覆盖模型名。")
     parser.add_argument("--api-base", default="", help="临时覆盖 OpenAI-compatible API base。")
     parser.add_argument(
         "--api-key-env",
         default="",
-        help="从指定环境变量读取 API Key，例如 DEEPSEEK_API_KEY。",
+        help="已废弃：真实 API Key 请写入当前项目的 config/settings.local.json。",
     )
     parser.add_argument("--temperature", type=float, default=None, help="临时覆盖采样温度。")
     parser.add_argument("--max-tokens", type=int, default=None, help="临时覆盖最大输出 token 数。")
@@ -111,7 +113,7 @@ def main() -> int:
         provider = build_llm_provider(args, llm_settings)
     except LLMConfigError as error:
         print(f"\nLLM 配置错误：{error}")
-        print("建议：先用 --llm-provider scripted_calendar 验证飞书链路；真实模型请设置 DEEPSEEK_API_KEY。")
+        print("建议：先用 --llm-provider scripted_calendar 验证飞书链路；真实模型请修改 config/settings.local.json 的 llm 段。")
         return 2
     agent = create_meetflow_agent(
         settings=settings,
@@ -215,9 +217,15 @@ def build_workflow_goal(prompt: str, payload: dict[str, object]) -> str:
 
 
 def build_llm_settings(args: argparse.Namespace, fallback: LLMSettings) -> LLMSettings:
-    """读取本次测试使用的 LLM 配置。"""
+    """读取本次测试使用的 LLM 配置。
 
-    provider_name = args.llm_provider.strip()
+    真实模型配置统一来自 `config/settings.local.json` 经过 `load_settings()` 后的
+    `settings.llm`。`--llm-provider doubao/deepseek/...` 只作为“期望当前 settings
+    使用哪个厂商”的校验别名，不再读取 `llm_providers.local.json`，避免团队成员各自维护
+    两套真实 key 和模型配置。
+    """
+
+    provider_name = args.llm_provider.strip().lower()
     if provider_name == "scripted_calendar":
         return LLMSettings(
             provider="scripted-calendar",
@@ -229,24 +237,14 @@ def build_llm_settings(args: argparse.Namespace, fallback: LLMSettings) -> LLMSe
             reasoning_effort="",
         )
 
-    if provider_name in {"settings", "default"}:
-        return override_llm_settings(args, fallback)
+    if not _llm_provider_matches_settings(provider_name, fallback.provider):
+        raise LLMConfigError(
+            "当前项目已统一从 config/settings.local.json 读取真实 LLM 配置。"
+            f"你传入的是 --llm-provider {provider_name}，但 settings.local.json 中 llm.provider="
+            f"{fallback.provider!r}。请修改 settings.local.json，或改用 --llm-provider settings。"
+        )
 
-    provider_config = load_provider_config(provider_name)
-    api_key_env = args.api_key_env or str(provider_config.get("api_key_env", ""))
-    api_key = os.getenv(api_key_env, "") if api_key_env else ""
-    api_key = api_key or str(provider_config.get("api_key", ""))
-
-    settings = LLMSettings(
-        provider=str(provider_config.get("provider", "openai-compatible")),
-        model=str(provider_config.get("model", "")),
-        api_base=str(provider_config.get("api_base", "")),
-        api_key=api_key,
-        temperature=float(provider_config.get("temperature", 0.2) or 0.2),
-        max_tokens=int(provider_config.get("max_tokens", 4000) or 4000),
-        reasoning_effort=str(provider_config.get("reasoning_effort", "") or ""),
-    )
-    return override_llm_settings(args, settings)
+    return override_llm_settings(args, clone_llm_settings(fallback))
 
 
 def build_llm_provider(args: argparse.Namespace, settings: LLMSettings) -> LLMProvider:
@@ -313,24 +311,37 @@ class ScriptedCalendarProvider(LLMProvider):
         )
 
 
-def load_provider_config(provider_name: str) -> dict[str, object]:
-    """从 llm_providers.local.json / example.json 读取指定厂商配置。"""
+def clone_llm_settings(settings: LLMSettings) -> LLMSettings:
+    """复制 LLM 配置，避免命令行临时覆盖污染全局 settings 对象。"""
 
-    local_path = PROJECT_ROOT / "config" / "llm_providers.local.json"
-    example_path = PROJECT_ROOT / "config" / "llm_providers.example.json"
-    config_path = local_path if local_path.exists() else example_path
+    return LLMSettings(
+        provider=settings.provider,
+        model=settings.model,
+        api_base=settings.api_base,
+        api_key=settings.api_key,
+        temperature=settings.temperature,
+        max_tokens=settings.max_tokens,
+        reasoning_effort=settings.reasoning_effort,
+    )
 
-    with config_path.open("r", encoding="utf-8") as file:
-        data = json.load(file)
 
-    providers = data.get("providers", {})
-    if not isinstance(providers, dict) or provider_name not in providers:
-        raise LLMConfigError(f"找不到 LLM provider 配置：{provider_name}")
+def _llm_provider_matches_settings(requested_provider: str, configured_provider: str) -> bool:
+    """判断命令行 provider 名是否与 settings.local 中的真实 provider 一致。"""
 
-    provider_config = providers[provider_name]
-    if not isinstance(provider_config, dict):
-        raise LLMConfigError(f"LLM provider 配置格式错误：{provider_name}")
-    return provider_config
+    requested = (requested_provider or "").strip().lower()
+    configured = (configured_provider or "").strip().lower()
+    if requested in {"", "settings", "default", "configured"}:
+        return True
+
+    aliases = {
+        "doubao": {"doubao", "doubao-ark", "volcengine", "volcengine-ark", "ark"},
+        "deepseek": {"deepseek", "openai-compatible", "openai_compatible"},
+        "openai": {"openai", "openai-compatible", "openai_compatible"},
+        "dry-run": {"dry-run", "dry_run", "mock"},
+    }
+    requested_aliases = aliases.get(requested, {requested})
+    configured_aliases = aliases.get(configured, {configured})
+    return bool(requested_aliases & configured_aliases)
 
 
 def override_llm_settings(args: argparse.Namespace, settings: LLMSettings) -> LLMSettings:
@@ -340,8 +351,6 @@ def override_llm_settings(args: argparse.Namespace, settings: LLMSettings) -> LL
         settings.model = args.model
     if args.api_base:
         settings.api_base = args.api_base
-    if args.api_key_env:
-        settings.api_key = os.getenv(args.api_key_env, settings.api_key)
     if args.temperature is not None:
         settings.temperature = args.temperature
     if args.max_tokens is not None:

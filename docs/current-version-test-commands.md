@@ -26,7 +26,7 @@ git status --short
 确认没有把本地密钥和运行产物加入暂存区：
 
 ```bash
-git status --short | grep -E 'settings.local.json|llm_providers.local.json|.venv-lark-oapi|storage/reports|storage/.*sqlite|storage/.*jsonl' || true
+git status --short | grep -E 'settings.local.json|.venv-lark-oapi|storage/reports|storage/.*sqlite|storage/.*jsonl' || true
 ```
 
 暂存代码和文档：
@@ -221,8 +221,76 @@ python3 scripts/setup_lark_oapi_venv.py
 ```text
 刷新背景
 生成待办草案
+查看历史
 发给我
 ```
+
+### 5.1 D2 会前智能准备卡验证
+
+D2 在 M3 基础上增强历史会议、遗留行动项、历史风险、建议议题、会前 Checklist
+和 Evidence Pack。建议先跑本地无副作用验证：
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_pre_meeting_d2_evidence_pack
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/pre_meeting_card_demo.py
+```
+
+飞书真实联调分三步：
+
+1. 先用 `scripted_debug` 验证真实日历、知识索引、D2 报告字段和卡片 payload，不把会议内容发给真实模型。
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/card_send_live.py m3 \
+  --date today \
+  --event-title "MeetFlow 测试会议" \
+  --llm-provider scripted_debug \
+  --idempotency-suffix "d2-scripted-$(date +%Y%m%d%H%M%S)" \
+  --write-report \
+  --dry-run
+```
+
+2. 确认已在当前项目的 `config/settings.local.json` 中配置豆包/火山方舟后，用
+`settings` 做真实模型只读小样本。运行前确保 `llm.provider=doubao-ark`、`llm.model=ep-...`
+和 `llm.api_key` 已写入本地 local 文件。不要在文档、日志或提交记录中粘贴真实 key。
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/card_send_live.py m3 \
+  --date today \
+  --event-title "MeetFlow 测试会议" \
+  --llm-provider settings \
+  --idempotency-suffix "d2-settings-readonly-$(date +%Y%m%d%H%M%S)" \
+  --write-report \
+  --dry-run
+```
+
+3. 确认报告和卡片内容无误后再真实发送到测试群。真实发送必须使用唯一幂等后缀。
+
+```bash
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/card_send_live.py m3 \
+  --date today \
+  --event-title "MeetFlow 测试会议" \
+  --llm-provider settings \
+  --idempotency-suffix "d2-settings-send-$(date +%Y%m%d%H%M%S)" \
+  --write-report
+```
+
+报告重点检查：
+
+```text
+D2 智能准备字段
+historical_meetings
+open_action_items
+historical_risks
+suggested_agenda
+pre_meeting_checklist
+Evidence Pack
+```
+
+如果本机 ChromaDB 不可用，`--doc` / `--minute` 注入的资源会降级写入
+SQLite/FTS5/BM25 关键词索引。报告里的 `index_summaries.status` 会显示
+`indexed_keyword_only`，`knowledge.search` 结果中通常会出现 `BM25召回`、
+`vector_rank:-` 或 `vector_similarity: 0.0`。这仍然可以用于 D2 前置知识演示；
+区别只是当前没有向量相似度召回。
 
 ## 6. M4 会后总结与待确认任务测试
 

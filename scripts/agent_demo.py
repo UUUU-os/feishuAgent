@@ -59,7 +59,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workflow-type", default="", help="仅 message.command 下用于指定目标工作流。")
     parser.add_argument("--prompt", default="", help="本次 Agent 目标；不传则使用路由原因。")
     parser.add_argument("--backend", choices=["local", "feishu"], default="local", help="local 不访问飞书；feishu 真实调用飞书。")
-    parser.add_argument("--llm-provider", default="scripted_debug", help="scripted_debug / dry-run / deepseek / settings。")
+    parser.add_argument(
+        "--llm-provider",
+        default="scripted_debug",
+        help="scripted_debug / dry-run / settings；真实 provider 名必须与 settings.local.json 的 llm.provider 匹配。",
+    )
     parser.add_argument("--tool", action="append", default=[], help="显式开放工具，可传多次。")
     parser.add_argument("--calendar-id", default="primary", help="日历 ID。")
     parser.add_argument("--start-time", default="", help="Unix 秒级开始时间。")
@@ -73,7 +77,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--assignee-name", default="", help="调试用负责人姓名。")
     parser.add_argument("--model", default="", help="临时覆盖模型名。")
     parser.add_argument("--api-base", default="", help="临时覆盖模型 API base。")
-    parser.add_argument("--api-key-env", default="", help="从指定环境变量读取 API Key。")
+    parser.add_argument("--api-key-env", default="", help="已废弃：真实 API Key 请写入当前项目的 settings.local.json。")
     parser.add_argument("--temperature", type=float, default=None, help="临时覆盖采样温度。")
     parser.add_argument("--max-tokens", type=int, default=None, help="临时覆盖最大输出 token 数。")
     parser.add_argument("--max-iterations", type=int, default=4, help="Agent Loop 最大轮数。")

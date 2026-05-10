@@ -90,6 +90,13 @@ def build_pre_meeting_card_actions(brief: Any) -> dict[str, Any]:
                 calendar_event_id=calendar_event_id,
             ),
             build_card_action_button(
+                text="查看历史",
+                action="view_pre_meeting_history",
+                button_type="default",
+                meeting_id=meeting_id,
+                calendar_event_id=calendar_event_id,
+            ),
+            build_card_action_button(
                 text="发给我",
                 action="send_summary_to_me",
                 button_type="default",
@@ -131,10 +138,22 @@ def build_pre_meeting_card_sections(brief: Any) -> list[dict[str, Any]]:
 
     return [
         {
+            "key": "meeting_basic_info",
+            "title": "会议基本信息",
+            "empty": "暂无会议信息",
+            "items": normalize_basic_info_items(getattr(brief, "meeting_basic_info", {})),
+        },
+        {
             "key": "last_decisions",
             "title": "上次结论",
             "empty": "暂无明确结论",
             "items": normalize_card_items(getattr(brief, "last_decisions", [])),
+        },
+        {
+            "key": "open_action_items",
+            "title": "遗留行动项",
+            "empty": "暂无遗留行动项",
+            "items": normalize_card_items(getattr(brief, "open_action_items", [])),
         },
         {
             "key": "current_questions",
@@ -144,9 +163,21 @@ def build_pre_meeting_card_sections(brief: Any) -> list[dict[str, Any]]:
         },
         {
             "key": "risks",
-            "title": "风险点",
+            "title": "历史风险",
             "empty": "暂无显著风险",
-            "items": normalize_card_items(getattr(brief, "risks", [])),
+            "items": normalize_card_items(getattr(brief, "historical_risks", []) or getattr(brief, "risks", [])),
+        },
+        {
+            "key": "suggested_agenda",
+            "title": "本次建议议题",
+            "empty": "暂无建议议题",
+            "items": normalize_card_items(getattr(brief, "suggested_agenda", [])),
+        },
+        {
+            "key": "pre_meeting_checklist",
+            "title": "会前 Checklist",
+            "empty": "暂无 checklist",
+            "items": normalize_card_items(getattr(brief, "pre_meeting_checklist", [])),
         },
         {
             "key": "must_read_resources",
@@ -159,6 +190,12 @@ def build_pre_meeting_card_sections(brief: Any) -> list[dict[str, Any]]:
             "title": "可能相关资料",
             "empty": "暂无候选资料",
             "items": normalize_card_items(getattr(brief, "possible_related_resources", [])),
+        },
+        {
+            "key": "evidence_pack",
+            "title": "Evidence Pack",
+            "empty": "暂无证据包",
+            "items": normalize_evidence_pack_items(getattr(brief, "evidence_pack", {}), getattr(brief, "evidence_refs", [])),
         },
     ]
 
@@ -221,6 +258,60 @@ def normalize_card_items(items: list[Any]) -> list[dict[str, str]]:
             }
         )
     return normalized
+
+
+def normalize_basic_info_items(info: dict[str, Any]) -> list[dict[str, str]]:
+    """把会议基本信息渲染为卡片条目。"""
+
+    if not isinstance(info, dict) or not info:
+        return []
+    participants = info.get("participants") if isinstance(info.get("participants"), list) else []
+    time_range = " - ".join(
+        item for item in [safe_text(info.get("start_time")), safe_text(info.get("end_time"))] if item
+    )
+    rows = [
+        ("会议标题", safe_text(info.get("title"))),
+        ("会议时间", time_range),
+        ("组织者", safe_text(info.get("organizer"))),
+        ("参会人", "、".join(safe_text(item) for item in participants[:6] if safe_text(item))),
+        ("会议来源", safe_text(info.get("source"))),
+    ]
+    return [
+        {"title": title, "content": value, "ref_id": "", "source_url": ""}
+        for title, value in rows
+        if value
+    ]
+
+
+def normalize_evidence_pack_items(evidence_pack: dict[str, Any], evidence_refs: list[Any]) -> list[dict[str, str]]:
+    """把 D2 Evidence Pack 压缩成卡片底部证据条目。"""
+
+    items: list[dict[str, str]] = []
+    if isinstance(evidence_pack, dict):
+        reason = safe_text(evidence_pack.get("reason"))
+        confidence = evidence_pack.get("confidence")
+        if reason:
+            items.append(
+                {
+                    "title": "证据汇聚",
+                    "content": f"{reason}；置信度 {float(confidence or 0.0):.2f}",
+                    "ref_id": "",
+                    "source_url": "",
+                }
+            )
+    for ref in evidence_refs[:5]:
+        source_type = safe_text(getattr(ref, "source_type", ""))
+        source_id = safe_text(getattr(ref, "source_id", ""))
+        snippet = safe_text(getattr(ref, "snippet", ""))[:80]
+        items.append(
+            {
+                "title": source_id or source_type or "evidence",
+                "content": f"{source_type}：{snippet}" if source_type else snippet,
+                "ref_id": source_id,
+                "source_url": safe_text(getattr(ref, "source_url", "")),
+            }
+        )
+    return items[:5]
 
 
 def render_link(label: str, url: str) -> str:

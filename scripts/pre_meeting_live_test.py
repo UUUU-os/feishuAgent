@@ -55,11 +55,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--llm-provider",
         default="scripted_debug",
-        help="scripted_debug 用稳定工具链验证；settings/default 或自定义 provider 名会使用真实 LLM。",
+        help=(
+            "scripted_debug 用稳定工具链验证；settings/default/configured 或与 settings.local 匹配的 "
+            "provider 名会使用真实 LLM。"
+        ),
     )
     parser.add_argument("--model", default="", help="临时覆盖模型名。")
     parser.add_argument("--api-base", default="", help="临时覆盖 OpenAI-compatible API base。")
-    parser.add_argument("--api-key-env", default="", help="从指定环境变量读取 API key。")
+    parser.add_argument("--api-key-env", default="", help="已废弃：真实 API key 请写入当前项目的 settings.local.json。")
     parser.add_argument("--temperature", type=float, default=None, help="临时覆盖采样温度。")
     parser.add_argument("--max-tokens", type=int, default=None, help="临时覆盖最大输出 token 数。")
     parser.add_argument("--max-iterations", type=int, default=4, help="Agent Loop 最大轮数。")
@@ -631,6 +634,8 @@ def render_observability_markdown(details: dict[str, Any]) -> str:
     event = details.get("event", {})
     artifacts = details.get("pre_meeting_artifacts", {})
     retrieval_query = artifacts.get("retrieval_query", {}) if isinstance(artifacts, dict) else {}
+    evidence_pack = artifacts.get("evidence_pack", {}) if isinstance(artifacts, dict) else {}
+    meeting_brief = artifacts.get("meeting_brief", {}) if isinstance(artifacts, dict) else {}
     card_payload = artifacts.get("card_payload", {}) if isinstance(artifacts, dict) else {}
     lines = [
         "# M3 会前知识卡片真实联调报告",
@@ -743,13 +748,26 @@ def render_observability_markdown(details: dict[str, Any]) -> str:
 
     lines.extend(
         [
-            "## 6. 卡片 Payload 草案",
+            "## 6. D2 智能准备字段",
+            "",
+            f"- historical_meetings: `{len(meeting_brief.get('historical_meetings', []) if isinstance(meeting_brief, dict) else [])}`",
+            f"- open_action_items: `{len(meeting_brief.get('open_action_items', []) if isinstance(meeting_brief, dict) else [])}`",
+            f"- historical_risks: `{len(meeting_brief.get('historical_risks', []) if isinstance(meeting_brief, dict) else [])}`",
+            f"- suggested_agenda: `{len(meeting_brief.get('suggested_agenda', []) if isinstance(meeting_brief, dict) else [])}`",
+            f"- pre_meeting_checklist: `{len(meeting_brief.get('pre_meeting_checklist', []) if isinstance(meeting_brief, dict) else [])}`",
+            f"- evidence_pack_reason: {evidence_pack.get('reason', '') if isinstance(evidence_pack, dict) else ''}",
+            "",
+            "```json",
+            json.dumps(evidence_pack, ensure_ascii=False, indent=2),
+            "```",
+            "",
+            "## 7. 卡片 Payload 草案",
             "",
             "```json",
             json.dumps(card_payload, ensure_ascii=False, indent=2),
             "```",
             "",
-            "## 7. Agent 最终结果",
+            "## 8. Agent 最终结果",
             "",
             f"- status: `{details.get('agent_result', {}).get('status', '')}`",
             f"- trace_id: `{details.get('agent_result', {}).get('trace_id', '')}`",

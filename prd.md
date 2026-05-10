@@ -385,6 +385,17 @@
 - 选择流程模板
 - 调用检索、总结、抽取、创建任务等工具
 
+在当前 MeetFlow 版本规划中，OpenClaw / CLI 的产品定位进一步明确为：
+
+- OpenClaw 是外部智能流程编排和演示入口，用于展示 MeetFlow 可以被统一调度。
+- CLI 是 OpenClaw 调用 MeetFlow 能力的受控命令层，而不是绕过安全策略的快捷脚本。
+- Console 是流程状态、证据、Agent trace 和评测结果的可视化界面。
+- 飞书卡片是真实协作现场，承载会前准备、会后任务确认和风险提醒。
+
+CLI / OpenClaw 触发的真实写操作必须继续经过 `ToolRegistry`、`AgentPolicy`、幂等检查和
+`FeishuClient` 封装。默认演示入口应使用 dry-run，只有显式 `allow-write` 时才允许真实写入。
+详细任务方案见 `docs/tasks/openclaw-demo-enhancement.md`。
+
 #### 3. 知识处理层
 
 负责知识召回、证据排序与结构化抽取：

@@ -29,7 +29,11 @@ def parse_args() -> argparse.Namespace:
         )
     )
     parser.add_argument("--minute-token", default=DEFAULT_MINUTE_TOKEN, help="飞书妙记 token。")
-    parser.add_argument("--llm-provider", default="scripted_debug", help="默认 scripted_debug；也可传 deepseek/settings。")
+    parser.add_argument(
+        "--llm-provider",
+        default="scripted_debug",
+        help="默认 scripted_debug；真实模型请传 settings，或传与 settings.local.json 中 llm.provider 匹配的 provider 名。",
+    )
     parser.add_argument("--max-iterations", type=int, default=6, help="Agent Loop 最大轮数。")
     parser.add_argument("--enable-idempotency", action="store_true", help="启用写操作幂等去重。")
     parser.add_argument("--skip-agent", action="store_true", help="跳过发卡阶段，只打印待确认 registry 和 watcher 命令。")

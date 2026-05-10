@@ -60,6 +60,58 @@ def main() -> int:
                 confidence=0.78,
             )
         ],
+        meeting_basic_info={
+            "title": "MeetFlow M3 会前知识卡片评审",
+            "start_time": "2026-05-10 10:00",
+            "end_time": "2026-05-10 10:30",
+            "organizer": "产品负责人",
+            "participants": ["李健文", "叶抒锐"],
+            "source": "feishu.calendar",
+        },
+        historical_meetings=[
+            MeetingBriefItem(
+                title="上次 D2 评审",
+                content="确认会前卡片要从提醒升级为智能准备报告。",
+                evidence_refs=[evidence],
+                confidence=0.82,
+            )
+        ],
+        open_action_items=[
+            MeetingBriefItem(
+                title="补齐 D2 Evidence Pack",
+                content="负责人：李健文；截止：2026-05-12；状态：todo",
+                evidence_refs=[evidence],
+                confidence=0.78,
+            )
+        ],
+        historical_risks=[
+            MeetingBriefItem(
+                title="真实模型编造历史结论",
+                content="豆包生成必须基于 knowledge_search 返回的证据。",
+                evidence_refs=[evidence],
+                confidence=0.76,
+            )
+        ],
+        suggested_agenda=[
+            MeetingBriefItem(
+                title="确认遗留行动项是否已完成",
+                content="优先确认负责人、截止时间和当前阻塞。",
+                evidence_refs=[evidence],
+                confidence=0.80,
+            )
+        ],
+        pre_meeting_checklist=[
+            MeetingBriefItem(
+                title="准备历史会议和任务证据",
+                content="会前确认 Evidence Pack 中每条结论都能回链。",
+                evidence_refs=[evidence],
+                confidence=0.80,
+            )
+        ],
+        evidence_pack={
+            "reason": "历史会议 1 条；遗留行动项 1 条；历史风险 1 条；知识证据 1 条",
+            "confidence": 0.82,
+        },
         evidence_refs=[evidence],
         confidence=0.82,
     )

@@ -479,7 +479,7 @@ def validate_m3_request(request: M3SendCardRequest) -> None:
     request.llm_provider = clean_text_argument("llm_provider", request.llm_provider)
     request.project_id = clean_text_argument("project_id", request.project_id)
     request.idempotency_suffix = clean_text_argument("idempotency_suffix", request.idempotency_suffix)
-    if request.llm_provider not in {"scripted_debug", "dry-run", "configured", "deepseek"}:
+    if request.llm_provider not in {"scripted_debug", "dry-run", "configured", "deepseek", "doubao"}:
         raise ConsoleAPIError(f"不支持的 llm_provider：{request.llm_provider}")
     if not request.event_title and not request.event_id:
         raise ConsoleAPIError("请至少提供 event_title 或 event_id。")

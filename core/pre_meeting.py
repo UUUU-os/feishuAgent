@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -157,10 +158,35 @@ class MeetingBrief(BaseModel):
     must_read_resources: list[MeetingBriefItem] = field(default_factory=list)
     risks: list[MeetingBriefItem] = field(default_factory=list)
     possible_related_resources: list[MeetingBriefItem] = field(default_factory=list)
+    meeting_basic_info: dict[str, Any] = field(default_factory=dict)
+    historical_meetings: list[MeetingBriefItem] = field(default_factory=list)
+    open_action_items: list[MeetingBriefItem] = field(default_factory=list)
+    historical_risks: list[MeetingBriefItem] = field(default_factory=list)
+    suggested_agenda: list[MeetingBriefItem] = field(default_factory=list)
+    pre_meeting_checklist: list[MeetingBriefItem] = field(default_factory=list)
+    evidence_pack: dict[str, Any] = field(default_factory=dict)
     evidence_refs: list[EvidenceRef] = field(default_factory=list)
     confidence: float = 0.0
     needs_confirmation: bool = False
     status: str = "draft"
+
+
+@dataclass(slots=True)
+class PreMeetingEvidencePack(BaseModel):
+    """D2 会前智能准备卡使用的历史证据包。
+
+    这个对象只承接只读证据，不直接触发飞书写操作。它把历史会议、
+    遗留行动项、持续风险和资源召回统一成可渲染、可审计的条目。
+    """
+
+    historical_meetings: list[MeetingBriefItem] = field(default_factory=list)
+    open_action_items: list[MeetingBriefItem] = field(default_factory=list)
+    historical_risks: list[MeetingBriefItem] = field(default_factory=list)
+    knowledge_hits: list[MeetingBriefItem] = field(default_factory=list)
+    evidence_refs: list[EvidenceRef] = field(default_factory=list)
+    omitted_count: int = 0
+    confidence: float = 0.0
+    reason: str = ""
 
 
 @dataclass(slots=True)
@@ -189,6 +215,7 @@ class PreMeetingBriefArtifacts(BaseModel):
     topic_signal: MeetingTopicSignal
     retrieval_query: RetrievalQuery
     retrieval_result: RetrievalResult
+    evidence_pack: PreMeetingEvidencePack
     meeting_brief: MeetingBrief
     card_payload: PreMeetingCardPayload
     stage_plan: list[str] = field(default_factory=list)
@@ -207,18 +234,26 @@ def build_pre_meeting_brief_artifacts(
     topic_signal = identify_meeting_topic(workflow_input)
     retrieval_query = build_retrieval_query(workflow_input, topic_signal)
     retrieval_result = recall_related_resources(workflow_input, retrieval_query)
+    evidence_pack = build_pre_meeting_evidence_pack(
+        workflow_input=workflow_input,
+        retrieval_query=retrieval_query,
+        retrieval_result=retrieval_result,
+        storage=storage,
+    )
     meeting_brief = build_initial_meeting_brief(
         workflow_input,
         retrieval_query,
         topic_signal,
         retrieval_result,
     )
+    meeting_brief = merge_evidence_pack_into_brief(meeting_brief, workflow_input, evidence_pack)
     card_payload = render_pre_meeting_card_payload(meeting_brief)
     return PreMeetingBriefArtifacts(
         workflow_input=workflow_input,
         topic_signal=topic_signal,
         retrieval_query=retrieval_query,
         retrieval_result=retrieval_result,
+        evidence_pack=evidence_pack,
         meeting_brief=meeting_brief,
         card_payload=card_payload,
         stage_plan=[
@@ -969,6 +1004,700 @@ def collect_brief_evidence_refs(items: list[MeetingBriefItem]) -> list[EvidenceR
     return refs
 
 
+def build_pre_meeting_evidence_pack(
+    workflow_input: PreMeetingBriefInput,
+    retrieval_query: RetrievalQuery,
+    retrieval_result: RetrievalResult,
+    storage: MeetFlowStorage | None = None,
+) -> PreMeetingEvidencePack:
+    """构造 D2 会前智能准备卡的历史证据包。
+
+    这里全部是只读聚合：项目记忆、历史工作流结果、M4 task mapping 和
+    M5 风险提醒都会被压缩为 `MeetingBriefItem`，后续再交给 Agent Loop
+    和豆包基于证据生成摘要、议题与 checklist。
+    """
+
+    knowledge_hits = build_brief_items_from_retrieval(retrieval_result)
+    historical_meetings = retrieve_historical_meetings(workflow_input, retrieval_query, storage=storage)
+    open_action_items = retrieve_open_action_items(workflow_input, retrieval_query, storage=storage)
+    historical_risks = retrieve_historical_risks(workflow_input, open_action_items, storage=storage)
+    all_items = [*historical_meetings, *open_action_items, *historical_risks, *knowledge_hits]
+    evidence_refs = collect_brief_evidence_refs(all_items)
+    confidence = calculate_evidence_pack_confidence(
+        historical_meetings=historical_meetings,
+        open_action_items=open_action_items,
+        historical_risks=historical_risks,
+        knowledge_hits=knowledge_hits,
+        retrieval_query=retrieval_query,
+    )
+    reason = build_evidence_pack_reason(
+        historical_meetings=historical_meetings,
+        open_action_items=open_action_items,
+        historical_risks=historical_risks,
+        knowledge_hits=knowledge_hits,
+    )
+    return PreMeetingEvidencePack(
+        historical_meetings=historical_meetings,
+        open_action_items=open_action_items,
+        historical_risks=historical_risks,
+        knowledge_hits=knowledge_hits,
+        evidence_refs=evidence_refs,
+        omitted_count=retrieval_result.omitted_count,
+        confidence=confidence,
+        reason=reason,
+    )
+
+
+def merge_evidence_pack_into_brief(
+    brief: MeetingBrief,
+    workflow_input: PreMeetingBriefInput,
+    evidence_pack: PreMeetingEvidencePack,
+) -> MeetingBrief:
+    """把 D2 历史证据包合并到 `MeetingBrief`。
+
+    合并发生在卡片渲染前，保持 `MeetingBrief -> cards/pre_meeting.py`
+    的稳定边界。旧字段继续保留，新字段承载 D2 智能准备区块。
+    """
+
+    brief.meeting_basic_info = build_meeting_basic_info(workflow_input)
+    brief.historical_meetings = evidence_pack.historical_meetings
+    brief.open_action_items = evidence_pack.open_action_items
+    brief.historical_risks = evidence_pack.historical_risks
+    brief.suggested_agenda = generate_suggested_agenda(brief, evidence_pack)
+    brief.pre_meeting_checklist = generate_pre_meeting_checklist(brief, evidence_pack)
+    brief.evidence_pack = evidence_pack.to_dict()
+    if evidence_pack.historical_meetings:
+        brief.last_decisions = merge_brief_item_lists(brief.last_decisions, evidence_pack.historical_meetings, limit=4)
+    if evidence_pack.historical_risks:
+        brief.risks = merge_brief_item_lists(brief.risks, evidence_pack.historical_risks, limit=4)
+    if evidence_pack.evidence_refs:
+        brief.evidence_refs = dedupe_evidence_refs([*brief.evidence_refs, *evidence_pack.evidence_refs])
+    if evidence_pack.confidence > brief.confidence:
+        brief.confidence = min(max(brief.confidence, evidence_pack.confidence), 0.95)
+    brief.summary = build_d2_pre_meeting_summary(brief, evidence_pack)
+    brief.needs_confirmation = brief.needs_confirmation and evidence_pack.confidence < 0.65
+    return brief
+
+
+def build_meeting_basic_info(workflow_input: PreMeetingBriefInput) -> dict[str, Any]:
+    """汇总卡片顶部会议基本信息。"""
+
+    return {
+        "meeting_id": workflow_input.meeting_id,
+        "calendar_event_id": workflow_input.calendar_event_id,
+        "title": workflow_input.meeting_title,
+        "start_time": workflow_input.start_time,
+        "end_time": workflow_input.end_time,
+        "timezone": workflow_input.timezone,
+        "organizer": workflow_input.organizer,
+        "participants": [
+            first_non_empty(item, "display_name", "name", "email", "open_id")
+            for item in workflow_input.participants
+        ],
+        "source": first_non_empty(workflow_input.raw_payload, "source", "event_source") or "feishu.calendar",
+    }
+
+
+def retrieve_historical_meetings(
+    workflow_input: PreMeetingBriefInput,
+    retrieval_query: RetrievalQuery,
+    storage: MeetFlowStorage | None = None,
+    limit: int = 3,
+) -> list[MeetingBriefItem]:
+    """检索同项目或同主题历史会议。"""
+
+    items: list[MeetingBriefItem] = []
+    for meeting in extract_memory_history_items(workflow_input.memory_snapshot):
+        item = history_meeting_dict_to_brief_item(meeting)
+        if item and item_matches_retrieval_query(item, retrieval_query):
+            items.append(item)
+    if storage is not None and hasattr(storage, "find_recent_workflow_results"):
+        for result in storage.find_recent_workflow_results(  # type: ignore[attr-defined]
+            workflow_name="post_meeting_followup",
+            project_id=workflow_input.project_id,
+            limit=limit * 3,
+        ):
+            item = workflow_result_to_history_meeting_item(result)
+            if item and item_matches_retrieval_query(item, retrieval_query):
+                items.append(item)
+    return dedupe_brief_items(items, limit=limit)
+
+
+def retrieve_open_action_items(
+    workflow_input: PreMeetingBriefInput,
+    retrieval_query: RetrievalQuery,
+    storage: MeetFlowStorage | None = None,
+    limit: int = 4,
+) -> list[MeetingBriefItem]:
+    """读取上次会议或同项目遗留行动项。"""
+
+    items: list[MeetingBriefItem] = []
+    for action in extract_memory_action_items(workflow_input.memory_snapshot):
+        item = action_item_dict_to_brief_item(action)
+        if item and is_open_action_status(str(action.get("status") or "")):
+            items.append(item)
+    if storage is not None and hasattr(storage, "find_task_mappings"):
+        title_query = build_storage_title_query(retrieval_query)
+        mappings = storage.find_task_mappings(  # type: ignore[attr-defined]
+            title_query=title_query,
+            statuses={"todo", "open", "pending", "doing", "in_progress", "未完成", "进行中", ""},
+            limit=limit * 3,
+        )
+        for mapping in mappings:
+            item = task_mapping_to_brief_item(mapping)
+            if item and item_matches_retrieval_query(item, retrieval_query, allow_weak=True):
+                items.append(item)
+    return dedupe_brief_items(items, limit=limit)
+
+
+def retrieve_historical_risks(
+    workflow_input: PreMeetingBriefInput,
+    open_action_items: list[MeetingBriefItem],
+    storage: MeetFlowStorage | None = None,
+    limit: int = 3,
+) -> list[MeetingBriefItem]:
+    """读取历史风险和仍需会前关注的持续风险。"""
+
+    items: list[MeetingBriefItem] = []
+    for risk in extract_memory_risk_items(workflow_input.memory_snapshot):
+        item = risk_dict_to_brief_item(risk)
+        if item:
+            items.append(item)
+    task_ids = extract_task_ids_from_items(open_action_items)
+    if storage is not None and hasattr(storage, "find_recent_risk_notifications"):
+        for risk in storage.find_recent_risk_notifications(task_ids=task_ids, limit=limit * 3):  # type: ignore[attr-defined]
+            item = risk_notification_to_brief_item(risk)
+            if item:
+                items.append(item)
+    return dedupe_brief_items(items, limit=limit)
+
+
+def generate_suggested_agenda(
+    brief: MeetingBrief,
+    evidence_pack: PreMeetingEvidencePack,
+    limit: int = 3,
+) -> list[MeetingBriefItem]:
+    """基于历史上下文生成本次建议议题。"""
+
+    agenda: list[MeetingBriefItem] = []
+    for item in evidence_pack.open_action_items[:2]:
+        agenda.append(
+            derive_brief_item(
+                title=f"确认遗留行动项：{item.title}",
+                content="建议先确认该行动项当前状态、阻塞点和下一步负责人。",
+                source_item=item,
+                confidence=min(item.confidence, 0.82),
+                status="suggested_agenda",
+            )
+        )
+    for item in evidence_pack.historical_risks[:2]:
+        agenda.append(
+            derive_brief_item(
+                title=f"复盘持续风险：{item.title}",
+                content="建议明确风险是否已解除，以及是否需要调整排期或资源。",
+                source_item=item,
+                confidence=min(item.confidence, 0.80),
+                status="suggested_agenda",
+            )
+        )
+    for item in brief.current_questions[:2]:
+        agenda.append(
+            derive_brief_item(
+                title=f"对齐待确认问题：{item.title}",
+                content="建议在本次会议中形成明确结论，避免会后行动项缺字段。",
+                source_item=item,
+                confidence=min(item.confidence, 0.78),
+                status="suggested_agenda",
+            )
+        )
+    if not agenda and brief.must_read_resources:
+        item = brief.must_read_resources[0]
+        agenda.append(
+            derive_brief_item(
+                title=f"基于资料确认本次目标：{item.title}",
+                content="建议先确认材料中的关键结论是否仍适用于本次会议。",
+                source_item=item,
+                confidence=min(item.confidence, 0.72),
+                status="suggested_agenda",
+            )
+        )
+    return dedupe_brief_items(agenda, limit=limit)
+
+
+def generate_pre_meeting_checklist(
+    brief: MeetingBrief,
+    evidence_pack: PreMeetingEvidencePack,
+    limit: int = 5,
+) -> list[MeetingBriefItem]:
+    """生成会前准备 checklist。"""
+
+    checklist: list[MeetingBriefItem] = []
+    for item in brief.must_read_resources[:2]:
+        checklist.append(
+            derive_brief_item(
+                title=f"阅读资料：{item.title}",
+                content="会前阅读来源材料，准备需要会议确认的问题。",
+                source_item=item,
+                confidence=min(item.confidence, 0.82),
+                status="checklist",
+            )
+        )
+    for item in evidence_pack.open_action_items[:2]:
+        owner = extract_owner_from_brief_item(item)
+        checklist.append(
+            derive_brief_item(
+                title=f"更新行动项状态：{item.title}",
+                content=f"{owner or '相关负责人'} 会前补充进展、阻塞和预计完成时间。",
+                source_item=item,
+                confidence=min(item.confidence, 0.80),
+                status="checklist",
+            )
+        )
+    for item in evidence_pack.historical_risks[:2]:
+        checklist.append(
+            derive_brief_item(
+                title=f"确认风险是否解除：{item.title}",
+                content="会前准备风险现状、影响范围和建议处理动作。",
+                source_item=item,
+                confidence=min(item.confidence, 0.78),
+                status="checklist",
+            )
+        )
+    if not checklist:
+        checklist.append(
+            MeetingBriefItem(
+                title="确认会议目标和输出",
+                content="当前证据不足，建议会前明确本次会议希望形成的结论、负责人和截止时间。",
+                confidence=0.45,
+                status="needs_confirmation",
+            )
+        )
+    return dedupe_brief_items(checklist, limit=limit)
+
+
+def build_d2_pre_meeting_summary(brief: MeetingBrief, evidence_pack: PreMeetingEvidencePack) -> str:
+    """生成 D2 会前智能准备摘要。"""
+
+    if evidence_pack.confidence < 0.45:
+        return brief.summary
+    parts = [brief.summary.rstrip("。")]
+    if evidence_pack.historical_meetings:
+        parts.append(f"已参考 {len(evidence_pack.historical_meetings)} 条历史会议结论")
+    if evidence_pack.open_action_items:
+        parts.append(f"发现 {len(evidence_pack.open_action_items)} 条遗留行动项")
+    if evidence_pack.historical_risks:
+        parts.append(f"识别 {len(evidence_pack.historical_risks)} 条持续风险")
+    if brief.suggested_agenda:
+        parts.append(f"建议优先讨论：{join_item_titles(brief.suggested_agenda[:2])}")
+    return "。".join(part for part in parts if part) + "。"
+
+
+def extract_memory_history_items(memory: dict[str, Any]) -> list[dict[str, Any]]:
+    """从项目记忆中读取历史会议候选。"""
+
+    return extract_memory_dict_items(memory, ("historical_meetings", "recent_meetings", "meetings", "meeting_summaries"))
+
+
+def extract_memory_action_items(memory: dict[str, Any]) -> list[dict[str, Any]]:
+    """从项目记忆中读取行动项候选。"""
+
+    return extract_memory_dict_items(memory, ("open_action_items", "action_items", "tasks", "todos"))
+
+
+def extract_memory_risk_items(memory: dict[str, Any]) -> list[dict[str, Any]]:
+    """从项目记忆中读取风险候选。"""
+
+    return extract_memory_dict_items(memory, ("historical_risks", "open_risks", "risks", "risk_items"))
+
+
+def extract_memory_dict_items(memory: dict[str, Any], keys: tuple[str, ...]) -> list[dict[str, Any]]:
+    """从项目记忆的多个候选 key 中提取字典列表。"""
+
+    items: list[dict[str, Any]] = []
+    for key in keys:
+        value = memory.get(key)
+        if not isinstance(value, list):
+            continue
+        for item in value:
+            if isinstance(item, dict):
+                items.append(item)
+            elif item:
+                items.append({"title": str(item), "content": ""})
+    return items
+
+
+def history_meeting_dict_to_brief_item(data: dict[str, Any]) -> MeetingBriefItem | None:
+    """把项目记忆里的历史会议转换成会前条目。"""
+
+    title = first_non_empty(data, "title", "meeting_title", "summary", "topic")
+    content = first_non_empty(data, "decision", "decisions", "content", "summary", "description")
+    if not title and not content:
+        return None
+    source_url = first_non_empty(data, "source_url", "url", "link", "minute_url")
+    source_id = first_non_empty(data, "meeting_id", "minute_token", "source_id", "id") or stable_item_source_id("history_meeting", title, content)
+    evidence = EvidenceRef(
+        source_type="historical_meeting",
+        source_id=source_id,
+        source_url=source_url,
+        snippet=content or title,
+        updated_at=first_non_empty(data, "updated_at", "created_at", "meeting_time"),
+    )
+    return MeetingBriefItem(
+        title=title or "历史会议结论",
+        content=content or "历史会议与本次主题相关，建议会前回顾。",
+        evidence_refs=[evidence],
+        confidence=float(data.get("confidence") or 0.72),
+        status="historical_meeting",
+    )
+
+
+def workflow_result_to_history_meeting_item(result: dict[str, Any]) -> MeetingBriefItem | None:
+    """把历史 M4 工作流结果转换成历史会议条目。"""
+
+    payload = result.get("payload") if isinstance(result.get("payload"), dict) else {}
+    summary = str(result.get("summary") or "")
+    artifacts = extract_nested_dict(payload, ("payload", "context", "raw_context", "post_meeting_artifacts"))
+    meeting_summary = artifacts.get("meeting_summary") if isinstance(artifacts.get("meeting_summary"), dict) else {}
+    decisions = meeting_summary.get("decisions") if isinstance(meeting_summary, dict) else []
+    title = (
+        str(meeting_summary.get("topic") or "")
+        or str(meeting_summary.get("meeting_id") or "")
+        or summary
+        or "历史会后总结"
+    )
+    decision_text = "；".join(str(item) for item in decisions[:3]) if isinstance(decisions, list) else ""
+    content = decision_text or str(meeting_summary.get("summary") or "") or summary
+    if not content:
+        return None
+    evidence = EvidenceRef(
+        source_type="workflow_result",
+        source_id=str(result.get("trace_id") or stable_item_source_id("workflow", title, content)),
+        source_url="",
+        snippet=content,
+        updated_at=str(result.get("created_at") or ""),
+    )
+    return MeetingBriefItem(
+        title=title,
+        content=content,
+        evidence_refs=[evidence],
+        confidence=0.68,
+        status="historical_meeting",
+    )
+
+
+def action_item_dict_to_brief_item(data: dict[str, Any]) -> MeetingBriefItem | None:
+    """把项目记忆中的行动项转换成会前条目。"""
+
+    title = first_non_empty(data, "title", "summary", "content", "task_title")
+    if not title:
+        return None
+    owner = first_non_empty(data, "owner", "assignee", "owner_name")
+    due_date = first_non_empty(data, "due_date", "deadline", "due")
+    status = first_non_empty(data, "status", "task_status")
+    content = build_action_item_content(owner=owner, due_date=due_date, status=status)
+    evidence = EvidenceRef(
+        source_type="action_item",
+        source_id=first_non_empty(data, "item_id", "task_id", "id") or stable_item_source_id("action", title, content),
+        source_url=first_non_empty(data, "source_url", "url", "link"),
+        snippet=title,
+        updated_at=first_non_empty(data, "updated_at", "created_at"),
+    )
+    return MeetingBriefItem(
+        title=title,
+        content=content,
+        evidence_refs=[evidence],
+        confidence=float(data.get("confidence") or 0.70),
+        status="open_action",
+    )
+
+
+def task_mapping_to_brief_item(mapping: dict[str, Any]) -> MeetingBriefItem | None:
+    """把 M4 task_mapping 转换成遗留行动项条目。"""
+
+    title = str(mapping.get("title") or "").strip()
+    if not title:
+        return None
+    owner = str(mapping.get("owner") or "")
+    due_date = str(mapping.get("due_date") or "")
+    status = str(mapping.get("status") or "")
+    evidence_refs = evidence_refs_from_dicts(mapping.get("evidence_refs"), fallback=EvidenceRef(
+        source_type="task_mapping",
+        source_id=str(mapping.get("task_id") or mapping.get("item_id") or ""),
+        source_url=str(mapping.get("source_url") or ""),
+        snippet=title,
+        updated_at=str(mapping.get("updated_at") or ""),
+    ))
+    return MeetingBriefItem(
+        title=title,
+        content=build_action_item_content(owner=owner, due_date=due_date, status=status),
+        evidence_refs=evidence_refs,
+        confidence=0.76 if is_open_action_status(status) else 0.62,
+        status="open_action",
+    )
+
+
+def risk_dict_to_brief_item(data: dict[str, Any]) -> MeetingBriefItem | None:
+    """把项目记忆中的风险转换成会前条目。"""
+
+    title = first_non_empty(data, "title", "summary", "risk_title", "risk_type")
+    reason = first_non_empty(data, "reason", "description", "content")
+    if not title and not reason:
+        return None
+    severity = first_non_empty(data, "severity", "level")
+    suggestion = first_non_empty(data, "suggestion", "next_action")
+    content = "；".join(unique_non_empty([f"级别：{severity}" if severity else "", reason, suggestion]))
+    evidence = EvidenceRef(
+        source_type="historical_risk",
+        source_id=first_non_empty(data, "risk_id", "risk_key", "id") or stable_item_source_id("risk", title, reason),
+        source_url=first_non_empty(data, "source_url", "url", "link"),
+        snippet=reason or title,
+        updated_at=first_non_empty(data, "updated_at", "created_at"),
+    )
+    return MeetingBriefItem(
+        title=title or "历史风险",
+        content=content or "历史风险仍需会前确认。",
+        evidence_refs=[evidence],
+        confidence=float(data.get("confidence") or 0.70),
+        status="historical_risk",
+    )
+
+
+def risk_notification_to_brief_item(data: dict[str, Any]) -> MeetingBriefItem | None:
+    """把 M5 risk_notifications 记录转换成会前风险条目。"""
+
+    risk_type = str(data.get("risk_type") or "")
+    summary = str(data.get("summary") or "")
+    severity = str(data.get("severity") or "")
+    title = summary or risk_type or "历史风险提醒"
+    payload = data.get("payload") if isinstance(data.get("payload"), dict) else {}
+    reason = first_non_empty(payload, "reason", "summary", "description") or summary
+    suggestion = first_non_empty(payload, "suggestion", "next_action")
+    content = "；".join(unique_non_empty([f"级别：{severity}" if severity else "", reason, suggestion]))
+    evidence = EvidenceRef(
+        source_type="risk_notification",
+        source_id=str(data.get("risk_key") or data.get("task_id") or stable_item_source_id("risk_notification", title, content)),
+        source_url="",
+        snippet=content or title,
+        updated_at=str(data.get("notified_at") or data.get("created_at") or ""),
+    )
+    return MeetingBriefItem(
+        title=title,
+        content=content or "历史风险提醒需要会前确认是否已解除。",
+        evidence_refs=[evidence],
+        confidence=0.72,
+        status="historical_risk",
+    )
+
+
+def evidence_refs_from_dicts(value: Any, fallback: EvidenceRef) -> list[EvidenceRef]:
+    """把 dict evidence refs 转换成模型，失败时使用 fallback。"""
+
+    refs: list[EvidenceRef] = []
+    if isinstance(value, list):
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            refs.append(
+                EvidenceRef(
+                    source_type=str(item.get("source_type") or item.get("type") or fallback.source_type),
+                    source_id=str(item.get("source_id") or item.get("id") or fallback.source_id),
+                    source_url=str(item.get("source_url") or item.get("url") or fallback.source_url),
+                    snippet=str(item.get("snippet") or item.get("text") or fallback.snippet),
+                    updated_at=str(item.get("updated_at") or fallback.updated_at),
+                )
+            )
+    return refs or [fallback]
+
+
+def derive_brief_item(
+    title: str,
+    content: str,
+    source_item: MeetingBriefItem,
+    confidence: float,
+    status: str,
+) -> MeetingBriefItem:
+    """从已有证据条目派生议题或 checklist 条目。"""
+
+    return MeetingBriefItem(
+        title=title,
+        content=content,
+        evidence_refs=list(source_item.evidence_refs),
+        confidence=confidence,
+        status=status,
+    )
+
+
+def build_action_item_content(owner: str, due_date: str, status: str) -> str:
+    """渲染遗留行动项摘要。"""
+
+    return "；".join(
+        unique_non_empty(
+            [
+                f"负责人：{owner}" if owner else "负责人待确认",
+                f"截止：{due_date}" if due_date else "截止时间待确认",
+                f"状态：{status}" if status else "状态待核对",
+            ]
+        )
+    )
+
+
+def is_open_action_status(status: str) -> bool:
+    """判断行动项是否仍需要会前关注。"""
+
+    normalized = status.strip().lower()
+    if not normalized:
+        return True
+    return normalized not in {"done", "completed", "complete", "closed", "finished", "已完成", "完成", "关闭"}
+
+
+def build_storage_title_query(retrieval_query: RetrievalQuery) -> str:
+    """为 storage 弱检索构造短 query。"""
+
+    for value in [*retrieval_query.entities, retrieval_query.meeting_title, retrieval_query.project_id]:
+        clean = str(value or "").strip()
+        if clean and len(clean) >= 2:
+            return clean[:24]
+    return ""
+
+
+def item_matches_retrieval_query(
+    item: MeetingBriefItem,
+    retrieval_query: RetrievalQuery,
+    allow_weak: bool = False,
+) -> bool:
+    """判断历史条目是否和本次会议 query 相关。"""
+
+    text = f"{item.title}\n{item.content}".lower()
+    signals = unique_non_empty(
+        [
+            retrieval_query.project_id,
+            retrieval_query.meeting_title,
+            *retrieval_query.entities,
+            *retrieval_query.search_queries[:4],
+        ]
+    )
+    if any(signal.lower() in text for signal in signals if len(signal) >= 2):
+        return True
+    return allow_weak and item.confidence >= 0.70
+
+
+def extract_task_ids_from_items(items: list[MeetingBriefItem]) -> list[str]:
+    """从行动项证据中提取 task_id。"""
+
+    task_ids: list[str] = []
+    for item in items:
+        for ref in item.evidence_refs:
+            if ref.source_type in {"task", "task_mapping", "action_item"} and ref.source_id:
+                task_ids.append(ref.source_id)
+    return unique_non_empty(task_ids)
+
+
+def extract_owner_from_brief_item(item: MeetingBriefItem) -> str:
+    """从行动项内容中提取负责人展示文本。"""
+
+    marker = "负责人："
+    if marker not in item.content:
+        return ""
+    return item.content.split(marker, 1)[1].split("；", 1)[0].strip()
+
+
+def calculate_evidence_pack_confidence(
+    historical_meetings: list[MeetingBriefItem],
+    open_action_items: list[MeetingBriefItem],
+    historical_risks: list[MeetingBriefItem],
+    knowledge_hits: list[MeetingBriefItem],
+    retrieval_query: RetrievalQuery,
+) -> float:
+    """估算 D2 evidence pack 可信度。"""
+
+    score = min(retrieval_query.confidence, 0.55)
+    if historical_meetings:
+        score += 0.12
+    if open_action_items:
+        score += 0.10
+    if historical_risks:
+        score += 0.08
+    if knowledge_hits:
+        score += 0.10
+    return round(min(score, 0.95), 3)
+
+
+def build_evidence_pack_reason(
+    historical_meetings: list[MeetingBriefItem],
+    open_action_items: list[MeetingBriefItem],
+    historical_risks: list[MeetingBriefItem],
+    knowledge_hits: list[MeetingBriefItem],
+) -> str:
+    """生成 evidence pack 汇聚说明。"""
+
+    parts = [
+        f"历史会议 {len(historical_meetings)} 条",
+        f"遗留行动项 {len(open_action_items)} 条",
+        f"历史风险 {len(historical_risks)} 条",
+        f"知识证据 {len(knowledge_hits)} 条",
+    ]
+    return "；".join(parts)
+
+
+def merge_brief_item_lists(
+    primary: list[MeetingBriefItem],
+    extra: list[MeetingBriefItem],
+    limit: int,
+) -> list[MeetingBriefItem]:
+    """合并条目并去重。"""
+
+    return dedupe_brief_items([*primary, *extra], limit=limit)
+
+
+def dedupe_brief_items(items: list[MeetingBriefItem], limit: int) -> list[MeetingBriefItem]:
+    """按标题和首个证据来源去重。"""
+
+    result: list[MeetingBriefItem] = []
+    seen: set[str] = set()
+    for item in items:
+        first_ref = item.evidence_refs[0] if item.evidence_refs else None
+        key = f"{item.title}:{first_ref.source_type if first_ref else ''}:{first_ref.source_id if first_ref else ''}"
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(item)
+        if len(result) >= limit:
+            break
+    return result
+
+
+def dedupe_evidence_refs(refs: list[EvidenceRef]) -> list[EvidenceRef]:
+    """按来源去重 evidence refs。"""
+
+    result: list[EvidenceRef] = []
+    seen: set[str] = set()
+    for ref in refs:
+        key = f"{ref.source_type}:{ref.source_id}:{ref.source_url}:{ref.snippet}"
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(ref)
+    return result
+
+
+def extract_nested_dict(payload: dict[str, Any], path: tuple[str, ...]) -> dict[str, Any]:
+    """按路径读取嵌套 dict，路径不完整时返回空字典。"""
+
+    current: Any = payload
+    for key in path:
+        if not isinstance(current, dict):
+            return {}
+        current = current.get(key)
+    return current if isinstance(current, dict) else {}
+
+
+def stable_item_source_id(prefix: str, title: str, content: str) -> str:
+    """为本地历史证据生成稳定 ID。"""
+
+    seed = f"{prefix}:{title}:{content}"
+    return f"{prefix}_{hashlib.sha1(seed.encode('utf-8')).hexdigest()[:12]}"
+
+
 def identify_meeting_topic(workflow_input: PreMeetingBriefInput) -> MeetingTopicSignal:
     """识别会议主题、候选项目和 query 增强线索。
 
@@ -1235,6 +1964,13 @@ def render_pre_meeting_card_payload(brief: MeetingBrief) -> PreMeetingCardPayloa
                 "value": "；".join(item.title for item in brief.last_decisions[:3]),
             }
         )
+    if brief.open_action_items:
+        facts.append(
+            {
+                "label": "遗留行动项",
+                "value": "；".join(item.title for item in brief.open_action_items[:3]),
+            }
+        )
     if brief.current_questions:
         facts.append(
             {
@@ -1242,11 +1978,25 @@ def render_pre_meeting_card_payload(brief: MeetingBrief) -> PreMeetingCardPayloa
                 "value": "；".join(item.title for item in brief.current_questions[:3]),
             }
         )
-    if brief.risks:
+    if brief.historical_risks or brief.risks:
         facts.append(
             {
-                "label": "风险点",
-                "value": "；".join(item.title for item in brief.risks[:3]),
+                "label": "历史风险",
+                "value": "；".join(item.title for item in (brief.historical_risks or brief.risks)[:3]),
+            }
+        )
+    if brief.suggested_agenda:
+        facts.append(
+            {
+                "label": "建议议题",
+                "value": "；".join(item.title for item in brief.suggested_agenda[:3]),
+            }
+        )
+    if brief.pre_meeting_checklist:
+        facts.append(
+            {
+                "label": "会前 Checklist",
+                "value": "；".join(item.title for item in brief.pre_meeting_checklist[:3]),
             }
         )
     if brief.must_read_resources:

@@ -708,7 +708,63 @@ class KnowledgeIndexStore:
 
         vector_result = self.vector_index.upsert_document(document, chunks)
         if not vector_result.get("ok"):
-            raise RuntimeError(f"ChromaDB 向量索引写入失败 document_id={document.document_id} error={vector_result.get('error')}")
+            vector_error = str(vector_result.get("error") or "")
+            document.index_status = "succeeded_keyword_only"
+            document.metadata = {
+                **document.metadata,
+                "vector_index_status": "unavailable",
+                "vector_index_error": vector_error[:300],
+            }
+            for chunk in chunks:
+                chunk.embedding_ref = ""
+                chunk.metadata = {
+                    **chunk.metadata,
+                    "vector_index_status": "unavailable",
+                }
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    """
+                    UPDATE knowledge_documents
+                    SET index_status = ?, metadata_json = ?
+                    WHERE document_id = ?
+                    """,
+                    (
+                        document.index_status,
+                        json.dumps(document.metadata, ensure_ascii=False),
+                        document.document_id,
+                    ),
+                )
+                conn.executemany(
+                    """
+                    UPDATE knowledge_chunks
+                    SET embedding_ref = ?, metadata_json = ?
+                    WHERE chunk_id = ?
+                    """,
+                    [
+                        (
+                            chunk.embedding_ref,
+                            json.dumps(chunk.metadata, ensure_ascii=False),
+                            chunk.chunk_id,
+                        )
+                        for chunk in chunks
+                    ],
+                )
+                conn.commit()
+            self.logger.warning(
+                "ChromaDB 向量索引不可用，已降级为 SQLite/BM25 关键词索引 document_id=%s error=%s",
+                document.document_id,
+                vector_error,
+            )
+            return KnowledgeIndexResult(
+                document=document,
+                chunks=chunks,
+                status="indexed_keyword_only",
+                skipped=False,
+                reason=(
+                    f"资源已清洗为 {len(chunks)} 个 chunk，并写入 SQLite/BM25 关键词索引；"
+                    f"向量索引不可用，已降级检索。error={vector_error[:120]}"
+                ),
+            )
 
         return KnowledgeIndexResult(
             document=document,

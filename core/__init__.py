@@ -77,6 +77,7 @@ from .observability import (
     utc_now_iso,
 )
 from .llm import (
+    DoubaoArkProvider,
     DryRunLLMProvider,
     GenerationSettings,
     LLMAPIError,
@@ -169,6 +170,7 @@ from .pre_meeting import (
     PreMeetingBriefArtifacts,
     PreMeetingBriefInput,
     PreMeetingCardPayload,
+    PreMeetingEvidencePack,
     RetrievedResource,
     RetrievalResult,
     RetrievalQuery,
@@ -266,6 +268,7 @@ __all__ = [
     "ExtractedDecision",
     "ExtractedOpenQuestion",
     "DryRunLLMProvider",
+    "DoubaoArkProvider",
     "GenerationSettings",
     "KnowledgeChunk",
     "KnowledgeChunkFetchResult",
@@ -296,6 +299,7 @@ __all__ = [
     "PreMeetingBriefArtifacts",
     "PreMeetingBriefInput",
     "PreMeetingCardPayload",
+    "PreMeetingEvidencePack",
     "PreMeetingTriggerPlan",
     "RelatedKnowledgeQueryPlan",
     "RetrievedResource",

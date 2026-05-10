@@ -19,15 +19,19 @@
 - 优先实现“会前 - 会后 - 巡检”闭环
 - 优先保证结构化输出和证据链
 - 优先保证任务可演示、可验收、可回放
+- 开发前必须确认 [开发约定 0：共享契约和开发护栏](docs/tasks/shared-contracts.md)，并阅读 `AGENTS.md`、`git-instruction.md`、`team-work-division.md`
+- 大型代码修改完成后必须记录精简关键改动，重点说明改了什么、如何验证和剩余风险
 
 ## 优先级说明
 
+- `P00`：共享契约和开发护栏，优先级高于所有功能开发
 - `P0`：必须完成，缺失会导致 Demo 主链路无法成立
 - `P1`：重要增强，影响稳定性、可解释性和答辩效果
 - `P2`：可选增强，适合有余力时补充
 
 ## 里程碑文档
 
+- [开发约定 0：共享契约和开发护栏](docs/tasks/shared-contracts.md)
 - [M1：项目骨架与基础设施](docs/tasks/m1-foundation.md)
 - [M2：飞书接入与数据读取](docs/tasks/m2-feishu-integration.md)
 - [M2.8：业务侧垂直 Agent Runtime](docs/tasks/m2_8-agent-runtime.md)
@@ -35,11 +39,228 @@
 - [M4：会后总结与任务落地工作流](docs/tasks/m4-post-meeting.md)
 - [M5：风险巡检与提醒工作流](docs/tasks/m5-risk-scan.md)
 - [M6：评估、答辩材料与演示脚本](docs/tasks/m6-evaluation-demo.md)
+- [D：OpenClaw 智能化演示增强与 CLI/Console 指引](docs/tasks/openclaw-demo-enhancement.md)
 - [技术拆分、依赖关系、开发顺序与验收总表](docs/tasks/planning-and-acceptance.md)
+
+## OpenClaw 智能化演示增强正式指引
+
+OpenClaw 智能化演示增强是当前版本提升计划的正式开发方向之一。完整任务方案已沉淀到
+[D：OpenClaw 智能化演示增强与 CLI/Console 指引](docs/tasks/openclaw-demo-enhancement.md)，
+根目录 `MeetFlow_OpenClaw智能化演示增强任务方案.md` 保留为原始方案稿。
+其中 D2 会前卡片增强的代码级拆解与验收计划见
+[D2：会前卡片智能准备增强具体改造方案](docs/tasks/d2-pre-meeting-card-enhancement-plan.md)。
+
+该方向不替代既有 M1-M6 研发里程碑，而是作为面向答辩、演示、OpenClaw/CLI 接入和
+Console 展示的增强层。为了避免编号冲突，该方向内部统一使用 `D1-D10`：
+
+| 模块编号 | 模块名称 | 核心目标 | 优先级 |
+|---|---|---|---|
+| `D1` | 演示主线与 OpenClaw 流程设计 | 把项目包装成完整智能化办公流程 | `P0` |
+| `D2` | 会前卡片增强 | 引入历史会议和轻量 RAG，生成更完整会前卡片 | `P0` |
+| `D3` | 会后总结卡优化 | 让总结卡内容更丰富、更结构化、更适合演示 | `P0` |
+| `D4` | 妙记 Agent 分析与任务卡片生成 | 从妙记中识别每个人的任务并生成任务卡片 | `P0` |
+| `D5` | 风险巡检卡片扩充 | 让风险巡检结果更清晰、更有证据和建议 | `P0` |
+| `D6` | Agent 能力扩充 | 强化工具调用、上下文理解、策略判断和多步骤推理 | `P0` |
+| `D7` | 评测体系优化 | 展示 Agent 效果、安全性、工具轨迹和业务价值 | `P0` |
+| `D8` | 后端 CLI / OpenClaw 接入 | 通过受控 Agent、Console facade 和白名单脚本形成 CLI 入口 | `P0` |
+| `D9` | 前端现代化改造 | 改造 Console 界面，让流程更清楚、更像真实产品 | `P0` |
+| `D10` | 演示材料与兜底方案 | 准备脚本、录屏、截图、FAQ 和备用数据 | `P0` |
+
+### OpenClaw / CLI 必须交付
+
+后续开发应至少交付以下内容，避免 OpenClaw 只停留在概念层：
+
+| 交付物 | 建议路径 | 验收标准 |
+|---|---|---|
+| 统一 CLI 入口 | `scripts/meetflow_cli.py` | 一条命令能触发 health、M3、M4、M5、eval、demo replay |
+| OpenClaw 工具说明 | `docs/openclaw-meetflow-tool-guide.md` | 能说明 OpenClaw 如何调用 MeetFlow 能力 |
+| OpenClaw 工具清单示例 | `config/openclaw_tools.example.json` 或文档内 JSON 示例 | 工具名称、输入、输出清晰 |
+| 演示命令脚本 | `docs/openclaw-demo-commands.md` | 主演示路径和兜底路径可复现 |
+| CLI 标准 JSON 输出 | CLI stdout / report | 输出 `trace_id`、`workflow_type`、`status`、`report_path`、`safety_summary` |
+
+### CLI / OpenClaw 安全边界
+
+CLI 和 OpenClaw 接入必须继续遵守 MeetFlow 主链路：
+
+```text
+OpenClaw / CLI
+  -> scripts/meetflow_cli.py
+  -> Console API facade / 现有白名单脚本 / MeetFlowAgent.run()
+  -> WorkflowRouter
+  -> WorkflowContextBuilder
+  -> MeetFlowAgentLoop
+  -> ToolRegistry
+  -> AgentPolicy
+  -> FeishuClient / Storage
+```
+
+明确要求：
+
+- 默认 `dry-run`。
+- 真实飞书写操作必须显式 `--allow-write`。
+- 写操作必须有 `idempotency_key`。
+- 任务创建、消息发送、卡片发送必须经过 `AgentPolicy`。
+- CLI 不允许接收任意 shell 命令、任意 Python 表达式或直接写业务表伪造结果。
+- CLI 输出和报告不得包含 token、secret、refresh token、API key。
+
+### P0 必须完成
+
+| 编号 | 任务 | 模块 | 验收标准 |
+|---|---|---|---|
+| `P0-01` | 固定 OpenClaw / CLI / Console 演示主线 | `D1` | 能完整讲清闭环 |
+| `P0-02` | 丰富会前卡片 | `D2` | 有历史会议、Checklist、建议议题 |
+| `P0-03` | 优化会后总结卡 | `D3` | 有摘要、结论、问题、行动项、风险 |
+| `P0-04` | 生成按人分组任务卡片 | `D4` | 每个人任务清晰展示 |
+| `P0-05` | 扩充风险巡检卡 | `D5` | 有风险等级、来源、原因、建议动作 |
+| `P0-06` | 强化 Agent 工作流表达 | `D6` | 能讲清 Context、Tool、Policy、Trace |
+| `P0-07` | 优化评测报告 | `D7` | 有会后、任务、风险、证据、工具调用评测 |
+| `P0-08` | 接入后端 CLI | `D8` | CLI 能调用受控入口且默认 dry-run |
+| `P0-09` | 设计 OpenClaw 调度入口 | `D8` | 有工具说明、命令示例和标准 JSON 输出 |
+| `P0-10` | 改造前端主界面 | `D9` | 现代化、流程清楚、演示友好 |
+| `P0-11` | 准备演示脚本和兜底材料 | `D1 / D9` | 可稳定展示 |
 
 ## 当前重点
 
-当前开发重点在 [M3：会前知识卡片工作流](docs/tasks/m3-pre-meeting.md)。
+当前开发重点在 [M3：会前知识卡片工作流](docs/tasks/m3-pre-meeting.md) 与
+[D：OpenClaw 智能化演示增强与 CLI/Console 指引](docs/tasks/openclaw-demo-enhancement.md)。
+
+2026-05-10 新增开发约定 0：共享契约和开发护栏。
+本轮修改 `AGENTS.md`，新增最高优先级共享契约：默认集成分支为 `main`，开工前必须阅读
+`git-instruction.md`、`team-work-division.md`、`tasks.md` 和对应 `docs/tasks/**`；
+提交前必须记录检查结果；大型代码修改完成后必须给出精简关键改动记录，避免冗长流水账；
+禁止提交本地运行数据、真实密钥、第三方源码包、虚拟环境和运行产物。新增
+`team-work-division.md`，明确 Agent Runtime、飞书适配、工具策略、M3/M4/M5、
+Console/CLI/OpenClaw、评测与文档演示等开发线边界；新增
+`docs/tasks/shared-contracts.md`，记录 `TASK-00-01 确认 Agent 工作规则` 的目标、
+验收标准和完成记录。本次为文档更新，未修改业务运行代码，未运行测试。
+
+2026-05-10 新增 D2 会前卡片智能准备增强具体改造方案。
+本轮新增 `docs/tasks/d2-pre-meeting-card-enhancement-plan.md`，基于当前
+`core/pre_meeting.py`、`cards/pre_meeting.py`、`core/knowledge.py`、`core/storage.py`、
+`core/risk_scan.py`、`core/workflows.py` 和 M3 真实联调脚本，拆解 D2 会前卡片增强的
+代码级方案。方案明确复用现有 `PreMeetingBriefWorkflow`、`MeetingBrief`、
+`KnowledgeIndexStore`、`knowledge.search/fetch_chunk`、`task_mappings` 和
+`risk_notifications`，把历史会议、遗留行动项、历史风险、建议议题、会前 checklist
+和 Evidence Pack 汇入会前智能准备卡；同时给出分阶段落地、测试矩阵、风险控制和
+答辩口径。本次为方案文档更新，未修改业务运行代码，未运行测试。
+
+2026-05-10 接入豆包/火山方舟 LLM provider。
+本轮在不读取或写入真实密钥的前提下，新增 `core.llm.DoubaoArkProvider`，复用
+OpenAI-compatible Chat Completions 调用方式，支持 `doubao-ark`、`doubao`、
+`volcengine-ark`、`volcengine`、`ark` provider 别名；`model` 可填写方舟控制台的
+`ep-...` 推理接入点 ID，默认 `api_base` 为 `https://ark.cn-beijing.volces.com/api/v3`，
+并兼容用户误填完整 `/chat/completions` 地址时不重复拼接路径。同步更新
+`config/llm_providers.example.json`、`config/README.md`、M3 Console provider 白名单与
+前端下拉选项，以及 M3/M4/Agent 联调脚本帮助文案。新增
+`tests/test_doubao_llm_provider.py`，覆盖 provider 别名、默认方舟 endpoint 和完整 endpoint
+兼容。验证命令：
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile core/llm.py core/__init__.py core/console_api.py scripts/card_send_live.py scripts/meetflow_agent_live_test.py scripts/post_meeting_agent_live_test.py tests/test_doubao_llm_provider.py`
+和
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_doubao_llm_provider`
+均通过；`git diff --check` 通过。因当前环境 `npm: command not found`，前端 `npm run build`
+未能执行，需在安装 Node.js/npm 后补跑。
+
+2026-05-10 修复豆包真实联调 401 配置防呆。
+真实联调返回 `AuthenticationError: The API key format is incorrect`，说明请求已到达方舟
+Chat Completions endpoint，但认证头中的 key 形态不正确。本轮修改 `core/llm.py`，
+统一归一化 API key：去掉误填的 `Bearer ` 前缀，识别 `replace-with...`/`your-...` 占位符；
+对豆包 provider 额外拦截 `ep-...` 被填到 `api_key`、`api_key` 与 `model` 完全相同的错配，
+改为本地中文配置错误。同步更新 `config/README.md` 和
+`docs/tasks/d2-pre-meeting-card-enhancement-plan.md`。验证命令：
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile core/llm.py tests/test_doubao_llm_provider.py`
+和
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_doubao_llm_provider`
+均通过。
+
+2026-05-10 统一真实 LLM 配置入口为 settings.local.json。
+根据真实联调配置使用要求，本轮将 `scripts/meetflow_agent_live_test.py::build_llm_settings()`
+改为只从 `load_settings().llm` 读取真实 LLM 配置；`--llm-provider settings/default/configured`
+直接使用 `config/settings.local.json`，`--llm-provider doubao/deepseek/openai` 等真实 provider 名
+只作为与当前 settings 中 `llm.provider` 是否匹配的校验别名，不再读取
+`config/llm_providers.local.json` 或 `config/llm_providers.example.json`。`agent_demo.py`、
+`pre_meeting_live_test.py`、`post_meeting_agent_live_test.py` 的帮助文案同步更新；
+`config/README.md`、`config/llm_providers.example.json`、`docs/current-version-test-commands.md` 和
+`docs/tasks/d2-pre-meeting-card-enhancement-plan.md` 同步改为“settings.local 是唯一真实运行配置入口”。
+新增单测覆盖 `doubao` 别名从 settings.local 配置读取、provider 不匹配时报错。验证命令：
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile core/llm.py scripts/meetflow_agent_live_test.py scripts/agent_demo.py scripts/pre_meeting_live_test.py scripts/post_meeting_agent_live_test.py scripts/deepseek_llm_live_test.py tests/test_doubao_llm_provider.py`
+和
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_doubao_llm_provider`
+均通过。另以当前项目 `settings.local.json` 执行
+`/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/deepseek_llm_live_test.py --prompt "用一句话回答：settings.local 配置已加载。" --max-tokens 128`
+验证历史 LLM 连通性脚本也已改为读取 settings.local；输出显示
+`provider=doubao-ark model=ep-20260423223203-k4sbx` 并调用成功。
+
+2026-05-10 修复 D2 前置知识注入时 ChromaDB 不可用导致中断。
+真实会前卡片联调传入 `--doc` 后，飞书文档读取成功，但 `KnowledgeIndexStore.index_resource()`
+在写入 ChromaDB 向量索引失败时直接抛错，导致文档无法进入后续 RAG 测试。本轮修改
+`core/knowledge.py`：当 ChromaDB 不可用时保留已写入的 SQLite chunks 和 FTS5/BM25
+关键词索引，返回 `indexed_keyword_only`，并在文档 metadata 中标记
+`vector_index_status=unavailable`，让 `knowledge.search` 继续通过 BM25/RRF 召回证据。
+新增 `tests/test_knowledge_tools.py` 回归测试覆盖向量索引失败时的关键词降级索引和检索。
+验证命令：
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile core/knowledge.py scripts/pre_meeting_live_test.py tests/test_knowledge_tools.py`
+和
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_knowledge_tools`
+均通过。使用真实飞书文档
+`https://jcneyh7qlo8i.feishu.cn/docx/NmzrdrymVovok2xTKorcfqT4nqb`
+重新执行 D2 只读联调成功，报告输出到
+`storage/reports/m3/pre_meeting_live_75a40fbc76b2.md` 和 `.json`；索引摘要显示文档
+《会议协作流程优化说明》状态为 `indexed_keyword_only`、`chunk_count=6`，Agent 最终
+`status=success`。
+
+2026-05-10 更新 D2 会前卡片增强方案以纳入豆包真实模型。
+本轮修改 `docs/tasks/d2-pre-meeting-card-enhancement-plan.md`，在当前 D2 方案中补充
+豆包/火山方舟接入后的智能化边界：本地历史汇聚和 RAG 检索不依赖聊天大模型，
+`DoubaoArkProvider` 负责在 `knowledge.search` / `knowledge.fetch_chunk` 返回的 Evidence Pack
+基础上生成会议背景摘要、建议议题和会前 checklist；飞书写入仍由 `im.send_card` 和
+`AgentPolicy` 控制。文档同步补充 `settings.local.json` 推荐配置片段、`MEETFLOW_LLM_API_KEY`
+环境变量方式、`--llm-provider doubao` 小样本验证命令、真实模型敏感内容风险和完成定义。
+本次为方案文档更新，未修改业务运行代码。
+
+2026-05-10 完成 D2 会前智能准备卡首轮代码接入。
+本轮在不改变 MeetFlow 主链路的前提下扩展 `pre_meeting_brief`：`core/pre_meeting.py`
+新增 `PreMeetingEvidencePack` 和 D2 汇聚逻辑，将历史会议、遗留行动项、历史风险、
+建议议题、会前 checklist 和 Evidence Pack 合并进 `MeetingBrief`；`core/storage.py`
+新增 `find_recent_workflow_results()`、`find_task_mappings()`、
+`find_recent_risk_notifications()` 三个只读查询接口；`cards/pre_meeting.py` 新增会议基本信息、
+遗留行动项、历史风险、建议议题、会前 Checklist、Evidence Pack 分区和“查看历史”按钮；
+`scripts/pre_meeting_live_test.py` 的 `--write-report` 报告增加 D2 智能准备字段；
+`scripts/pre_meeting_card_demo.py` 更新为完整 D2 样例；新增
+`tests/test_pre_meeting_d2_evidence_pack.py` 覆盖 D2 证据包、storage 历史行动项/风险和卡片分区；
+`docs/current-version-test-commands.md` 补充 D2 飞书真实联调方法。验证命令：
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m py_compile core/pre_meeting.py core/storage.py core/workflows.py cards/pre_meeting.py scripts/pre_meeting_card_demo.py scripts/pre_meeting_live_test.py tests/test_pre_meeting_d2_evidence_pack.py`、
+`/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_pre_meeting_d2_evidence_pack tests.test_pre_meeting_summary tests.test_pre_meeting_retrieval tests.test_pre_meeting_topic`、
+`/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/pre_meeting_card_demo.py`、
+`/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/agent_demo.py --event-type meeting.soon --backend local --llm-provider scripted_debug --max-iterations 5`、
+`/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/card_send_live.py m3 --date today --event-title "MeetFlow 测试会议" --llm-provider scripted_debug --idempotency-suffix "d2-check" --write-report --dry-run`
+均通过。`scripts/workflow_runner_demo.py` 当前因本机 ChromaDB 向量索引不可用失败，错误为
+“ChromaDB 不可用，无法执行向量检索”，与 D2 历史证据聚合无直接关系；豆包真实模型只读联调
+尚未执行，需配置方舟 `ep-...` 和 API key 后补跑。
+
+2026-05-10 将 OpenClaw 智能化演示增强方案正式写入任务体系。
+本轮新增 `docs/tasks/openclaw-demo-enhancement.md`，将
+`MeetFlow_OpenClaw智能化演示增强任务方案.md` 沉淀为 `docs/tasks/` 下的正式任务指引；
+同步扩展 `tasks.md`，新增该方向在里程碑文档中的入口、D1-D10 模块总表、
+OpenClaw/CLI 必须交付物、CLI 安全边界和 P0 必做清单。后续涉及 OpenClaw、CLI、
+Console 演示增强、Agent 可解释展示和评测可视化的开发，应优先同步更新该任务文档。
+本次为规划文档更新，未修改业务运行代码。
+
+2026-05-10 收敛 OpenClaw 智能化演示增强任务方案。
+本轮修改 `MeetFlow_OpenClaw智能化演示增强任务方案.md`，重点解决三处规划风险：将方案内部
+模块编号从 `M1-M10` 调整为 `D1-D10`，避免与项目既有 M1-M6 研发里程碑冲突；补充
+OpenClaw 在 MeetFlow 中的具体定位、必须交付物、建议 CLI 命令形态和标准 JSON 输出；
+补充 CLI / OpenClaw 接入安全边界，明确 CLI 只能调用受控 Agent、Console facade、
+白名单脚本或现有 `MeetFlowAgent.run()` 链路，默认 dry-run，真实写操作必须显式
+`--allow-write`、保留幂等键并经过 `AgentPolicy`。本次为规划文档更新，未修改业务运行代码。
+
+2026-05-10 新增 MeetFlow 项目版本提升计划。
+本轮基于 `prd.md`、`architecture.md`、`tasks.md`、`docs/llm-agent-evaluation-system-plan.md`、
+`docs/intelligent-agent-and-eval-upgrade-design.md`、飞书卡片交互方案、Console 设计文档
+以及当前 `core/`、`adapters/`、`cards/`、`scripts/`、`tests/` 主链路实现，新增
+`docs/meetflow-version-upgrade-plan.md`。该计划把课题一“办公场景驱动的智能知识助手”
+和方向 B“会议与项目的全链路伴侣”映射为 V1.6/V1.7/V1.8/V2.0 四阶段升级路线，覆盖
+高密度知识对象、RAG 证据质量、M4 会后智能闭环、主动触发、项目记忆、Console 演示总控台、
+Agent 轨迹评测、真实 LLM 小样本和业务价值指标。本次为规划文档更新，未修改业务运行代码。
 
 2026-05-06 修复 M4 飞书待确认任务卡填写后仍提示缺负责人/截止时间的问题。
 真实飞书群卡片中，用户在“修改字段”窗口填写负责人和截止时间后，点击“保存修改”或

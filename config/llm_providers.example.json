@@ -1,11 +1,23 @@
 {
   "active_provider": "deepseek",
   "notes": {
-    "purpose": "这个文件是多厂商 LLM 配置模板。请复制为 config/llm_providers.local.json 后填写真实 key。",
-    "security": "不要把真实 api_key 提交到 Git。优先使用环境变量，或只写入本地 local 文件。",
+    "purpose": "这个文件仅作为历史多厂商配置参考。真实运行请统一修改 config/settings.local.json 的 llm 段。",
+    "security": "不要把真实 api_key 提交到 Git。真实 key 只写入 config/settings.local.json 或由部署环境显式注入。",
     "tool_name_rule": "暴露给 LLM 的工具名只能包含字母、数字、下划线和连字符，例如 calendar_list_events。"
   },
   "providers": {
+    "doubao": {
+      "provider": "doubao-ark",
+      "display_name": "Doubao / Volcengine Ark",
+      "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+      "api_key": "replace-with-your-ark-api-key",
+      "api_key_env": "ARK_API_KEY",
+      "model": "replace-with-your-ep-endpoint-id",
+      "temperature": 0.2,
+      "max_tokens": 4000,
+      "reasoning_effort": "",
+      "enabled": false
+    },
     "deepseek": {
       "provider": "openai-compatible",
       "display_name": "DeepSeek",

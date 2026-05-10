@@ -194,6 +194,36 @@ Console 层必须遵守以下边界：
 - M3/M4/M5 的实际业务副作用仍必须通过现有 Agent、ToolRegistry、AgentPolicy
   和 FeishuClient 封装完成。
 
+### OpenClaw / CLI 演示增强接入
+
+2026-05-10 起，OpenClaw / CLI 被正式纳入 MeetFlow 演示增强层。它不是新的特权执行通道，
+而是面向 OpenClaw 调度、答辩演示和本地复现的受控入口：
+
+- `scripts/meetflow_cli.py`：规划中的统一 CLI 入口，用于封装 health、M3 会前、M4 会后、
+  M5 风险巡检、评测和 demo replay。
+- `docs/tasks/openclaw-demo-enhancement.md`：OpenClaw / CLI / Console 演示增强正式任务指引。
+- `docs/openclaw-meetflow-tool-guide.md`、`docs/openclaw-demo-commands.md`、
+  `config/openclaw_tools.example.json`：规划中的 OpenClaw 工具说明、演示命令和工具清单示例。
+
+OpenClaw / CLI 必须遵守以下链路：
+
+```text
+OpenClaw / CLI
+  -> scripts/meetflow_cli.py
+  -> Console API facade / 现有白名单脚本 / MeetFlowAgent.run()
+  -> WorkflowRouter
+  -> WorkflowContextBuilder
+  -> MeetFlowAgentLoop
+  -> ToolRegistry
+  -> AgentPolicy
+  -> FeishuClient / Storage
+```
+
+CLI 默认应为 `dry-run`。真实飞书写操作必须显式 `--allow-write`，必须带幂等键，并继续经过
+`AgentPolicy`。CLI 不允许接收任意 shell 命令、任意 Python 表达式，也不能直接写业务表来
+伪造结果。标准输出应包含 `trace_id`、`workflow_type`、`status`、`report_path` 和
+`safety_summary`，方便 Console、OpenClaw 和评测报告串联。
+
 ### 统一资源模型建议
 
 ```text
