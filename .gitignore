@@ -26,6 +26,7 @@ storage/*.db
 storage/*.jsonl
 storage/post_meeting_pending_actions.json
 storage/knowledge/
+storage/third_party/
 storage/projects/*.json
 storage/reports/*
 !storage/reports/.gitkeep
