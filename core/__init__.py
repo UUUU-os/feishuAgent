@@ -9,6 +9,10 @@ from .agent_loop import (
     build_system_prompt,
     collect_side_effects,
 )
+from .agent_capabilities import (
+    AgentCapabilityReport,
+    build_agent_capability_report,
+)
 from .context import (
     WorkflowContextBuilder,
     WorkflowContextError,
@@ -259,6 +263,7 @@ __all__ = [
     "AgentRunResult",
     "AgentToolCall",
     "AgentToolResult",
+    "AgentCapabilityReport",
     "CardActionError",
     "CardActionInput",
     "CardActionResult",
@@ -350,6 +355,7 @@ __all__ = [
     "build_event_writer_settings",
     "build_tool_result_content",
     "build_agent_input",
+    "build_agent_capability_report",
     "build_agent_input_job_idempotency_key",
     "build_job_id",
     "build_card_action_idempotency_key",

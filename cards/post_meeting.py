@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from types import SimpleNamespace
 from typing import Any
 
@@ -58,9 +59,8 @@ def build_pending_action_items_card(artifacts: Any) -> dict[str, Any]:
     """构造待确认任务卡片。
 
     卡片突出负责人、截止时间等关键字段，并直接提供表单输入 + 按钮交互。
-    用户可以在卡片里修改负责人/截止时间，然后点击“修改信息”“确认创建”
-    或“拒绝创建”。真正创建任务仍必须由后端回调再次经过 ToolRegistry 和
-    AgentPolicy。
+    用户可以在卡片里补充负责人/截止时间，然后点击“确认创建”或“拒绝创建”。
+    真正创建任务仍必须由后端回调再次经过 ToolRegistry 和 AgentPolicy。
     """
 
     summary = getattr(artifacts, "meeting_summary", None)
@@ -72,13 +72,20 @@ def build_pending_action_items_card(artifacts: Any) -> dict[str, Any]:
             if getattr(item, "needs_confirm", False)
         ]
     elements: list[dict[str, Any]] = [
-        markdown(f"**会议**：{safe_text(getattr(summary, 'topic', '')) or '待识别会议'}"),
-        markdown(f"**待确认任务数**：{len(pending_items)}\n可直接在卡片中补充负责人/截止时间，然后点击按钮完成处理。"),
+        lark_md_div(render_label_value("会议", safe_text(getattr(summary, "topic", "")) or "待识别会议")),
+        lark_md_div(
+            join_card_markdown_lines(
+                [
+                    render_label_value("待确认任务数", str(len(pending_items))),
+                    "可直接在卡片中补充负责人/截止时间，然后点击按钮完成处理。",
+                ]
+            )
+        ),
     ]
     if pending_items:
-        elements.extend(render_pending_item_review_elements(pending_items))
+        elements.extend(render_pending_item_review_elements(pending_items, artifacts=artifacts))
     else:
-        elements.append(markdown("暂无待确认任务。"))
+        elements.append(lark_md_div("暂无待确认任务。"))
 
     return build_schema2_card(
         title="MeetFlow 待确认任务",
@@ -96,25 +103,25 @@ def build_pending_action_item_reaction_card(artifacts: Any, item: Any) -> dict[s
 
     summary = getattr(artifacts, "meeting_summary", None)
     item_id = safe_text(getattr(item, "item_id", ""))
-    title = safe_text(getattr(item, "title", "")) or "未命名任务"
-    owner = safe_text(getattr(item, "owner", "")) or "待补充"
-    due_date = safe_text(getattr(item, "due_date", "")) or "待补充"
-    reason = safe_text((getattr(item, "extra", {}) or {}).get("confirm_reason", "")) or "待人工复核"
+    title = render_value_text(getattr(item, "title", "")) or "未命名任务"
+    owner = render_value_text(getattr(item, "owner", "")) or "待补充"
+    due_date = render_value_text(getattr(item, "due_date", "")) or "待补充"
+    reason = render_value_text((getattr(item, "extra", {}) or {}).get("confirm_reason", "")) or "待人工复核"
     snippet = first_evidence_snippet(item)
     lines = [
-        f"**会议**：{safe_text(getattr(summary, 'topic', '')) or '待识别会议'}",
-        f"**任务**：{title}",
-        f"任务 ID：`{item_id}`",
-        f"负责人：**{owner}**",
-        f"截止时间：**{due_date}**",
-        f"待确认原因：{reason}",
+        render_label_value("会议", safe_text(getattr(summary, "topic", "")) or "待识别会议"),
+        render_label_value("任务", title),
+        render_label_value("任务 ID", item_id),
+        render_label_value("负责人", owner),
+        render_label_value("截止时间", due_date),
+        render_label_value("待确认原因", reason),
     ]
     if snippet:
-        lines.append(f"证据：{snippet}")
+        lines.append(render_label_value("证据", snippet))
     lines.extend(
         [
             "",
-            "**一键处理**",
+            "一键处理",
             "- 给这条消息点 `✅ / CheckMark / DONE / OK / THUMBSUP`：确认创建",
             "- 给这条消息点 `❌ / CrossMark / No / ThumbsDown`：拒绝创建",
             f"- 需要补字段时回复：`确认创建 {item_id} 负责人=姓名 截止=明天`",
@@ -123,7 +130,7 @@ def build_pending_action_item_reaction_card(artifacts: Any, item: Any) -> dict[s
     return build_interactive_card(
         title="MeetFlow 待确认任务",
         template="orange",
-        elements=[markdown("\n".join(lines))],
+        elements=[lark_md_div(join_card_markdown_lines(lines))],
     )
 
 
@@ -151,14 +158,29 @@ def build_pending_action_item_button_card(
     summary = getattr(artifacts, "meeting_summary", None)
     extra = getattr(item, "extra", {}) or {}
     item_id = safe_text(getattr(item, "item_id", ""))
-    title = safe_text(getattr(item, "title", "")) or "未命名任务"
-    owner = safe_text(getattr(item, "owner", ""))
-    due_date = safe_text(getattr(item, "due_date", ""))
-    priority = safe_text(getattr(item, "priority", "")) or "medium"
+    title = render_value_text(getattr(item, "title", "")) or "未命名任务"
+    owner = render_value_text(getattr(item, "owner", ""))
+    due_date = render_value_text(getattr(item, "due_date", ""))
+    priority = render_value_text(getattr(item, "priority", "")) or "medium"
     confidence = float(getattr(item, "confidence", 0.0) or 0.0)
-    reason = safe_text(extra.get("confirm_reason", "")) or "待人工复核"
+    reason = render_value_text(extra.get("confirm_reason", "")) or "待人工复核"
     snippet = first_evidence_snippet(item)
     value = build_pending_task_button_value(item)
+    task_card = find_task_card_summary(artifacts, item_id) or find_task_card_summary_from_item(item)
+    if "owner_candidate" in task_card:
+        value["extra"]["owner_candidate"] = safe_text(task_card.get("owner_candidate", ""))
+        value["owner"] = "" if safe_text(task_card.get("owner", "")) == "待补充" else safe_text(task_card.get("owner", ""))
+        owner = render_value_text(task_card.get("owner", "")) or owner
+    else:
+        owner = render_verified_owner_for_card(item, owner)
+    if "due_date_raw" in task_card:
+        value["extra"]["due_date_raw"] = safe_text(task_card.get("due_date_raw", ""))
+        value["due_date"] = "" if safe_text(task_card.get("due_date", "")) == "待补充" else safe_text(task_card.get("due_date", ""))
+        due_date = render_value_text(task_card.get("due_date", "")) or due_date
+    else:
+        due_date = render_standard_due_date_for_card(due_date)
+    agent_suggestion = render_value_text(task_card.get("agent_suggestion", ""))
+    missing_labels = "、".join(render_value_text(label) for label in task_card.get("missing_field_labels", []) if label)
     owner_field = f"owner_override__{item_id}"
     due_date_field = f"due_date_override__{item_id}"
     mode = safe_text(mode) or "review"
@@ -172,22 +194,26 @@ def build_pending_action_item_button_card(
         header_template = "wathet"
 
     detail_lines = [
-        f"**会议**：{safe_text(getattr(summary, 'topic', '')) or '待识别会议'}",
-        f"**任务**：{title}",
-        f"任务 ID：`{item_id}`",
-        f"负责人：**{owner or '待补充'}**",
-        f"截止时间：**{due_date or '待补充'}**",
-        f"优先级：`{priority}`｜置信度：`{confidence:.2f}`",
-        f"待确认原因：{reason}",
+        render_label_value("会议", safe_text(getattr(summary, "topic", "")) or "待识别会议"),
+        render_label_value("任务", title),
+        render_label_value("任务 ID", item_id),
+        render_label_value("负责人", owner or "待补充"),
+        render_label_value("截止时间", due_date or "待补充"),
+        f"{render_label_value('优先级', priority)}｜{render_label_value('置信度', f'{confidence:.2f}')}",
+        render_label_value("待确认原因", reason),
     ]
+    if missing_labels:
+        detail_lines.append(render_label_value("缺失字段", missing_labels))
+    if agent_suggestion:
+        detail_lines.append(render_label_value("Agent 建议", agent_suggestion))
     if snippet:
-        detail_lines.append(f"证据：{snippet}")
+        detail_lines.append(render_label_value("证据", snippet))
     if status_message:
-        detail_lines.append(f"处理结果：{status_message}")
+        detail_lines.append(render_label_value("处理结果", status_message))
     if task_url:
         detail_lines.append(f"[查看任务详情]({task_url})")
 
-    body_elements: list[dict[str, Any]] = [markdown("\n".join(detail_lines))]
+    body_elements: list[dict[str, Any]] = [lark_md_div(join_card_markdown_lines(detail_lines))]
     if mode != "resolved":
         body_elements.append(
             build_pending_action_item_schema2_form(
@@ -229,11 +255,7 @@ def build_pending_action_item_schema2_form(
 
     default_owner = "" if owner == "待补充" else owner
     default_due_date = "" if due_date == "待补充" else due_date
-    helper_text = (
-        "请填写负责人或截止时间，再点击“保存修改”或“确认创建”。"
-        if mode == "edit"
-        else "可直接在卡片中补充负责人或截止时间，然后点击按钮提交。"
-    )
+    helper_text = "可直接在卡片中补充负责人或截止时间，然后点击“确认创建”提交。"
     return {
         "tag": "form",
         "name": f"pending_form_{item_id}",
@@ -242,10 +264,7 @@ def build_pending_action_item_schema2_form(
             "text": {"tag": "plain_text", "content": "当前飞书客户端版本过低，暂不支持表单编辑。"},
         },
         "elements": [
-            {
-                "tag": "markdown",
-                "content": f"**修改字段**\n{helper_text}",
-            },
+            lark_md_div(join_card_markdown_lines(["修改字段", helper_text])),
             {
                 "tag": "input",
                 "name": owner_field,
@@ -272,7 +291,7 @@ def build_pending_action_item_schema2_form(
             },
             {
                 "tag": "column_set",
-                "flex_mode": "trisect",
+                "flex_mode": "bisect",
                 "horizontal_spacing": "8px",
                 "horizontal_align": "left",
                 "columns": [
@@ -283,17 +302,6 @@ def build_pending_action_item_schema2_form(
                         callback_value={
                             **value,
                             "action": "confirm_create_task",
-                            "owner_field": owner_field,
-                            "due_date_field": due_date_field,
-                        },
-                    ),
-                    build_form_button_column(
-                        text="保存修改" if mode == "edit" else "修改信息",
-                        button_name=f"edit_{item_id}",
-                        button_type="primary" if mode == "edit" else "default",
-                        callback_value={
-                            **value,
-                            "action": "edit_task_fields",
                             "owner_field": owner_field,
                             "due_date_field": due_date_field,
                         },
@@ -418,73 +426,57 @@ def build_pending_action_item_form_element(
 ) -> dict[str, Any]:
     """构造总卡里单条待确认任务的 schema 2.0 表单区。"""
 
-    edit_hint = (
-        "**修改字段**\n请先填写负责人或截止时间，再点击“保存修改”或直接“确认创建”。"
-        if mode == "edit"
-        else "**修改字段**\n留空表示保留当前识别结果；填写后可点击“修改信息”暂存，或直接“确认创建”。"
-    )
+    edit_hint = join_card_markdown_lines(["补充字段", "留空表示保留当前识别结果；填写后点击“确认创建”即可提交。"])
     return {
         "tag": "form",
         "name": f"pending_form_{item_id}",
-        "body": {
-            "direction": "vertical",
-            "elements": [
-                {"tag": "markdown", "content": edit_hint},
-                {
-                    "tag": "input",
-                    "name": owner_field,
-                    "input_type": "text",
-                    "placeholder": {"tag": "plain_text", "content": "负责人，例如：张三 / 我"},
-                    "default_value": "" if owner == "待补充" else owner,
-                },
-                {
-                    "tag": "input",
-                    "name": due_date_field,
-                    "input_type": "text",
-                    "placeholder": {"tag": "plain_text", "content": "截止时间，例如：明天 / 2026-05-03"},
-                    "default_value": "" if due_date == "待补充" else due_date,
-                },
-                {
-                    "tag": "action",
-                    "actions": [
-                        {
-                            "tag": "button",
-                            "text": {"tag": "plain_text", "content": "确认创建"},
-                            "type": "primary",
-                            "form_action_type": "submit",
-                            "value": {
-                                **value,
-                                "action": "confirm_create_task",
-                                "owner_field": owner_field,
-                                "due_date_field": due_date_field,
-                            },
+        "elements": [
+            lark_md_div(edit_hint),
+            {
+                "tag": "input",
+                "name": owner_field,
+                "input_type": "text",
+                "placeholder": {"tag": "plain_text", "content": "负责人，例如：张三 / 我"},
+                "default_value": "" if owner == "待补充" else owner,
+            },
+            {
+                "tag": "input",
+                "name": due_date_field,
+                "input_type": "text",
+                "placeholder": {"tag": "plain_text", "content": "截止时间，例如：明天 / 2026-05-03"},
+                "default_value": "" if due_date == "待补充" else due_date,
+            },
+            {
+                "tag": "column_set",
+                "flex_mode": "bisect",
+                "horizontal_spacing": "8px",
+                "horizontal_align": "left",
+                "columns": [
+                    build_form_button_column(
+                        text="确认创建",
+                        button_name=f"confirm_{item_id}",
+                        button_type="primary_filled",
+                        callback_value={
+                            **value,
+                            "action": "confirm_create_task",
+                            "owner_field": owner_field,
+                            "due_date_field": due_date_field,
                         },
-                        {
-                            "tag": "button",
-                            "text": {"tag": "plain_text", "content": "保存修改" if mode == "edit" else "修改信息"},
-                            "form_action_type": "submit",
-                            "value": {
-                                **value,
-                                "action": "edit_task_fields",
-                                "owner_field": owner_field,
-                                "due_date_field": due_date_field,
-                            },
+                    ),
+                    build_form_button_column(
+                        text="拒绝创建",
+                        button_name=f"reject_{item_id}",
+                        button_type="danger",
+                        callback_value={
+                            **value,
+                            "action": "reject_create_task",
+                            "owner_field": owner_field,
+                            "due_date_field": due_date_field,
                         },
-                        {
-                            "tag": "button",
-                            "text": {"tag": "plain_text", "content": "拒绝创建"},
-                            "type": "danger",
-                            "value": {
-                                **value,
-                                "action": "reject_create_task",
-                                "owner_field": owner_field,
-                                "due_date_field": due_date_field,
-                            },
-                        },
-                    ],
-                },
-            ],
-        },
+                    ),
+                ],
+            },
+        ],
     }
 
 
@@ -498,9 +490,16 @@ def build_auto_created_tasks_card(artifacts: Any, created_tasks: list[dict[str, 
     summary = getattr(artifacts, "meeting_summary", None)
     elements: list[dict[str, Any]] = [
         {
-            "tag": "markdown",
-            "content": f"**会议**：{safe_text(getattr(summary, 'topic', '')) or '待识别会议'}\n"
-            f"**已创建任务数**：{len(created_tasks)}",
+            "tag": "div",
+            "text": {
+                "tag": "lark_md",
+                "content": join_card_markdown_lines(
+                    [
+                        render_label_value("会议", safe_text(getattr(summary, "topic", "")) or "待识别会议"),
+                        render_label_value("已创建任务数", str(len(created_tasks))),
+                    ]
+                ),
+            },
         }
     ]
     if created_tasks:
@@ -511,13 +510,13 @@ def build_auto_created_tasks_card(artifacts: Any, created_tasks: list[dict[str, 
             title = safe_text(item.get("title", "")) or safe_text(task_mapping.get("title", "")) or "未命名任务"
             owner = safe_text(task_mapping.get("owner", "")) or "待查看任务详情"
             due_date = safe_text(task_mapping.get("due_date", "")) or "待查看任务详情"
-            suffix = f"（task_id：`{task_id}`）" if task_id else ""
-            lines.append(f"{index}. **{title}**{suffix}\n   负责人：{owner}｜截止：{due_date}")
+            suffix = f"（{render_label_value('task_id', task_id)}）" if task_id else ""
+            lines.append(f"{index}. {title}{suffix}\n   {render_label_value('负责人', owner)}｜{render_label_value('截止', due_date)}")
         if len(created_tasks) > 8:
             lines.append(f"... 另有 {len(created_tasks) - 8} 条未展示")
         elements.append({"tag": "div", "text": {"tag": "lark_md", "content": "\n".join(lines)}})
     else:
-        elements.append({"tag": "markdown", "content": "本次没有创建任务。"})
+        elements.append(lark_md_div("本次没有创建任务。"))
 
     return {
         "config": {"wide_screen_mode": True},
@@ -708,15 +707,16 @@ def render_post_meeting_quick_action_elements(artifacts: Any) -> list[dict[str, 
     extra = getattr(artifacts, "extra", {}) or {}
     meeting_id = safe_text(getattr(workflow_input, "meeting_id", ""))
     minute_token = safe_text(getattr(workflow_input, "minute_token", ""))
+    review_session_id = safe_text(extra.get("review_session_id", ""))
     report_url = safe_text(extra.get("report_url", "")) or safe_text(extra.get("report_path", ""))
     actions = [
-        build_quick_action_button("查看任务卡", "view_pending_tasks", meeting_id, minute_token),
-        build_quick_action_button("执行风险巡检", "start_risk_scan", meeting_id, minute_token),
+        build_quick_action_button("查看任务卡", "view_pending_tasks", meeting_id, minute_token, review_session_id=review_session_id),
+        build_quick_action_button("执行风险巡检", "start_risk_scan", meeting_id, minute_token, review_session_id=review_session_id),
     ]
     if report_url:
-        actions.append(build_quick_action_button("查看完整报告", "view_post_meeting_report", meeting_id, minute_token, url=report_url))
+        actions.append(build_quick_action_button("查看完整报告", "view_post_meeting_report", meeting_id, minute_token, url=report_url, review_session_id=review_session_id))
     else:
-        actions.append(build_quick_action_button("查看完整报告", "view_post_meeting_report", meeting_id, minute_token))
+        actions.append(build_quick_action_button("查看完整报告", "view_post_meeting_report", meeting_id, minute_token, review_session_id=review_session_id))
     return [divider(), {"tag": "action", "actions": actions}]
 
 
@@ -727,6 +727,7 @@ def build_quick_action_button(
     minute_token: str,
     *,
     url: str = "",
+    review_session_id: str = "",
 ) -> dict[str, Any]:
     """构造会后复盘卡快捷按钮。"""
 
@@ -740,6 +741,7 @@ def build_quick_action_button(
             "workflow_type": "post_meeting_followup",
             "meeting_id": meeting_id,
             "minute_token": minute_token,
+            "review_session_id": review_session_id,
         },
     }
     if url:
@@ -754,7 +756,7 @@ def render_action_items_markdown(title: str, items: list[Any], empty_text: str) 
     if not items:
         lines.append(empty_text)
         return "\n".join(lines)
-    for index, item in enumerate(items[:8], start=1):
+    for index, item in enumerate(items, start=1):
         lines.append(f"{index}. {render_action_item_markdown(item)}")
     if len(items) > 8:
         lines.append(f"... 另有 {len(items) - 8} 条未展示")
@@ -777,60 +779,107 @@ def render_action_item_markdown(action_item: Any) -> str:
 def render_pending_items_detail_markdown(items: list[Any]) -> str:
     """渲染待确认任务详情，突出缺失字段和证据片段。"""
 
-    lines = ["**待确认明细**"]
-    for index, item in enumerate(items[:8], start=1):
+    lines = ["待确认明细"]
+    for index, item in enumerate(items, start=1):
         extra = getattr(item, "extra", {}) or {}
         missing = "、".join(field_label(str(field)) for field in extra.get("missing_fields", [])) or "待人工复核"
-        reason = safe_text(extra.get("confirm_reason", "")) or missing
+        reason = render_value_text(extra.get("confirm_reason", "")) or missing
         snippet = first_evidence_snippet(item)
-        evidence = f"\n   证据：{snippet}" if snippet else ""
-        lines.append(f"{index}. {safe_text(getattr(item, 'title', '')) or '未命名任务'}\n   缺失/原因：{reason}{evidence}")
+        detail_lines = [
+            f"{index}. {render_value_text(getattr(item, 'title', '')) or '未命名任务'}",
+            f"   {render_label_value('缺失/原因', reason)}",
+        ]
+        if snippet:
+            detail_lines.append(f"   {render_label_value('证据', snippet)}")
+        lines.append(join_card_markdown_lines(detail_lines))
     return "\n".join(lines)
 
 
-def render_pending_item_review_elements(items: list[Any]) -> list[dict[str, Any]]:
+def render_pending_item_review_elements(items: list[Any], artifacts: Any | None = None) -> list[dict[str, Any]]:
     """渲染待确认任务的关键字段复核区和按钮表单。"""
 
-    elements: list[dict[str, Any]] = [{"tag": "markdown", "content": "**待确认明细**"}]
-    for index, item in enumerate(items[:8], start=1):
+    elements: list[dict[str, Any]] = [lark_md_div("待确认明细")]
+    for index, item in enumerate(items, start=1):
         extra = getattr(item, "extra", {}) or {}
         item_id = safe_text(getattr(item, "item_id", ""))
-        title = safe_text(getattr(item, "title", "")) or "未命名任务"
-        owner = safe_text(getattr(item, "owner", "")) or "待补充"
-        due_date = safe_text(getattr(item, "due_date", "")) or "待补充"
-        priority = safe_text(getattr(item, "priority", "")) or "medium"
+        title = render_value_text(getattr(item, "title", "")) or "未命名任务"
+        owner = render_value_text(getattr(item, "owner", "")) or "待补充"
+        due_date = render_value_text(getattr(item, "due_date", "")) or "待补充"
+        priority = render_value_text(getattr(item, "priority", "")) or "medium"
         confidence = float(getattr(item, "confidence", 0.0) or 0.0)
         missing = "、".join(field_label(str(field)) for field in extra.get("missing_fields", [])) or "待人工复核"
-        reason = safe_text(extra.get("confirm_reason", "")) or missing
+        reason = render_value_text(extra.get("confirm_reason", "")) or missing
         snippet = first_evidence_snippet(item)
+        task_card = find_task_card_summary(artifacts, item_id) if artifacts is not None else {}
+        task_card = task_card or find_task_card_summary_from_item(item)
+        if "owner_candidate" in task_card:
+            owner = render_value_text(task_card.get("owner", "")) or owner
+        else:
+            owner = render_verified_owner_for_card(item, owner)
+        if "due_date_raw" in task_card:
+            due_date = render_value_text(task_card.get("due_date", "")) or due_date
+        else:
+            due_date = render_standard_due_date_for_card(due_date)
+        agent_suggestion = render_value_text(task_card.get("agent_suggestion", ""))
+        missing_labels = "、".join(render_value_text(label) for label in task_card.get("missing_field_labels", []) if label)
         detail_lines = [
-            f"**{index}. {title}**",
-            f"任务 ID：`{item_id}`",
-            f"负责人：**{owner}**",
-            f"截止时间：**{due_date}**",
-            f"优先级：`{priority}`｜置信度：`{confidence:.2f}`",
-            f"待确认原因：{reason}",
+            f"{index}. {title}",
+            render_label_value("任务 ID", item_id),
+            render_label_value("负责人", owner),
+            render_label_value("截止时间", due_date),
+            f"{render_label_value('优先级', priority)}｜{render_label_value('置信度', f'{confidence:.2f}')}",
+            render_label_value("待确认原因", reason),
         ]
+        if missing_labels:
+            detail_lines.append(render_label_value("缺失字段", missing_labels))
+        if agent_suggestion:
+            detail_lines.append(render_label_value("Agent 建议", agent_suggestion))
         if snippet:
-            detail_lines.append(f"证据：{snippet}")
+            detail_lines.append(render_label_value("证据", snippet))
         value = build_pending_task_button_value(item)
+        if "owner_candidate" in task_card:
+            value["extra"]["owner_candidate"] = safe_text(task_card.get("owner_candidate", ""))
+            value["owner"] = "" if safe_text(task_card.get("owner", "")) == "待补充" else safe_text(task_card.get("owner", ""))
+        if "due_date_raw" in task_card:
+            value["extra"]["due_date_raw"] = safe_text(task_card.get("due_date_raw", ""))
+            value["due_date"] = "" if safe_text(task_card.get("due_date", "")) == "待补充" else safe_text(task_card.get("due_date", ""))
         owner_field = f"owner_override__{item_id}"
         due_date_field = f"due_date_override__{item_id}"
-        elements.append({"tag": "markdown", "content": "\n".join(detail_lines)})
-        elements.append(
-            build_pending_action_item_form_element(
-                value=value,
-                item_id=item_id,
-                owner=owner,
-                due_date=due_date,
-                owner_field=owner_field,
-                due_date_field=due_date_field,
-                mode="review",
+        card_status = safe_text(extra.get("card_status", "pending")) or "pending"
+        status_message = render_value_text(extra.get("card_status_message", ""))
+        status_kind = safe_text(extra.get("card_status_kind", "")) or "info"
+        task_url = safe_text(extra.get("task_url", ""))
+        if card_status != "pending":
+            if status_message:
+                detail_lines.append(render_label_value("处理状态", status_message))
+            if task_url:
+                detail_lines.append(f"[查看任务详情]({task_url})")
+        elements.append(lark_md_div(join_card_markdown_lines(detail_lines)))
+        if card_status == "pending":
+            elements.append(
+                build_pending_action_item_form_element(
+                    value=value,
+                    item_id=item_id,
+                    owner=owner,
+                    due_date=due_date,
+                    owner_field=owner_field,
+                    due_date_field=due_date_field,
+                    mode="review",
+                )
             )
-        )
+        elif status_kind == "error":
+            elements.append(
+                build_pending_action_item_form_element(
+                    value=value,
+                    item_id=item_id,
+                    owner=owner,
+                    due_date=due_date,
+                    owner_field=owner_field,
+                    due_date_field=due_date_field,
+                    mode="edit",
+                )
+            )
         elements.append({"tag": "hr"})
-    if len(items) > 8:
-        elements.append({"tag": "markdown", "content": f"... 另有 {len(items) - 8} 条未展示"})
     return elements
 
 
@@ -838,29 +887,34 @@ def build_pending_task_button_value(item: Any) -> dict[str, Any]:
     """构造按钮回调所需的最小业务上下文。"""
 
     extra = getattr(item, "extra", {}) or {}
+    owner_open_id = safe_text(extra.get("owner_open_id") or extra.get("assignee_open_id") or "")
     evidence_refs = []
     for ref in list(getattr(item, "evidence_refs", []) or [])[:3]:
         if hasattr(ref, "to_dict"):
-            evidence_refs.append(ref.to_dict())
+            ref_data = ref.to_dict()
+            ref_data["snippet"] = render_value_text(ref_data.get("snippet", ""))
+            evidence_refs.append(ref_data)
             continue
         if isinstance(ref, dict):
-            evidence_refs.append(dict(ref))
+            ref_data = dict(ref)
+            ref_data["snippet"] = render_value_text(ref_data.get("snippet", ""))
+            evidence_refs.append(ref_data)
             continue
         evidence_refs.append(
             {
                 "source_type": safe_text(getattr(ref, "source_type", "")),
                 "source_id": safe_text(getattr(ref, "source_id", "")),
                 "source_url": safe_text(getattr(ref, "source_url", "")),
-                "snippet": safe_text(getattr(ref, "snippet", "")),
+                "snippet": render_value_text(getattr(ref, "snippet", "")),
                 "updated_at": safe_text(getattr(ref, "updated_at", "")),
             }
         )
-    return {
+    value = {
         "item_id": safe_text(getattr(item, "item_id", "")),
-        "title": safe_text(getattr(item, "title", "")),
-        "owner": safe_text(getattr(item, "owner", "")),
-        "due_date": safe_text(getattr(item, "due_date", "")),
-        "priority": safe_text(getattr(item, "priority", "")) or "medium",
+        "title": render_value_text(getattr(item, "title", "")),
+        "owner": render_value_text(getattr(item, "owner", "")),
+        "due_date": render_value_text(getattr(item, "due_date", "")),
+        "priority": render_value_text(getattr(item, "priority", "")) or "medium",
         "confidence": float(getattr(item, "confidence", 0.0) or 0.0),
         "meeting_id": safe_text(extra.get("meeting_id", "")),
         "calendar_event_id": safe_text(extra.get("calendar_event_id", "")),
@@ -869,10 +923,48 @@ def build_pending_task_button_value(item: Any) -> dict[str, Any]:
         "meeting_topic": safe_text(extra.get("meeting_topic", "")),
         "review_session_id": safe_text(extra.get("review_session_id", "")),
         "extra": {
-            "confirm_reason": safe_text(extra.get("confirm_reason", "")),
+            "confirm_reason": render_value_text(extra.get("confirm_reason", "")),
             "missing_fields": list(extra.get("missing_fields", []) or []),
+            "owner_candidate": render_value_text(extra.get("owner_candidate", "")),
+            "owner_display_name": render_value_text(extra.get("owner_display_name", "")),
+            "owner_resolution_status": safe_text(extra.get("owner_resolution_status", "")),
         },
         "evidence_refs": evidence_refs,
+    }
+    if owner_open_id:
+        value["owner_open_id_override"] = owner_open_id
+    return value
+
+
+def find_task_card_summary(artifacts: Any, item_id: str) -> dict[str, Any]:
+    """从 D4 任务分析包中查找单条任务卡摘要。"""
+
+    analysis = (getattr(artifacts, "extra", {}) or {}).get("task_card_analysis", {})
+    for card in list(analysis.get("cards", []) if isinstance(analysis, dict) else []):
+        if isinstance(card, dict) and safe_text(card.get("item_id", "")) == item_id:
+            return card
+    return {}
+
+
+def find_task_card_summary_from_item(item: Any) -> dict[str, Any]:
+    """为聚合待确认卡提供最小 D4 建议兜底。
+
+    `build_pending_action_items_card()` 可能在测试或旧调用方中只拿到
+    `pending_action_items`，没有完整 artifacts.extra。这里用 ActionItem 本身的
+    extra 生成一致文案，避免卡片丢失 Agent 建议。
+    """
+
+    extra = getattr(item, "extra", {}) or {}
+    missing_fields = [str(field) for field in list(extra.get("missing_fields", []) or [])]
+    if not missing_fields:
+        return {
+            "missing_field_labels": [],
+            "agent_suggestion": "字段较完整，建议人工复核后创建任务。",
+        }
+    labels = [field_label(field) for field in missing_fields]
+    return {
+        "missing_field_labels": labels,
+        "agent_suggestion": f"先补充{'、'.join(labels)}，再确认是否创建飞书任务。",
     }
 
 
@@ -987,7 +1079,7 @@ def first_evidence_snippet(item: Any) -> str:
     evidence_refs = list(getattr(item, "evidence_refs", []) or [])
     if not evidence_refs:
         return ""
-    return safe_text(getattr(evidence_refs[0], "snippet", ""))[:100]
+    return render_value_text(getattr(evidence_refs[0], "snippet", ""))[:100]
 
 
 def choose_summary_header_template(ready_items: list[Any], pending_items: list[Any], risks: list[Any] | None = None) -> str:
@@ -1012,6 +1104,82 @@ def render_link(label: str, url: str) -> str:
     if not clean_url:
         return clean_label
     return f"[{clean_label}]({clean_url})"
+
+
+def join_card_markdown_lines(lines: list[str]) -> str:
+    """用飞书富文本可识别的硬换行紧凑连接任务明细。
+
+    D4 任务卡字段已经通过 `render_label_value()` 在加粗标签后保留空格，
+    这里使用 Markdown 硬换行，避免普通单换行在飞书客户端被折叠成空格；
+    同时不使用空行分隔，保证任务明细紧凑展示。
+    """
+
+    return "  \n".join(safe_text(line) for line in lines if safe_text(line))
+
+
+def render_value_text(value: Any) -> str:
+    """渲染业务值前移除 Markdown 控制符，确保值本身不触发飞书样式。
+
+    任务标题和证据经常来自妙记原文，里面可能包含 `**李健文**`、反引号、
+    下划线加粗等标记。D4 任务卡固定规则是“只渲染字段标签，不渲染字段值”，
+    因此业务值进入卡片前必须先清洗这些控制符。
+    """
+
+    text = safe_text(value)
+    if not text:
+        return ""
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"__(.+?)__", r"\1", text)
+    text = re.sub(r"`([^`]+?)`", r"\1", text)
+    text = re.sub(r"</?(?:b|strong|i|em|u|s)>", "", text, flags=re.IGNORECASE)
+    text = text.replace("**", "").replace("__", "").replace("`", "")
+    return text.strip()
+
+
+def render_label_value(label: str, value: Any, empty_text: str = "") -> str:
+    """渲染任务卡字段：标签和冒号加粗，业务值保持普通文本。
+
+    D4 任务卡固定展示规则：冒号前的字段名（含冒号）使用飞书富文本可解析的黑色加粗；
+    冒号后的负责人、截止时间、任务 ID、证据等业务值不再额外加粗或使用代码样式。
+    """
+
+    clean_label = safe_text(label)
+    clean_value = render_value_text(value) or render_value_text(empty_text)
+    if not clean_label:
+        return clean_value
+    # 飞书富文本要求加粗语法前后留空格，否则 `**字段：**值` 会被当普通文本。
+    return f"**{clean_label}：** {clean_value}"
+
+
+def render_verified_owner_for_card(item: Any, fallback_owner: str = "") -> str:
+    """只展示已由通讯录解析过的负责人。
+
+    回调重建聚合卡时可能拿不到完整 D4 `task_card_analysis`，只能从 pending
+    registry 还原 ActionItem。此时 `item.owner` 仍是妙记抽取的原始候选，
+    不能直接展示，必须再次检查 `owner_open_id/owner_resolution_status`。
+    """
+
+    extra = getattr(item, "extra", {}) or {}
+    if (
+        safe_text(extra.get("owner_open_id"))
+        or safe_text(extra.get("assignee_open_id"))
+        or safe_text(extra.get("owner_user_id"))
+        or safe_text(extra.get("owner_resolution_status")) in {"resolved", "verified"}
+    ):
+        return render_value_text(extra.get("owner_display_name")) or render_value_text(fallback_owner) or "待补充"
+    return "待补充"
+
+
+def render_standard_due_date_for_card(value: Any) -> str:
+    """只展示标准日期，避免回调重建卡片时漏出“明天 / 周四前”等原始文本。"""
+
+    raw = render_value_text(value)
+    if not raw:
+        return "待补充"
+    match = re.match(r"^(20\d{2})[/-](\d{1,2})[/-](\d{1,2})(?:\s+.*)?$", raw)
+    if not match:
+        return "待补充"
+    return f"{int(match.group(1)):04d}-{int(match.group(2)):02d}-{int(match.group(3)):02d}"
 
 
 def field_label(field_name: str) -> str:

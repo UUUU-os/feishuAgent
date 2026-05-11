@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
 
     callback_parser = subparsers.add_parser(
         "callback",
-        help="启动飞书 SDK 长连接卡片回调服务，承接确认创建 / 修改信息 / 拒绝创建按钮。",
+        help="启动飞书 SDK 长连接卡片回调服务，承接确认创建 / 拒绝创建按钮。",
     )
     callback_parser.add_argument(
         "--python-bin",
@@ -140,7 +140,7 @@ def run_send(args: argparse.Namespace, settings) -> int:  # noqa: ANN001 - setti
     print(" ".join(command))
     print("")
     if not args.read_only:
-        print("发送成功后，测试群会收到待确认卡片；点击“确认创建 / 修改信息 / 拒绝创建”即可走真实按钮回调。")
+        print("发送成功后，测试群会收到待确认卡片；点击“确认创建 / 拒绝创建”即可走真实按钮回调。")
     return subprocess.call(command, cwd=PROJECT_ROOT)
 
 

@@ -41,6 +41,9 @@ class RiskScanCardTest(unittest.TestCase):
         self.assertIn("完成方案评审", rendered)
         self.assertIn("张三", rendered)
         self.assertIn("已逾期", rendered)
+        self.assertIn("风险概览", rendered)
+        self.assertIn("Agent 分析", rendered)
+        self.assertIn("影响范围", rendered)
         self.assertIn("建议", rendered)
 
     def test_card_contains_m4_source_and_evidence(self) -> None:
@@ -105,6 +108,82 @@ class RiskScanCardTest(unittest.TestCase):
 
         self.assertEqual(card["header"]["template"], "green")
         self.assertIn("没有需要推送", str(card))
+
+    def test_card_groups_d5_risks_by_severity_and_type(self) -> None:
+        now = 1_700_000_000
+        scan_result = scan_risks(
+            tasks=[
+                TaskSnapshot(
+                    task_id="task_missing_due",
+                    title="补充演示兜底截图",
+                    owner="李四",
+                    due_timestamp=0,
+                    updated_at=now - 3600,
+                ),
+                TaskSnapshot(
+                    task_id="task_recurring",
+                    title="任务卡回调不稳定",
+                    owner="王五",
+                    due_timestamp=now + 86400,
+                    updated_at=now - 3600,
+                    raw_payload={"extra": {"repeated_mentions": 3}},
+                ),
+            ],
+            now=now,
+            stale_update_days=3,
+            due_soon_hours=24,
+        )
+        decision = RiskNotificationDecision(
+            should_notify=True,
+            reason="需要提醒",
+            notify_risks=scan_result.risks,
+        )
+
+        card = build_risk_scan_card(decision=decision, scan_result=scan_result)
+        rendered = str(card)
+
+        self.assertIn("高风险", rendered)
+        self.assertIn("中风险", rendered)
+        self.assertIn("缺少截止时间", rendered)
+        self.assertIn("反复出现", rendered)
+        self.assertIn("高 1 / 中 2 / 低 0", rendered)
+
+    def test_card_keeps_suppressed_risks_visible_for_diagnosis(self) -> None:
+        now = 1_700_000_000
+        scan_result = scan_risks(
+            tasks=[
+                TaskSnapshot(
+                    task_id="task_overdue",
+                    title="完成客户方案评审",
+                    owner="张三",
+                    due_timestamp=now - 3600,
+                    updated_at=now - 3600,
+                ),
+                TaskSnapshot(
+                    task_id="task_missing_due",
+                    title="补充演示兜底截图",
+                    owner="李四",
+                    due_timestamp=0,
+                    updated_at=now - 3600,
+                ),
+            ],
+            now=now,
+            stale_update_days=3,
+            due_soon_hours=24,
+        )
+        decision = RiskNotificationDecision(
+            should_notify=True,
+            reason="只提醒一条，其余降噪",
+            notify_risks=[scan_result.risks[0]],
+            suppressed_risks=scan_result.risks[1:],
+        )
+
+        card = build_risk_scan_card(decision=decision, scan_result=scan_result)
+        rendered = str(card)
+
+        self.assertIn("完成客户方案评审", rendered)
+        self.assertIn("补充演示兜底截图", rendered)
+        self.assertIn("缺少截止时间", rendered)
 
 
 if __name__ == "__main__":

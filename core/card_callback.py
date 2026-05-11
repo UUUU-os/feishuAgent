@@ -5,11 +5,13 @@ import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
-from cards import build_pending_action_item_callback_card
+from cards import build_pending_action_item_callback_card, build_pending_action_items_card
 from config.loader import Settings
 from core.confirmation_commands import (
+    bind_pending_action_message,
     claim_pending_action_status,
     load_pending_action_value,
     load_pending_action_records,
@@ -39,12 +41,17 @@ class CardCallbackResult:
     data: dict[str, Any] = field(default_factory=dict)
     response_card: dict[str, Any] | None = None
 
-    def to_feishu_response(self) -> dict[str, Any]:
-        """转换为飞书卡片回调响应体。"""
+    def to_feishu_response(self, *, include_card: bool = True) -> dict[str, Any]:
+        """转换为飞书卡片回调响应体。
+
+        聚合任务卡点击后需要保留同一消息里的其它任务按钮，因此这里携带的
+        `response_card` 必须是已经按 pending registry 重建过的整张卡片，而不是
+        单条任务结果卡。这样飞书的立即全量更新也只会隐藏被点击任务的按钮。
+        """
 
         toast_type = "success" if self.status == "success" else "error" if self.status == "error" else "info"
         response = {"toast": {"type": toast_type, "content": self.message}}
-        if isinstance(self.response_card, dict) and self.response_card:
+        if include_card and isinstance(self.response_card, dict) and self.response_card:
             response["card"] = {"type": "raw", "data": self.response_card}
         return response
 
@@ -83,7 +90,7 @@ def handle_post_meeting_card_callback(
             status="duplicate_blocked",
             result={"message": state_guard.message, "status": state_guard.status},
         )
-        apply_callback_card_update(
+        updated_card = apply_callback_card_update(
             client=client,
             settings=settings,
             payload=payload,
@@ -91,10 +98,21 @@ def handle_post_meeting_card_callback(
             card=response_card,
         )
         sync_review_session_audit(storage=storage, settings=settings, action_value=action_value)
+        if updated_card:
+            response_card = updated_card
         state_guard.response_card = response_card
         return state_guard
 
     append_card_callback_log(settings, payload=payload, action_value=action_value, status="received")
+    if action == "view_pending_tasks":
+        return send_pending_tasks_card_from_summary_callback(
+            action_value=action_value,
+            payload=payload,
+            settings=settings,
+            client=client,
+            storage=storage,
+            policy=policy or AgentPolicy(),
+        )
     if action == "confirm_create_task":
         return confirm_create_task_from_card(
             action_value=action_value,
@@ -122,13 +140,15 @@ def handle_post_meeting_card_callback(
                     status_message=state_guard.message,
                     status_kind="success" if state_guard.status == "success" else "info",
                 )
-                apply_callback_card_update(
+                updated_card = apply_callback_card_update(
                     client=client,
                     settings=settings,
                     payload=payload,
                     action_value=action_value,
                     card=response_card,
                 )
+                if updated_card:
+                    response_card = updated_card
                 state_guard.response_card = response_card
                 return state_guard
         merged_action_value = merge_cached_action_value(settings, action_value)
@@ -146,13 +166,15 @@ def handle_post_meeting_card_callback(
         )
         sync_review_session_audit(storage=storage, settings=settings, action_value=merged_action_value)
         append_card_callback_log(settings, payload=payload, action_value=action_value, status="rejected")
-        apply_callback_card_update(
+        updated_card = apply_callback_card_update(
             client=client,
             settings=settings,
             payload=payload,
             action_value=action_value,
             card=response_card,
         )
+        if updated_card:
+            response_card = updated_card
         return CardCallbackResult(
             status="success",
             message=f"已拒绝创建任务 {item_id}。",
@@ -163,6 +185,148 @@ def handle_post_meeting_card_callback(
         sync_review_session_audit(storage=storage, settings=settings, action_value=merge_cached_action_value(settings, action_value))
         return result
     return CardCallbackResult(status="ignored", message=f"暂不支持的卡片动作：{action}")
+
+
+def send_pending_tasks_card_from_summary_callback(
+    *,
+    action_value: dict[str, Any],
+    payload: dict[str, Any],
+    settings: Settings,
+    client: Any,
+    storage: MeetFlowStorage,
+    policy: AgentPolicy,
+) -> CardCallbackResult:
+    """点击会后总结卡的“查看任务卡”后，按当前会议发送聚合任务卡。
+
+    D4 的任务卡可能很长，默认跟随总结卡一起发送会刷屏。这里把待确认任务先
+    存在本地 registry；用户点击总结卡入口时，再从 registry 恢复同一妙记 /
+    同一会话的任务，发送一张聚合待确认任务卡。
+    """
+
+    records = load_pending_action_records(settings)
+    related_records, group_reason = find_pending_records_for_summary_action(
+        records=records,
+        action_value=action_value,
+        payload=payload,
+        settings=settings,
+    )
+    if not related_records:
+        append_card_callback_log(
+            settings,
+            payload=payload,
+            action_value=action_value,
+            status="view_pending_tasks_not_found",
+            result={"group_reason": group_reason},
+        )
+        return CardCallbackResult(status="info", message="当前会议没有待确认任务卡可发送。")
+
+    existing_message_id = first_non_empty_text(*(record_source_message_id(record) for record in related_records))
+    if existing_message_id:
+        append_card_callback_log(
+            settings,
+            payload=payload,
+            action_value=action_value,
+            status="view_pending_tasks_already_sent",
+            result={"message_id": existing_message_id, "related_record_count": len(related_records), "group_reason": group_reason},
+        )
+        return CardCallbackResult(status="success", message="任务卡已经发送过了，请查看当前会话中的 MeetFlow 待确认任务卡。")
+
+    receive_id = resolve_summary_action_receive_id(action_value=action_value, payload=payload, records=related_records, settings=settings)
+    if not receive_id:
+        append_card_callback_log(
+            settings,
+            payload=payload,
+            action_value=action_value,
+            status="view_pending_tasks_missing_receive_id",
+            result={"related_record_count": len(related_records), "group_reason": group_reason},
+        )
+        return CardCallbackResult(status="error", message="无法确定任务卡发送到哪个会话，请检查回调 payload 或默认测试群配置。")
+
+    receive_id_type = first_non_empty_text(
+        str(action_value.get("receive_id_type") or ""),
+        *((record.get("source") or {}).get("receive_id_type") for record in related_records if isinstance(record.get("source"), dict)),
+        "chat_id",
+    )
+    items = [action_item_from_pending_record(record) for record in related_records]
+    topic = first_non_empty_text(
+        *(record_value(record).get("meeting_topic") for record in related_records),
+        *(record_value(record).get("topic") for record in related_records),
+        str(action_value.get("topic") or ""),
+    )
+    artifacts = SimpleNamespace(
+        meeting_summary=SimpleNamespace(topic=topic or "待识别会议"),
+        pending_action_items=items,
+        action_items=items,
+        extra={},
+    )
+    card = build_pending_action_items_card(artifacts)
+    context = workflow_context_from_callback_value(
+        {
+            **action_value,
+            "action": "view_pending_tasks",
+            "chat_id": receive_id,
+            "meeting_id": first_non_empty_text(str(action_value.get("meeting_id") or ""), *(record_value(record).get("meeting_id") for record in related_records)),
+            "minute_token": first_non_empty_text(str(action_value.get("minute_token") or ""), *(record_value(record).get("minute_token") for record in related_records)),
+        }
+    )
+    from adapters import create_feishu_tool_registry  # noqa: PLC0415 - 避免 adapters/core 初始化循环。
+
+    registry = create_feishu_tool_registry(client, default_chat_id=settings.feishu.default_chat_id)
+    idempotency_key = build_view_pending_tasks_idempotency_key(
+        action_value=action_value,
+        records=related_records,
+        receive_id=receive_id,
+    )
+    tool_result = execute_callback_tool_with_policy(
+        registry=registry,
+        policy=policy,
+        context=context,
+        tool_name="im.send_card",
+        arguments={
+            "title": card.get("header", {}).get("title", {}).get("content", "MeetFlow 待确认任务"),
+            "summary": "MeetFlow 待确认任务卡",
+            "card": card,
+            "receive_id": receive_id,
+            "receive_id_type": receive_id_type,
+            "identity": "tenant",
+            "idempotency_key": idempotency_key,
+        },
+        storage=storage,
+    )
+    if tool_result.status != "success":
+        reason = tool_result.error_message or tool_result.content or "任务卡发送失败。"
+        append_card_callback_log(
+            settings,
+            payload=payload,
+            action_value=action_value,
+            status="view_pending_tasks_send_failed",
+            result={"reason": reason, "tool_result": tool_result.to_dict()},
+        )
+        return CardCallbackResult(status="error", message=f"任务卡发送失败：{reason}")
+
+    message_id = str(tool_result.data.get("message_id") or "")
+    if message_id:
+        for record in related_records:
+            bind_pending_action_message(
+                settings,
+                item_id=str(record.get("item_id") or record_value(record).get("item_id") or ""),
+                message_id=message_id,
+                chat_id=receive_id,
+            )
+    append_card_callback_log(
+        settings,
+        payload=payload,
+        action_value=action_value,
+        status="view_pending_tasks_sent",
+        result={
+            "message_id": message_id,
+            "receive_id": receive_id,
+            "receive_id_type": receive_id_type,
+            "related_record_count": len(related_records),
+            "group_reason": group_reason,
+        },
+    )
+    return CardCallbackResult(status="success", message="已发送 MeetFlow 待确认任务卡，请在当前会话中查看。")
 
 
 def confirm_create_task_from_card(
@@ -210,13 +374,15 @@ def confirm_create_task_from_card(
                 status_message=state_guard.message,
                 status_kind="success" if state_guard.status == "success" else "info",
             )
-            apply_callback_card_update(
+            updated_card = apply_callback_card_update(
                 client=client,
                 settings=settings,
                 payload=payload,
                 action_value=action_value,
                 card=response_card,
             )
+            if updated_card:
+                response_card = updated_card
             state_guard.response_card = response_card
             return state_guard
     assignee_ids = []
@@ -255,13 +421,15 @@ def confirm_create_task_from_card(
             result={"status": tool_result.status, "message": reason, "tool_result": tool_result.to_dict()},
         )
         append_card_callback_log(settings, payload=payload, action_value=action_value, status="create_failed", result=tool_result.to_dict())
-        apply_callback_card_update(
+        updated_card = apply_callback_card_update(
             client=client,
             settings=settings,
             payload=payload,
             action_value=action_value,
             card=response_card,
         )
+        if updated_card:
+            response_card = updated_card
         return CardCallbackResult(
             status="error",
             message=reason[:180],
@@ -297,13 +465,15 @@ def confirm_create_task_from_card(
         status_kind="success",
         task_url=extract_task_url(created_task),
     )
-    apply_callback_card_update(
+    updated_card = apply_callback_card_update(
         client=client,
         settings=settings,
         payload=payload,
         action_value=action_value,
         card=response_card,
     )
+    if updated_card:
+        response_card = updated_card
     return CardCallbackResult(
         status="success",
         message=f"已创建任务：{action_item.title}",
@@ -343,13 +513,15 @@ def handle_edit_task_fields(action_value: dict[str, Any], payload: dict[str, Any
             status_kind="success",
         )
         if client is not None:
-            apply_callback_card_update(
+            updated_card = apply_callback_card_update(
                 client=client,
                 settings=settings,
                 payload=payload,
                 action_value=action_value,
                 card=response_card,
             )
+            if updated_card:
+                response_card = updated_card
         if updated:
             return CardCallbackResult(
                 status="success",
@@ -365,13 +537,15 @@ def handle_edit_task_fields(action_value: dict[str, Any], payload: dict[str, Any
             status_kind="success",
         )
         if client is not None:
-            apply_callback_card_update(
+            updated_card = apply_callback_card_update(
                 client=client,
                 settings=settings,
                 payload=payload,
                 action_value=action_value,
                 card=response_card,
             )
+            if updated_card:
+                response_card = updated_card
         return CardCallbackResult(
             status="success",
             message=f"已收到 {item_id} 的修改字段，请继续点击确认创建。",
@@ -385,16 +559,18 @@ def handle_edit_task_fields(action_value: dict[str, Any], payload: dict[str, Any
         status_kind="info",
     )
     if client is not None:
-        apply_callback_card_update(
+        updated_card = apply_callback_card_update(
             client=client,
             settings=settings,
             payload=payload,
             action_value=action_value,
             card=response_card,
         )
+        if updated_card:
+            response_card = updated_card
     return CardCallbackResult(
         status="info",
-        message=f"请在编辑态卡片中填写负责人或截止时间，再点击“保存修改”或“确认创建”。",
+        message=f"请在编辑态卡片中填写负责人或截止时间，再点击“确认创建”。",
         response_card=response_card,
     )
 
@@ -750,7 +926,7 @@ def apply_callback_card_update(
     payload: dict[str, Any],
     action_value: dict[str, Any],
     card: dict[str, Any],
-) -> bool:
+) -> dict[str, Any] | None:
     """把回调后的新卡片直接写回原消息。
 
     真实飞书客户端里，`card.action.trigger` 的响应如果同时携带复杂 `card`
@@ -767,7 +943,7 @@ def apply_callback_card_update(
             status="card_update_skipped",
             result={"reason": "missing_message_id"},
         )
-        return False
+        return None
     if client is None or not hasattr(client, "update_card_message"):
         append_card_callback_log(
             settings,
@@ -776,8 +952,14 @@ def apply_callback_card_update(
             status="card_update_skipped",
             result={"reason": "client_missing_update_card_message", "message_id": message_id},
         )
-        return False
+        return None
     try:
+        card = build_aggregate_card_for_callback_update(
+            settings=settings,
+            payload=payload,
+            action_value=action_value,
+            fallback_card=card,
+        )
         # 这些卡片是机器人消息，应使用 tenant 身份更新；如果这里抛异常，就会把
         # 整个按钮回调打成飞书前端的红色失败提示，因此必须吞掉更新异常。
         update_result = client.update_card_message(message_id=message_id, card=card, identity="tenant")
@@ -788,7 +970,7 @@ def apply_callback_card_update(
             status="card_update_succeeded",
             result={"message_id": message_id, "update_result": update_result},
         )
-        return True
+        return card
     except Exception as error:
         append_card_callback_log(
             settings,
@@ -797,7 +979,341 @@ def apply_callback_card_update(
             status="card_update_failed",
             result={"message_id": message_id, "error": str(error)},
         )
-        return False
+        return None
+
+
+def build_aggregate_card_for_callback_update(
+    *,
+    settings: Settings,
+    payload: dict[str, Any],
+    action_value: dict[str, Any],
+    fallback_card: dict[str, Any],
+) -> dict[str, Any]:
+    """聚合任务卡点击后重建整张卡，避免单条结果卡替换掉其它按钮。
+
+    飞书消息更新是 message 级别，不是组件级别。同一会议的所有待确认任务
+    聚合在一条消息里时，如果仍用单条任务卡回写，就会让其它任务按钮全部消失。
+    这里优先按同一 message_id 找出同卡片里的所有 pending action，并重建聚合卡；
+    单条卡或 reaction 卡仍回退到原来的单条结果卡。
+    """
+
+    item_id = str(action_value.get("item_id") or "")
+    message_id = resolve_callback_message_id(settings, payload, item_id)
+    if not message_id:
+        return fallback_card
+    records = load_pending_action_records(settings)
+    related_records, group_reason = find_related_pending_records_for_update(
+        records=records,
+        item_id=item_id,
+        message_id=message_id,
+    )
+    if len(related_records) <= 1:
+        append_card_callback_log(
+            settings,
+            payload=payload,
+            action_value=action_value,
+            status="single_card_update_selected",
+            result={
+                "message_id": message_id,
+                "item_id": item_id,
+                "related_record_count": len(related_records),
+                "group_reason": group_reason,
+            },
+        )
+        return fallback_card
+    append_card_callback_log(
+        settings,
+        payload=payload,
+        action_value=action_value,
+        status="aggregate_card_update_selected",
+        result={
+            "message_id": message_id,
+            "item_id": item_id,
+            "related_record_count": len(related_records),
+            "group_reason": group_reason,
+        },
+    )
+    items = [action_item_from_pending_record(record) for record in related_records]
+    topic = first_non_empty_text(
+        *(record_value(record).get("meeting_topic") for record in related_records),
+        *(record_value(record).get("topic") for record in related_records),
+    )
+    artifacts = SimpleNamespace(
+        meeting_summary=SimpleNamespace(topic=topic or "待识别会议"),
+        pending_action_items=items,
+        action_items=items,
+        extra={},
+    )
+    return build_pending_action_items_card(artifacts)
+
+
+def find_related_pending_records_for_update(
+    *,
+    records: dict[str, dict[str, Any]],
+    item_id: str,
+    message_id: str,
+) -> tuple[list[dict[str, Any]], str]:
+    """查找与本次按钮属于同一张聚合任务卡的 pending records。
+
+    真实回调里 `message_id` / `open_message_id` 可能和发送接口返回的 ID 形态不同；
+    因此先按绑定消息 ID 匹配，失败后再用当前任务的 `review_session_id` 兜底。
+    """
+
+    by_message = [
+        record
+        for record in records.values()
+        if isinstance(record, dict) and message_id and record_source_message_id(record) == message_id
+    ]
+    if len(by_message) > 1:
+        return by_message, "message_id"
+
+    current_record = records.get(item_id)
+    if not isinstance(current_record, dict):
+        return by_message, "message_id_missing_current"
+    review_session_id = extract_record_review_session_id(current_record)
+    if review_session_id:
+        by_session = [
+            record
+            for record in records.values()
+            if isinstance(record, dict) and extract_record_review_session_id(record) == review_session_id
+        ]
+        if len(by_session) > 1:
+            return by_session, "review_session_id"
+
+    current_value = record_value(current_record)
+    minute_token = str(current_value.get("minute_token") or "").strip()
+    source = current_record.get("source") if isinstance(current_record.get("source"), dict) else {}
+    chat_id = str(source.get("chat_id") or "").strip()
+    if minute_token and chat_id:
+        by_minute_chat = [
+            record
+            for record in records.values()
+            if isinstance(record, dict)
+            and str(record_value(record).get("minute_token") or "").strip() == minute_token
+            and str((record.get("source") if isinstance(record.get("source"), dict) else {}).get("chat_id") or "").strip() == chat_id
+        ]
+        if len(by_minute_chat) > 1:
+            return by_minute_chat, "minute_token_chat_id"
+
+    return by_message or [current_record], "single"
+
+
+def find_pending_records_for_summary_action(
+    *,
+    records: dict[str, dict[str, Any]],
+    action_value: dict[str, Any],
+    payload: dict[str, Any],
+    settings: Settings,
+) -> tuple[list[dict[str, Any]], str]:
+    """按总结卡按钮上下文查找应发送的待确认任务。
+
+    “查看任务卡”按钮来自会后总结卡，本身没有 `item_id`，因此不能复用任务
+    按钮的 message_id 分组逻辑。这里按确认批次优先，其次按妙记 + 会话定位，
+    保证同一会议点击后只发送对应的一张聚合任务卡。
+    """
+
+    review_session_id = str(action_value.get("review_session_id") or "").strip()
+    if review_session_id:
+        by_session = [
+            record
+            for record in records.values()
+            if isinstance(record, dict) and extract_record_review_session_id(record) == review_session_id
+        ]
+        if by_session:
+            return by_session, "review_session_id"
+
+    minute_token = str(action_value.get("minute_token") or "").strip()
+    meeting_id = str(action_value.get("meeting_id") or "").strip()
+    chat_id = resolve_summary_action_receive_id(action_value=action_value, payload=payload, records=[], settings=settings)
+    if minute_token and chat_id:
+        by_minute_chat = [
+            record
+            for record in records.values()
+            if isinstance(record, dict)
+            and str(record_value(record).get("minute_token") or "").strip() == minute_token
+            and str((record.get("source") if isinstance(record.get("source"), dict) else {}).get("chat_id") or "").strip() == chat_id
+        ]
+        if by_minute_chat:
+            return by_minute_chat, "minute_token_chat_id"
+
+    if meeting_id and chat_id:
+        by_meeting_chat = [
+            record
+            for record in records.values()
+            if isinstance(record, dict)
+            and str(record_value(record).get("meeting_id") or "").strip() == meeting_id
+            and str((record.get("source") if isinstance(record.get("source"), dict) else {}).get("chat_id") or "").strip() == chat_id
+        ]
+        if by_meeting_chat:
+            return by_meeting_chat, "meeting_id_chat_id"
+
+    if minute_token:
+        by_minute = [
+            record
+            for record in records.values()
+            if isinstance(record, dict) and str(record_value(record).get("minute_token") or "").strip() == minute_token
+        ]
+        if by_minute:
+            return by_minute, "minute_token"
+
+    return [], "not_found"
+
+
+def resolve_summary_action_receive_id(
+    *,
+    action_value: dict[str, Any],
+    payload: dict[str, Any],
+    records: list[dict[str, Any]],
+    settings: Settings,
+) -> str:
+    """确定“查看任务卡”按钮触发后新任务卡应发送到哪个会话。"""
+
+    return first_non_empty_text(
+        str(action_value.get("chat_id") or ""),
+        extract_callback_chat_id(payload),
+        *((record.get("source") if isinstance(record.get("source"), dict) else {}).get("chat_id") for record in records),
+        settings.feishu.default_chat_id,
+    )
+
+
+def extract_callback_chat_id(payload: dict[str, Any]) -> str:
+    """从飞书回调 payload 中提取当前会话 ID。"""
+
+    event = payload.get("event")
+    if isinstance(event, dict):
+        context = event.get("context")
+        if isinstance(context, dict):
+            for key in ("open_chat_id", "chat_id"):
+                value = str(context.get(key) or "").strip()
+                if value:
+                    return value
+        for key in ("open_chat_id", "chat_id"):
+            value = str(event.get(key) or "").strip()
+            if value:
+                return value
+    return ""
+
+
+def build_view_pending_tasks_idempotency_key(
+    *,
+    action_value: dict[str, Any],
+    records: list[dict[str, Any]],
+    receive_id: str,
+) -> str:
+    """生成查看任务卡发消息的幂等键。"""
+
+    review_session_id = first_non_empty_text(
+        str(action_value.get("review_session_id") or ""),
+        *(extract_record_review_session_id(record) for record in records),
+    )
+    minute_token = first_non_empty_text(
+        str(action_value.get("minute_token") or ""),
+        *(record_value(record).get("minute_token") for record in records),
+    )
+    meeting_id = first_non_empty_text(
+        str(action_value.get("meeting_id") or ""),
+        *(record_value(record).get("meeting_id") for record in records),
+    )
+    key_parts = ["post_meeting", "view_pending_tasks", review_session_id or minute_token or meeting_id or "unknown", receive_id]
+    return ":".join(str(part) for part in key_parts if str(part or "").strip())
+
+
+def record_source_message_id(record: dict[str, Any]) -> str:
+    """读取 pending registry record 绑定的飞书消息 ID。"""
+
+    source = record.get("source")
+    if not isinstance(source, dict):
+        return ""
+    return str(source.get("message_id") or "").strip()
+
+
+def record_value(record: dict[str, Any]) -> dict[str, Any]:
+    """读取 pending registry record 中的按钮 value。"""
+
+    value = record.get("value")
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def first_non_empty_text(*values: Any) -> str:
+    """返回第一个非空文本。"""
+
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def action_item_from_pending_record(record: dict[str, Any]) -> ActionItem:
+    """把 pending registry record 转成聚合卡可渲染的 ActionItem。"""
+
+    value = record_value(record)
+    status = str(record.get("status") or "pending")
+    result = record.get("result") if isinstance(record.get("result"), dict) else {}
+    extra = value.get("extra") if isinstance(value.get("extra"), dict) else {}
+    card_status, card_status_kind, card_status_message = pending_record_card_status(status, result)
+    evidence_refs = []
+    for ref in list(value.get("evidence_refs") or []):
+        if not isinstance(ref, dict):
+            continue
+        evidence_refs.append(
+            EvidenceRef(
+                source_type=str(ref.get("source_type") or ""),
+                source_id=str(ref.get("source_id") or ""),
+                source_url=str(ref.get("source_url") or ""),
+                snippet=str(ref.get("snippet") or ""),
+                updated_at=str(ref.get("updated_at") or ""),
+            )
+        )
+    merged_extra = dict(extra)
+    merged_extra.update(
+        {
+            "card_status": card_status,
+            "card_status_kind": card_status_kind,
+            "card_status_message": card_status_message,
+            "task_url": extract_task_url_from_record_result(result),
+        }
+    )
+    return ActionItem(
+        item_id=str(value.get("item_id") or record.get("item_id") or ""),
+        title=str(value.get("title") or "未命名任务"),
+        owner=str(value.get("owner") or ""),
+        due_date=str(value.get("due_date") or ""),
+        priority=str(value.get("priority") or "medium"),
+        confidence=float(value.get("confidence") or 0.0),
+        needs_confirm=True,
+        evidence_refs=evidence_refs,
+        extra=merged_extra,
+    )
+
+
+def pending_record_card_status(status: str, result: dict[str, Any]) -> tuple[str, str, str]:
+    """把 pending registry 状态映射成卡片展示状态。"""
+
+    message = str(result.get("message") or "").strip()
+    if status == "created":
+        return "created", "success", message or "已创建任务。"
+    if status == "reject_create_task":
+        return "reject_create_task", "info", message or "已拒绝创建，MeetFlow 不会再自动落地这条任务。"
+    if status == "creating":
+        return "creating", "info", message or "正在创建任务。"
+    if status == "rejecting":
+        return "rejecting", "info", message or "正在拒绝创建任务。"
+    if status == "pending" and result and str(result.get("status") or "") not in {"", "success"}:
+        return "error", "error", message or "处理失败，请补充字段后重试。"
+    return "pending", "info", ""
+
+
+def extract_task_url_from_record_result(result: dict[str, Any]) -> str:
+    """从 registry result 中提取已创建任务链接。"""
+
+    task_mapping = result.get("task_mapping")
+    if isinstance(task_mapping, dict):
+        for key in ("task_url", "url"):
+            value = str(task_mapping.get(key) or "").strip()
+            if value:
+                return value
+    return ""
 
 
 def resolve_callback_message_id(settings: Settings, payload: dict[str, Any], item_id: str) -> str:
@@ -862,7 +1378,7 @@ def merge_action_values_preserving_cached(cached: dict[str, Any], incoming: dict
     """合并卡片按钮值，同时避免旧卡空字段覆盖用户已保存的修改。
 
     飞书卡片更新后，用户可能仍点击到一张 callback value 中 owner/due_date 为空
-    的按钮；但 pending registry 已经保存了用户在“保存修改”阶段填写的字段。
+    的按钮；但 pending registry 可能已经保存过旧卡片编辑阶段填写的字段。
     这里让非空的新值覆盖旧值，空字符串/空列表/空字典不覆盖已有业务值。
     """
 

@@ -50,7 +50,7 @@ class RiskScanTest(unittest.TestCase):
 
         self.assertEqual(result.risk_count, 0)
 
-    def test_detects_overdue_due_soon_stale_and_missing_owner(self) -> None:
+    def test_detects_d5_risk_types_and_diagnosis_fields(self) -> None:
         tasks = [
             TaskSnapshot(
                 task_id="task_overdue",
@@ -79,17 +79,46 @@ class RiskScanTest(unittest.TestCase):
                 due_timestamp=self.now + 7 * 86400,
                 updated_at=self.now - 3600,
             ),
+            TaskSnapshot(
+                task_id="task_missing_due",
+                title="缺截止时间任务",
+                owner="赵六",
+                due_timestamp=0,
+                updated_at=self.now - 3600,
+            ),
+            TaskSnapshot(
+                task_id="task_recurring",
+                title="反复出现的问题",
+                owner="钱七",
+                due_timestamp=self.now + 7 * 86400,
+                updated_at=self.now - 3600,
+                raw_payload={
+                    "extra": {
+                        "repeated_mentions": 3,
+                        "recurring_evidence": [
+                            {"source_id": "minute_1", "snippet": "第一次会议提到该问题。"},
+                            {"source_id": "minute_2", "snippet": "第二次会议再次提到该问题。"},
+                        ],
+                    }
+                },
+            ),
         ]
 
         result = scan_risks(tasks=tasks, now=self.now, stale_update_days=3, due_soon_hours=24)
         risk_types = {risk.risk_type for risk in result.risks}
 
-        self.assertEqual(result.risk_count, 4)
+        self.assertEqual(result.risk_count, 6)
         self.assertIn("overdue", risk_types)
         self.assertIn("due_soon", risk_types)
         self.assertIn("stale_update", risk_types)
         self.assertIn("missing_owner", risk_types)
+        self.assertIn("missing_due_date", risk_types)
+        self.assertIn("recurring_issue", risk_types)
         self.assertEqual(result.risks[0].severity, "high")
+        recurring = next(risk for risk in result.risks if risk.risk_type == "recurring_issue")
+        self.assertEqual(recurring.evidence["mention_count"], 3)
+        self.assertIn("Agent", recurring.agent_analysis)
+        self.assertIn("影响", recurring.impact_scope)
 
     def test_normalize_action_item_like_dict(self) -> None:
         snapshots = normalize_task_snapshots(

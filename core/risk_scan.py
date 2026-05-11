@@ -59,6 +59,8 @@ class RiskRuleResult(BaseModel):
     task: TaskSnapshot
     dedupe_key: str
     evidence: dict[str, Any] = field(default_factory=dict)
+    impact_scope: str = ""
+    agent_analysis: str = ""
 
 
 @dataclass(slots=True)
@@ -257,6 +259,35 @@ def scan_task_risks(
                 suggestion="请先明确负责人，再继续推进或提醒。",
                 now=now,
                 evidence={"owner": task.owner},
+            )
+        )
+
+    if not task.due_timestamp:
+        risks.append(
+            build_risk_result(
+                task=task,
+                risk_type="missing_due_date",
+                severity="medium",
+                reason="任务缺少明确截止时间，后续巡检无法判断是否逾期或临期。",
+                suggestion="请补充截止时间，并在任务卡中同步可验收的交付标准。",
+                now=now,
+                evidence={"due_timestamp": task.due_timestamp},
+            )
+        )
+
+    recurrence = extract_recurring_issue_evidence(task)
+    if recurrence:
+        mention_count = recurrence.get("mention_count", 0)
+        severity = "high" if mention_count >= 3 else "medium"
+        risks.append(
+            build_risk_result(
+                task=task,
+                risk_type="recurring_issue",
+                severity=severity,
+                reason=f"同一问题已在 {mention_count} 次会议或任务记录中重复出现，但当前仍未关闭。",
+                suggestion="请合并重复任务，明确唯一负责人和下一次验收节点，避免会议反复讨论同一阻塞。",
+                now=now,
+                evidence=recurrence,
             )
         )
 
@@ -466,6 +497,8 @@ def enrich_risk_with_mapping(risk: RiskRuleResult, mapping: dict[str, Any]) -> R
         task=task,
         dedupe_key=risk.dedupe_key,
         evidence=evidence,
+        impact_scope=risk.impact_scope or infer_impact_scope(risk.risk_type, task),
+        agent_analysis=risk.agent_analysis or build_agent_analysis(risk.risk_type, risk.reason, task),
     )
 
 
@@ -527,6 +560,8 @@ def build_risk_result(
         task=task,
         dedupe_key=dedupe_key,
         evidence=evidence or {},
+        impact_scope=infer_impact_scope(risk_type, task),
+        agent_analysis=build_agent_analysis(risk_type, reason, task),
     )
 
 
@@ -561,7 +596,74 @@ def build_scan_summary(scanned_count: int, risks: list[RiskRuleResult]) -> str:
         return f"已扫描 {scanned_count} 个任务，未发现需要提醒的风险。"
     high_count = sum(1 for risk in risks if risk.severity == "high")
     medium_count = sum(1 for risk in risks if risk.severity == "medium")
-    return f"已扫描 {scanned_count} 个任务，发现 {len(risks)} 条风险：高风险 {high_count} 条，中风险 {medium_count} 条。"
+    low_count = sum(1 for risk in risks if risk.severity == "low")
+    return (
+        f"已扫描 {scanned_count} 个任务，发现 {len(risks)} 条风险："
+        f"高风险 {high_count} 条，中风险 {medium_count} 条，低风险 {low_count} 条。"
+    )
+
+
+def extract_recurring_issue_evidence(task: TaskSnapshot) -> dict[str, Any]:
+    """从任务扩展字段中识别“反复出现”风险证据。
+
+    真实飞书任务本身通常不知道历史会议次数；D5 先约定从 M4/M5 衔接数据或
+    本地 demo 的 `extra.repeated_mentions` / `recurrence_count` 中读取，后续可由
+    RAG 或任务映射聚合继续补强。
+    """
+
+    payload = task.raw_payload if isinstance(task.raw_payload, dict) else {}
+    extra = payload.get("extra") if isinstance(payload.get("extra"), dict) else {}
+    source = extra if extra else payload
+    raw_count = (
+        source.get("repeated_mentions")
+        or source.get("recurrence_count")
+        or source.get("recurring_count")
+        or 0
+    )
+    try:
+        mention_count = int(raw_count)
+    except (TypeError, ValueError):
+        mention_count = 0
+    if mention_count < 2:
+        return {}
+    evidence_refs = source.get("recurring_evidence") or source.get("meeting_refs") or []
+    if not isinstance(evidence_refs, list):
+        evidence_refs = []
+    return {
+        "mention_count": mention_count,
+        "evidence_refs": normalize_mapping_evidence_refs(evidence_refs),
+    }
+
+
+def infer_impact_scope(risk_type: str, task: TaskSnapshot) -> str:
+    """为 D5 卡片生成可读影响范围，便于演示时说明风险影响谁和哪个环节。"""
+
+    owner = task.owner.strip() or "待明确负责人"
+    labels = {
+        "overdue": f"影响 {owner} 的任务交付节奏，可能阻塞后续会议决策。",
+        "due_soon": f"影响 {owner} 的短期交付，需要在截止前确认进展。",
+        "stale_update": f"影响 {owner} 的进度透明度，项目成员难以判断是否需要支援。",
+        "missing_owner": "影响任务闭环责任归属，后续提醒和飞书任务创建都可能失效。",
+        "missing_due_date": f"影响 {owner} 的时间管理，系统无法判断逾期、临期和提醒优先级。",
+        "recurring_issue": f"影响 {owner} 及相关会议议程，重复讨论会压缩新问题决策时间。",
+    }
+    return labels.get(risk_type, f"影响 {owner} 的任务推进，需要人工确认风险范围。")
+
+
+def build_agent_analysis(risk_type: str, reason: str, task: TaskSnapshot) -> str:
+    """生成简短 Agent 分析，解释风险判断逻辑而不是只展示规则命中。"""
+
+    base = {
+        "overdue": "Agent 对比当前时间、截止时间和完成状态后判断该任务已经越过承诺节点。",
+        "due_soon": "Agent 发现任务仍未完成且即将进入截止窗口，需要提前同步风险。",
+        "stale_update": "Agent 发现任务长时间没有更新时间，说明会议行动项可能缺少持续跟进。",
+        "missing_owner": "Agent 未找到可用于提醒或创建任务的明确负责人，因此先要求补齐责任人。",
+        "missing_due_date": "Agent 未找到可计算的截止时间，因此无法继续做逾期、临期和降噪判断。",
+        "recurring_issue": "Agent 从历史会议或任务证据中发现同类问题重复出现，说明该事项没有真正闭环。",
+    }
+    analysis = base.get(risk_type, "Agent 根据任务状态、时间字段和来源证据判断该事项需要关注。")
+    title = task.title.strip() or "未命名任务"
+    return f"{analysis}任务：{title}；规则原因：{reason}"
 
 
 def extract_owner_from_extra(extra: dict[str, Any]) -> str:

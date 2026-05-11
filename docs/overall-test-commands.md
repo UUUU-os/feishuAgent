@@ -774,7 +774,7 @@ cd /home/tanyd/ye/workhard/feishuAgent-main
 ```text
 会后总结卡
 待确认任务卡
-确认创建 / 保存修改 / 拒绝创建 按钮
+确认创建 / 拒绝创建 按钮
 ```
 
 M4 按钮确认闭环回归：
@@ -788,8 +788,8 @@ M4 按钮确认闭环回归：
 这组命令重点检查：
 
 ```text
-confirm_create_task / edit_task_fields / reject_create_task 是否被 CardActionRouter 识别
-保存修改后点击确认是否能复用 registry 中已补字段
+confirm_create_task / reject_create_task 是否被 CardActionRouter 识别
+输入框补充字段后点击确认是否能复用表单中的负责人和截止时间
 review_session_id 是否进入幂等键和 SQLite review_sessions 审计
 重复发卡后旧卡是否被拦截，新卡是否可重新确认
 ```

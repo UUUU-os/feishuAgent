@@ -71,7 +71,7 @@ D3 会后总结卡建议分为 8 个区域：
 
 | 按钮 | action | 说明 |
 |---|---|---|
-| 查看任务卡 | `view_pending_tasks` | 跳转或提示查看待确认任务卡 |
+| 查看任务卡 | `view_pending_tasks` | 点击后在当前会话发送对应的聚合待确认任务卡 |
 | 执行风险巡检 | `start_risk_scan` | 复用 M5 风险巡检入口 |
 | 查看完整报告 | `view_post_meeting_report` | 打开 Markdown/飞书文档报告链接，P1 |
 | 发送给我 | `send_summary_to_me` | 保留现有私发能力 |
@@ -305,6 +305,9 @@ summary_card / pending_card / optional report link
 - 实现 `generate_follow_up_suggestions()`。
 - 卡片中新增“行动项概览”和“后续建议”区域。
 - 待确认任务继续通过待确认任务卡处理，不在总结卡里执行写操作。
+- 会后总结卡默认先发送；待确认任务卡不再随总结卡自动发送，用户点击“查看任务卡”后由
+  `core/card_callback.py::send_pending_tasks_card_from_summary_callback()` 从 pending registry 恢复同一确认批次 /
+  同一妙记会话的任务，并通过 `im.send_card` 受 AgentPolicy 检查后发送聚合任务卡。
 
 验证：
 
@@ -565,8 +568,8 @@ D3-10 的演示样例建议放在 `scripts/post_meeting_demo.py` 或独立 fixtu
   --report-dir storage/reports/m4/d3
 ```
 
-真实写操作仍由 `AgentPolicy` 审核，任务创建不会因 D3 复盘卡自动执行；会后任务仍需在
-待确认任务卡中由用户确认。
+真实写操作仍由 `AgentPolicy` 审核；`--send-card` 只先发送 D3 复盘卡并保存待确认任务上下文。
+用户点击“查看任务卡”后，才会在当前会话发送 D4 聚合待确认任务卡；任务创建仍需在待确认任务卡中由用户确认。
 
 ### 16.5 当前风险
 

@@ -96,6 +96,18 @@
   - `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_card_actions tests.test_post_meeting_card_callback`
   - `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_migrations`
 
+#### T4.1 真实 Agent 发卡脚本补充：强制暴露 M4 专用卡片工具
+
+- 更新时间：2026-05-11
+- 问题背景：
+  - `scripts/post_meeting_agent_live_test.py` 通过 `agent_demo.py --event-type minute.ready` 运行真实 Agent 联调时，`agent_demo.py` 的旧默认工具集只包含 `minutes.fetch_resource`、`tasks.create_task` 和通用 `im.send_card`。
+  - 真实模型可能选择 `im.send_card` 发送简化卡片，导致会后总结卡和待确认任务卡没有 M4 专用按钮。
+- 已实现修复：
+  - `scripts/post_meeting_agent_live_test.py` 调用 `agent_demo.py` 时显式追加 `post_meeting.build_artifacts`、`post_meeting.enrich_related_knowledge`、`post_meeting.send_summary_card`、`post_meeting.save_pending_actions` 等 M4 专用工具。
+  - 保留 `AgentPolicy` 和 `--allow-write` 安全边界，不绕过 ToolRegistry 直接发卡。
+- 当前验证方式：
+  - `python3 -m py_compile scripts/post_meeting_agent_live_test.py`
+
 ### T4.2 实现纪要清洗
 
 - 优先级：`P0`

@@ -32,7 +32,7 @@ SECTION_TITLE_PATTERNS = [
 SIGNAL_KEYWORDS: dict[str, tuple[str, ...]] = {
     "action_item": ("待办", "行动项", "action item", "todo", "跟进", "负责", "完成", "推进", "整理", "补充", "发送", "分享"),
     "owner": ("负责人", "owner", "由", "请", "麻烦", "我来", "你来"),
-    "due_date": ("截止", "deadline", "ddl", "今天", "明天", "后天", "周一", "周二", "周三", "周四", "周五", "周六", "周日", "本周", "下周", "月底"),
+    "due_date": ("截止", "deadline", "ddl", "今天", "明天", "后天", "周一", "周二", "周三", "周四", "周五", "周六", "周日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日", "本周", "下周", "月底"),
     "decision": ("决定", "决策", "结论", "确定", "达成一致", "采用", "先按"),
     "open_question": ("问题", "待确认", "是否", "能否", "需要确认", "还不确定", "?"),
     "risk": ("风险", "阻塞", "延期", "不稳定", "不足", "来不及", "依赖", "卡住", "失败", "回滚", "兜底", "需要关注", "可能影响"),
@@ -41,9 +41,12 @@ SIGNAL_KEYWORDS: dict[str, tuple[str, ...]] = {
 
 OWNER_PATTERNS = [
     re.compile(r"@(?P<owner>[\u4e00-\u9fa5A-Za-z0-9_ -]{2,20})"),
+    re.compile(r"^\*\*(?P<owner>[\u4e00-\u9fa5A-Za-z0-9_ -]{2,20})\*\*[:：]"),
+    re.compile(r"^(?!(?:完成时间|截止时间|会议时间|创建时间)[:：])(?P<owner>[\u4e00-\u9fa5]{2,4})[:：]\s*(?=今天|明天|后天|本周|下周|周[一二三四五六日天]|星期[一二三四五六日天]|月底|.*(?:负责|跟进|推进|完成|整理|补充|发送|分享))"),
     re.compile(r"(?:负责人|owner)[:：]\s*(?P<owner>[^,，；;\s]+)", re.IGNORECASE),
-    re.compile(r"^(?:请|麻烦)?(?P<owner>[\u4e00-\u9fa5]{2,4}?)(?=今天|明天|后天|本周|下周|周[一二三四五六日天]|月底|\d{1,2}[/-]\d{1,2})"),
-    re.compile(r"^(?:请|麻烦)?(?P<owner>[\u4e00-\u9fa5A-Za-z][\u4e00-\u9fa5A-Za-z0-9_]{0,10}?)\s*(?:今天|明天|后天|本周|下周|周[一二三四五六日天]|月底|\d{1,2}[/-]\d{1,2})"),
+    re.compile(r"[:：]\s*(?P<owner>[\u4e00-\u9fa5]{2,4}?)(?=今天|明天|后天|本周|下周|周[一二三四五六日天]|星期[一二三四五六日天]|月底|\d{1,2}[/-]\d{1,2})"),
+    re.compile(r"^(?:请|麻烦)?(?P<owner>[\u4e00-\u9fa5]{2,4}?)(?=今天|明天|后天|本周|下周|周[一二三四五六日天]|星期[一二三四五六日天]|月底|\d{1,2}[/-]\d{1,2})"),
+    re.compile(r"^(?:请|麻烦)?(?P<owner>[\u4e00-\u9fa5A-Za-z][\u4e00-\u9fa5A-Za-z0-9_]{0,10}?)\s*(?:今天|明天|后天|本周|下周|周[一二三四五六日天]|星期[一二三四五六日天]|月底|\d{1,2}[/-]\d{1,2})"),
     re.compile(r"(?:请|麻烦)\s*(?P<owner>[^,，；;\s]+?)\s*(?:负责|跟进|推进|完成|整理|补充)"),
     re.compile(r"(?P<owner>[\u4e00-\u9fa5]{2,4}?)\s*(?:负责|跟进|推进|完成|整理|补充|发送|分享)"),
     re.compile(r"由\s*(?P<owner>[^,，；;\s]+?)\s*(?:负责|跟进|推进|完成)"),
@@ -55,9 +58,9 @@ DUE_DATE_PATTERNS = [
     re.compile(r"(?P<due>今天或明天)"),
     re.compile(r"(?P<due>最晚明天)"),
     re.compile(r"(?:截止|deadline|ddl)[:：]?\s*(?P<due>[^,，；;。]*?前)", re.IGNORECASE),
-    re.compile(r"(?:截止|deadline|ddl)[:：]?\s*(?P<due>今天|明天|后天|本周|下周|周[一二三四五六日天]|月底)", re.IGNORECASE),
-    re.compile(r"(?P<due>(?:今天|明天|后天|本周|下周|周[一二三四五六日天]|月底)[^,，；;。]*?前)"),
-    re.compile(r"(?P<due>今天|明天|后天|本周|下周|周[一二三四五六日天]|月底)"),
+    re.compile(r"(?:截止|deadline|ddl)[:：]?\s*(?P<due>今天|明天|后天|本周|下周|周[一二三四五六日天]|星期[一二三四五六日天]|月底)", re.IGNORECASE),
+    re.compile(r"(?P<due>(?:今天|明天|后天|本周|下周|周[一二三四五六日天]|星期[一二三四五六日天]|月底)[^,，；;。]*?前)"),
+    re.compile(r"(?P<due>今天|明天|后天|本周|下周|周[一二三四五六日天]|星期[一二三四五六日天]|月底)"),
     re.compile(r"(?P<due>20\d{2}[/-]\d{1,2}[/-]\d{1,2})"),
     re.compile(r"(?P<due>\d{1,2}[/-]\d{1,2})"),
 ]
@@ -1080,7 +1083,32 @@ def clean_owner_candidate(value: str) -> str:
     owner = str(value or "").strip(" @，,；;。)")
     owner = re.sub(r"^(?:请|麻烦)", "", owner)
     owner = re.sub(r"(?:负责|跟进|推进|完成|整理|补充|发送|分享)$", "", owner)
-    return owner.strip(" @，,；;。)")
+    owner = owner.strip(" @，,；;。)")
+    if is_invalid_owner_candidate(owner):
+        return ""
+    return owner
+
+
+def is_invalid_owner_candidate(owner: str) -> bool:
+    """过滤明显不是飞书人员的负责人候选。
+
+    妙记口语句式里容易把“周四/星期四/明天”等时间词误提取为负责人。
+    这些候选不能展示成负责人，更不能进入创建任务参数；后续若无法通过通讯录
+    解析到真实 open_id，就保持“待补充”。
+    """
+
+    normalized = str(owner or "").strip()
+    if not normalized:
+        return True
+    if re.fullmatch(r"(?:今天|明天|后天|本周|下周|月底)", normalized):
+        return True
+    if re.fullmatch(r"(?:下?周|星期)[一二三四五六日天](?:前|之前|内)?", normalized):
+        return True
+    if re.fullmatch(r"\d{1,2}[/-]\d{1,2}|20\d{2}[/-]\d{1,2}[/-]\d{1,2}", normalized):
+        return True
+    if normalized in {"前", "之前", "截止", "deadline", "ddl"}:
+        return True
+    return False
 
 
 def extract_due_date_candidate(line: str) -> str:
@@ -1351,6 +1379,7 @@ def merge_d3_review_fields(artifacts: PostMeetingArtifacts) -> PostMeetingArtifa
 
     artifacts.extra["review_summary"] = build_post_meeting_review_summary(artifacts)
     artifacts.extra["action_item_owner_groups"] = group_action_items_by_owner(artifacts.action_items)
+    artifacts.extra["task_card_analysis"] = build_task_card_analysis(artifacts)
     artifacts.follow_up_suggestions = generate_follow_up_suggestions(artifacts)
     artifacts.evidence_pack = build_post_meeting_evidence_pack(artifacts)
     artifacts.extra["d3_metrics"] = {
@@ -1359,6 +1388,18 @@ def merge_d3_review_fields(artifacts: PostMeetingArtifacts) -> PostMeetingArtifa
         "suggestion_count": len(artifacts.follow_up_suggestions),
         "evidence_ref_count": int(artifacts.evidence_pack.get("total_count", 0) or 0),
         "owner_group_count": len(artifacts.extra.get("action_item_owner_groups", []) or []),
+    }
+    artifacts.extra["d4_metrics"] = {
+        "task_card_count": len((artifacts.extra.get("task_card_analysis") or {}).get("cards", []) or []),
+        "owner_group_count": len((artifacts.extra.get("task_card_analysis") or {}).get("owner_groups", []) or []),
+        "missing_field_task_count": len(
+            [
+                item
+                for item in (artifacts.extra.get("task_card_analysis") or {}).get("cards", []) or []
+                if item.get("missing_fields")
+            ]
+        ),
+        "duplicate_hint_count": len((artifacts.extra.get("task_card_analysis") or {}).get("duplicate_hints", []) or []),
     }
     return artifacts
 
@@ -1426,6 +1467,269 @@ def group_action_items_by_owner(action_items: list[ActionItem]) -> list[dict[str
             str(group["owner"]),
         ),
     )
+
+
+def build_task_card_analysis(artifacts: PostMeetingArtifacts) -> dict[str, Any]:
+    """构造 D4 任务卡分析包。
+
+    D4 需要给 OpenClaw、Console、报告和飞书卡片一个稳定视图：每条任务的
+    负责人、截止时间、缺失字段、证据来源、状态和 Agent 建议。这里不新增
+    外部副作用，只把 M4 已抽取的 `ActionItem` 压缩为可展示、可审计的数据。
+    """
+
+    cards = [build_task_card_summary(item, artifacts) for item in artifacts.action_items]
+    owner_groups = build_task_card_owner_groups(cards)
+    duplicate_hints = build_task_duplicate_hints(cards)
+    return {
+        "workflow_type": "post_meeting_followup",
+        "meeting_id": artifacts.workflow_input.meeting_id,
+        "minute_token": artifacts.workflow_input.minute_token,
+        "task_creation_requires_human_confirmation": True,
+        "summary": {
+            "total_count": len(cards),
+            "pending_count": len([item for item in cards if item.get("status") != "ready_for_review"]),
+            "ready_for_review_count": len([item for item in cards if item.get("status") == "ready_for_review"]),
+            "owner_group_count": len(owner_groups),
+            "duplicate_hint_count": len(duplicate_hints),
+        },
+        "owner_groups": owner_groups,
+        "duplicate_hints": duplicate_hints,
+        "cards": cards,
+    }
+
+
+def build_task_card_summary(action_item: ActionItem, artifacts: PostMeetingArtifacts) -> dict[str, Any]:
+    """把单个 `ActionItem` 转成 D4 任务卡展示数据。"""
+
+    evidence = first_action_item_evidence(action_item)
+    owner_candidate = action_item.owner.strip()
+    owner_verified = is_verified_task_owner(action_item)
+    due_date_raw = action_item.due_date.strip()
+    due_date_standard = format_due_date_for_task_card(due_date_raw)
+    missing_fields = build_task_card_missing_fields(action_item, owner_verified, due_date_standard)
+    status = build_task_card_status(action_item, missing_fields)
+    return {
+        "item_id": action_item.item_id,
+        "title": action_item.title,
+        "owner": owner_candidate if owner_verified else "待补充",
+        "owner_candidate": owner_candidate,
+        "owner_verified": owner_verified,
+        "participants": infer_task_participants(action_item, artifacts),
+        "due_date": due_date_standard or "待补充",
+        "due_date_raw": due_date_raw,
+        "priority": action_item.priority or "medium",
+        "confidence": action_item.confidence,
+        "status": status,
+        "status_label": task_card_status_label(status),
+        "missing_fields": missing_fields,
+        "missing_field_labels": [field_label(field) for field in missing_fields],
+        "source": {
+            "source_type": evidence.source_type if evidence else artifacts.workflow_input.source_type or "minute",
+            "source_id": evidence.source_id if evidence else artifacts.workflow_input.source_id or artifacts.workflow_input.minute_token,
+            "source_url": evidence.source_url if evidence else artifacts.workflow_input.source_url,
+            "snippet": evidence.snippet if evidence else "",
+            "source_line": int(action_item.extra.get("source_line") or 0),
+        },
+        "agent_suggestion": build_task_card_agent_suggestion(action_item, missing_fields),
+        "recommended_action": build_task_card_recommended_action(action_item, missing_fields),
+    }
+
+
+def first_action_item_evidence(action_item: ActionItem) -> EvidenceRef | None:
+    """读取行动项的第一条证据引用。"""
+
+    for ref in action_item.evidence_refs:
+        if isinstance(ref, EvidenceRef):
+            return ref
+    return None
+
+
+def build_task_card_status(action_item: ActionItem, missing_fields: list[str]) -> str:
+    """给 D4 任务卡生成状态码。"""
+
+    if missing_fields:
+        return "needs_fields"
+    if action_item.needs_confirm:
+        return "needs_review"
+    return "ready_for_review"
+
+
+def build_task_card_missing_fields(
+    action_item: ActionItem,
+    owner_verified: bool,
+    due_date_standard: str,
+) -> list[str]:
+    """计算 D4 任务卡展示层缺失字段。
+
+    `ActionItem.owner` 只是妙记文本候选，不代表飞书通讯录中已解析到真实人员。
+    D4 卡片展示更严格：负责人必须有解析证据，否则标记为待补充。
+    """
+
+    fields = [str(item) for item in action_item.extra.get("missing_fields", []) if str(item)]
+    if not owner_verified and "owner" not in fields:
+        fields.append("owner")
+    if not due_date_standard and "due_date" not in fields:
+        fields.append("due_date")
+    return unique_non_empty(fields)
+
+
+def is_verified_task_owner(action_item: ActionItem) -> bool:
+    """判断行动项负责人是否已解析为飞书组织中的真实人员。"""
+
+    extra = action_item.extra or {}
+    if extra.get("owner_open_id") or extra.get("assignee_open_id") or extra.get("owner_user_id"):
+        return True
+    return str(extra.get("owner_resolution_status") or "").strip() in {"resolved", "verified"}
+
+
+def format_due_date_for_task_card(raw_due_date: str, timezone: str = "Asia/Shanghai") -> str:
+    """把任务卡截止时间统一为 `YYYY-MM-DD`。
+
+    抽取层可以保留“明天 / 周四前”等原始文本用于证据回溯；展示层必须使用
+    标准日期。无法可靠解析时返回空字符串，由卡片显示“待补充”。
+    """
+
+    timestamp_ms = parse_due_date_to_timestamp_ms(raw_due_date, timezone=timezone)
+    if not timestamp_ms:
+        return ""
+    try:
+        timestamp = int(timestamp_ms)
+    except ValueError:
+        return ""
+    if timestamp > 10_000_000_000:
+        timestamp = timestamp // 1000
+    tz = ZoneInfo(timezone or "Asia/Shanghai")
+    return datetime.fromtimestamp(timestamp, tz=tz).strftime("%Y-%m-%d")
+
+
+def task_card_status_label(status: str) -> str:
+    """把 D4 状态码转换为卡片可读文案。"""
+
+    labels = {
+        "needs_fields": "待补字段",
+        "needs_review": "待人工确认",
+        "ready_for_review": "字段完整，待确认创建",
+        "created": "已创建",
+        "rejected": "已拒绝",
+    }
+    return labels.get(status, "待确认")
+
+
+def build_task_card_agent_suggestion(action_item: ActionItem, missing_fields: list[str]) -> str:
+    """基于字段完整性和证据生成保守的 Agent 建议。"""
+
+    if missing_fields:
+        labels = "、".join(field_label(field) for field in missing_fields)
+        return f"先补充{labels}，再确认是否创建飞书任务。"
+    if action_item.priority == "high":
+        return "字段较完整且优先级高，建议会后优先确认并创建任务。"
+    return "字段较完整，建议人工复核后创建任务。"
+
+
+def build_task_card_recommended_action(action_item: ActionItem, missing_fields: list[str]) -> str:
+    """给 OpenClaw/Console 一个可机器读取的建议动作。"""
+
+    if missing_fields:
+        return "complete_missing_fields"
+    return "review_then_create"
+
+
+def infer_task_participants(action_item: ActionItem, artifacts: PostMeetingArtifacts) -> list[str]:
+    """保守推断任务涉及人员。
+
+    首版只把明确负责人纳入参与人，避免从纪要文本中猜测协作者。后续若接入
+    参会人解析或 LLM 辅助抽取，可在这里扩展。
+    """
+
+    candidates = [action_item.owner] if is_verified_task_owner(action_item) else []
+    for participant in artifacts.workflow_input.participants:
+        name = first_non_empty(participant, "display_name", "name", "email", "open_id")
+        if name and name in action_item.title:
+            candidates.append(name)
+    return unique_non_empty(candidates)
+
+
+def build_task_card_owner_groups(cards: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """按负责人聚合 D4 任务卡。"""
+
+    groups: dict[str, dict[str, Any]] = {}
+    for card in cards:
+        owner = str(card.get("owner") or "待确认负责人")
+        group = groups.setdefault(
+            owner,
+            {
+                "owner": owner,
+                "total_count": 0,
+                "needs_fields_count": 0,
+                "ready_for_review_count": 0,
+                "high_priority_count": 0,
+                "items": [],
+            },
+        )
+        group["total_count"] += 1
+        if card.get("status") == "needs_fields":
+            group["needs_fields_count"] += 1
+        if card.get("status") == "ready_for_review":
+            group["ready_for_review_count"] += 1
+        if card.get("priority") == "high":
+            group["high_priority_count"] += 1
+        group["items"].append(
+            {
+                "item_id": card.get("item_id", ""),
+                "title": card.get("title", ""),
+                "due_date": card.get("due_date", ""),
+                "priority": card.get("priority", "medium"),
+                "status": card.get("status", ""),
+                "status_label": card.get("status_label", ""),
+                "agent_suggestion": card.get("agent_suggestion", ""),
+            }
+        )
+    return sorted(
+        groups.values(),
+        key=lambda group: (
+            group["owner"] == "待确认负责人",
+            -int(group["high_priority_count"]),
+            -int(group["total_count"]),
+            str(group["owner"]),
+        ),
+    )
+
+
+def build_task_duplicate_hints(cards: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """生成任务合并/去重提示。
+
+    首版只在本次妙记抽取结果中做轻量提示，不跨库删除或合并任务，避免误伤
+    真实协作记录。后续可以把 `task_mappings` 和项目记忆纳入相似度判断。
+    """
+
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for card in cards:
+        key = normalize_task_similarity_key(str(card.get("title") or ""))
+        if not key:
+            continue
+        buckets.setdefault(key, []).append(card)
+    hints: list[dict[str, Any]] = []
+    for key, items in buckets.items():
+        if len(items) < 2:
+            continue
+        hints.append(
+            {
+                "hint_id": stable_id("task_dup", key),
+                "reason": "标题高度相似，建议确认是否合并或去重。",
+                "item_ids": [str(item.get("item_id") or "") for item in items],
+                "titles": [str(item.get("title") or "") for item in items],
+            }
+        )
+    return hints[:5]
+
+
+def normalize_task_similarity_key(title: str) -> str:
+    """把任务标题压缩成轻量相似度 key。"""
+
+    normalized = title.strip().casefold()
+    normalized = re.sub(r"[\s，,；;。.!！?？:：、]+", "", normalized)
+    normalized = re.sub(r"(完成|整理|跟进|推进|补充|确认|负责|请|麻烦|一下)", "", normalized)
+    return normalized[:32]
 
 
 def generate_follow_up_suggestions(artifacts: PostMeetingArtifacts) -> list[FollowUpSuggestion]:
@@ -1966,7 +2270,7 @@ def parse_due_date_to_timestamp_ms(raw_due_date: str, timezone: str = "Asia/Shan
         return str(int((next_month - timedelta(days=1)).timestamp() * 1000))
 
     weekday_map = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6, "天": 6}
-    weekday_match = re.search(r"(下?周)([一二三四五六日天])", due)
+    weekday_match = re.search(r"(下?周|星期)([一二三四五六日天])", due)
     if weekday_match:
         weekday = weekday_map[weekday_match.group(2)]
         base = next_weekday(today, weekday, include_today=True)

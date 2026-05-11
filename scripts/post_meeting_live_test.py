@@ -16,7 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from adapters import FeishuAPIError, FeishuAuthError, FeishuClient, create_feishu_tool_registry
 from cards import (
     build_auto_created_tasks_card,
-    build_pending_action_item_button_card,
+    build_post_meeting_summary_card,
     build_pending_task_button_value,
 )
 from config import load_settings
@@ -37,6 +37,10 @@ from core import (
     is_group_owner_candidate,
     save_pending_action_values,
 )
+from core.post_meeting_tools import (
+    rebuild_post_meeting_artifacts_object,
+    resolve_task_owner_candidates_for_artifacts,
+)
 from scripts.meetflow_agent_live_test import save_token_bundle
 
 
@@ -48,7 +52,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--identity", default="user", choices=["user", "tenant"], help="读取妙记使用的身份。")
     parser.add_argument("--read-only", action="store_true", help="只读验证，不执行任何写操作。")
     parser.add_argument("--allow-write", action="store_true", help="允许通过 AgentPolicy 后执行写操作。")
-    parser.add_argument("--send-card", action="store_true", help="在 allow-write 时发送会后总结/待确认卡片。")
+    parser.add_argument("--send-card", action="store_true", help="在 allow-write 时先发送会后总结卡；待确认任务卡由“查看任务卡”按钮触发发送。")
     parser.add_argument(
         "--send-reaction-cards",
         action="store_true",
@@ -97,6 +101,7 @@ def main() -> int:
         artifacts = build_post_meeting_artifacts_from_input(workflow_input)
         if not args.skip_related_knowledge:
             enrich_related_knowledge(settings=settings, artifacts=artifacts, top_n=args.related_top_n, report_logger=logger)
+        artifacts = resolve_live_test_task_owners(artifacts=artifacts, client=client)
         context = build_policy_context(artifacts, trace_id=f"post_meeting_live:{int(time.time())}")
         report: dict[str, Any] = build_readonly_report(artifacts, content_limit=args.content_limit)
 
@@ -183,6 +188,19 @@ def enrich_related_knowledge(settings: Any, artifacts: Any, top_n: int, report_l
         artifacts.extra["related_knowledge_error"] = str(error)
 
 
+def resolve_live_test_task_owners(artifacts: Any, client: FeishuClient) -> Any:
+    """真实发卡脚本在发卡前也执行 D4 负责人解析。
+
+    `post_meeting_live_test.py` 是确定性灰度脚本，历史上直接用 `im.send_card`
+    发送 `artifacts.card_payloads`，不会经过 Agent 工具
+    `post_meeting.send_summary_card`。这里显式复用同一套解析逻辑，保证真实
+    发卡测试和 Agent 工具路径行为一致。
+    """
+
+    resolved = resolve_task_owner_candidates_for_artifacts(artifacts.to_dict(), client=client)
+    return rebuild_post_meeting_artifacts_object(resolved)
+
+
 def build_policy_context(artifacts: Any, trace_id: str) -> WorkflowContext:
     """构造供 AgentPolicy 审核写工具使用的上下文。"""
 
@@ -238,6 +256,10 @@ def build_readonly_report(artifacts: Any, content_limit: int) -> dict[str, Any]:
             "action_item_owner_groups": artifacts.extra.get("action_item_owner_groups", []),
             "metrics": artifacts.extra.get("d3_metrics", {}),
         },
+        "d4_task_cards": {
+            "metrics": artifacts.extra.get("d4_metrics", {}),
+            "owner_resolution_summary": artifacts.extra.get("owner_resolution_summary", {}),
+        },
         "action_items": [item.to_dict() for item in artifacts.action_items],
         "pending_action_items": [item.to_dict() for item in artifacts.pending_action_items],
         "related_knowledge": {
@@ -288,6 +310,7 @@ def build_compact_console_summary(report: dict[str, Any]) -> dict[str, Any]:
         "suggestion_count": len(report.get("follow_up_suggestions", [])),
         "evidence_ref_count": int((report.get("evidence_pack", {}) or {}).get("total_count", 0) or 0),
         "related_knowledge": report.get("related_knowledge", {}),
+        "owner_resolution": report.get("d4_task_cards", {}).get("owner_resolution_summary", {}),
         "created_tasks": len(write_results.get("created_tasks", [])) if isinstance(write_results, dict) else 0,
         "sent_cards": len(write_results.get("sent_cards", [])) if isinstance(write_results, dict) else 0,
         "report_path": report.get("report_path", ""),
@@ -355,6 +378,9 @@ def render_markdown_report(args: argparse.Namespace, artifacts: Any, report: dic
                     f"- confidence: `{item.confidence:.2f}`",
                     f"- needs_confirm: `{item.needs_confirm}`",
                     f"- confirm_reason: {extra.get('confirm_reason', '') or '无'}",
+                    f"- owner_resolution_status: `{extra.get('owner_resolution_status', '') or 'missing'}`",
+                    f"- owner_resolution_source: `{extra.get('owner_resolution_source', '')}`",
+                    f"- owner_resolution_candidate_count: `{extra.get('owner_resolution_candidate_count', 0)}`",
                     f"- source_line: `{extra.get('source_line', '')}`",
                     f"- auto_create_candidate: `{extra.get('auto_create_candidate', False)}`",
                     "",
@@ -517,8 +543,10 @@ def run_write_phase(
 
     results: dict[str, Any] = {"created_tasks": [], "skipped_tasks": [], "sent_cards": []}
     review_session_id = build_review_session_id(context)
+    artifacts.extra["review_session_id"] = review_session_id
     for action_item in artifacts.pending_action_items:
         action_item.extra["review_session_id"] = review_session_id
+    artifacts.card_payloads["summary_card"] = build_post_meeting_summary_card(artifacts)
     for action_item in artifacts.action_items:
         results["skipped_tasks"].append(
             {
@@ -554,8 +582,6 @@ def run_write_phase(
                 for key, card in artifacts.card_payloads.items():
                     if key == "pending_card":
                         continue
-                    if key == "pending_card" and not artifacts.pending_action_items:
-                        continue
                     card_result = execute_with_policy(
                         registry=registry,
                         policy=policy,
@@ -574,32 +600,6 @@ def run_write_phase(
                         storage=storage,
                     )
                     results["sent_cards"].append({"card": key, "tool_result": card_result.to_dict()})
-                for item in artifacts.pending_action_items:
-                    item_id = getattr(item, "item_id", "")
-                    card = build_pending_action_item_button_card(artifacts, item)
-                    card_result = execute_with_policy(
-                        registry=registry,
-                        policy=policy,
-                        context=context,
-                        tool_name="im.send_card",
-                        arguments={
-                            "title": card.get("header", {}).get("title", {}).get("content", "MeetFlow 待确认任务"),
-                            "summary": f"MeetFlow 待确认任务：{getattr(item, 'title', '') or item_id}",
-                            "card": card,
-                            "receive_id": receive_id,
-                            "receive_id_type": args.receive_id_type,
-                            "identity": "tenant",
-                            "idempotency_key": f"{context.minute_token}:pending_button_card:{item_id}:{int(time.time())}",
-                        },
-                        allow_write=True,
-                        storage=storage,
-                    )
-                    message_id = str(card_result.data.get("message_id") or "")
-                    if message_id:
-                        bind_pending_action_message(settings, item_id=item_id, message_id=message_id, chat_id=receive_id)
-                    results["sent_cards"].append(
-                        {"card": "pending_button_card", "item_id": item_id, "tool_result": card_result.to_dict()}
-                    )
             if args.send_reaction_cards:
                 pending_values = [build_pending_task_button_value(item) for item in artifacts.pending_action_items]
                 save_pending_action_values(

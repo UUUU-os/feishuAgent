@@ -6,7 +6,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from cards.post_meeting import build_pending_action_item_button_card, build_pending_action_items_card
+from cards.post_meeting import (
+    build_pending_action_item_button_card,
+    build_pending_action_item_reaction_card,
+    build_pending_action_items_card,
+)
 from core.card_callback import (
     handle_post_meeting_card_callback,
     merge_action_values_preserving_cached,
@@ -25,9 +29,31 @@ class FakeFeishuClient:
 
     def __init__(self) -> None:
         self.updated_cards: list[dict[str, object]] = []
+        self.sent_cards: list[dict[str, object]] = []
 
     def update_card_message(self, message_id: str, card: dict[str, object], identity: str | None = None) -> dict[str, object]:
         self.updated_cards.append({"message_id": message_id, "card": card, "identity": identity})
+        return {"message_id": message_id}
+
+    def send_card_message(
+        self,
+        receive_id: str,
+        card: dict[str, object],
+        receive_id_type: str = "chat_id",
+        idempotency_key: str = "",
+        identity: str | None = None,
+    ) -> dict[str, object]:
+        message_id = f"om_sent_{len(self.sent_cards) + 1:03d}"
+        self.sent_cards.append(
+            {
+                "message_id": message_id,
+                "receive_id": receive_id,
+                "receive_id_type": receive_id_type,
+                "idempotency_key": idempotency_key,
+                "identity": identity,
+                "card": card,
+            }
+        )
         return {"message_id": message_id}
 
 
@@ -162,8 +188,302 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
         self.assertTrue(any(element.get("tag") == "form" for element in elements))
         card_text = str(card)
         self.assertIn("确认创建", card_text)
-        self.assertIn("修改信息", card_text)
+        self.assertNotIn("修改信息", card_text)
+        self.assertNotIn("保存修改", card_text)
         self.assertIn("拒绝创建", card_text)
+        self.assertIn("**会议：** M4 按钮回调联调", card_text)
+        self.assertIn("**待确认任务数：** 1", card_text)
+        self.assertIn("**任务 ID：** action_test_001", card_text)
+        self.assertIn("**负责人：** 待补充", card_text)
+        self.assertIn("**截止时间：** 待补充", card_text)
+        self.assertIn("**优先级：** high｜**置信度：** 0.82", card_text)
+        self.assertIn("**待确认原因：** 缺少负责人、截止时间", card_text)
+        self.assertIn("**证据：** 张三负责整理答辩材料，明天前完成。", card_text)
+        self.assertIn("  \\n**任务 ID：** action_test_001", card_text)
+        self.assertIn("待补充  \\n**截止时间：** 待补充", card_text)
+        self.assertNotIn("\\n\\n**任务 ID：** action_test_001", card_text)
+        self.assertNotIn("待补充\\n\\n**截止时间：** 待补充", card_text)
+        self.assertNotIn("负责人：**待补充**", card_text)
+        self.assertNotIn("截止时间：**待补充**", card_text)
+        self.assertNotIn("任务 ID：`action_test_001`", card_text)
+        self.assertNotIn("整理答辩材料**任务 ID", card_text)
+        self.assertNotIn("**补充字段**", card_text)
+        self.assertNotIn("**任务 ID：**action_test_001", card_text)
+
+    def test_pending_card_keeps_all_tasks_in_one_message(self) -> None:
+        items = [
+            ActionItem(
+                item_id=f"action_test_{index:03d}",
+                title=f"整理答辩材料 {index}",
+                owner="",
+                due_date="",
+                priority="medium",
+                confidence=0.8,
+                needs_confirm=True,
+                extra={"confirm_reason": "缺少负责人、截止时间"},
+            )
+            for index in range(1, 11)
+        ]
+        artifacts = SimpleNamespace(
+            meeting_summary=SimpleNamespace(topic="M4 聚合任务卡"),
+            pending_action_items=items,
+            action_items=items,
+        )
+        card = build_pending_action_items_card(artifacts)
+        card_text = str(card)
+
+        self.assertIn("整理答辩材料 1", card_text)
+        self.assertIn("整理答辩材料 10", card_text)
+        self.assertNotIn("另有", card_text)
+        forms = [element for element in card.get("body", {}).get("elements", []) if element.get("tag") == "form"]
+        self.assertEqual(len(forms), 10)
+        self.assertTrue(all("elements" in form for form in forms))
+        self.assertTrue(all("body" not in form for form in forms))
+
+    def test_view_pending_tasks_sends_aggregate_task_card_once(self) -> None:
+        save_pending_action_values(
+            self.settings,
+            [
+                {
+                    "item_id": "action_view_001",
+                    "title": "补充状态流转文案",
+                    "owner": "叶抒锐",
+                    "due_date": "2026-05-13",
+                    "priority": "medium",
+                    "confidence": 0.95,
+                    "meeting_id": "meeting_view_001",
+                    "minute_token": "minute_view_001",
+                    "review_session_id": "session_view_001",
+                    "meeting_topic": "M4 查看任务卡",
+                },
+                {
+                    "item_id": "action_view_002",
+                    "title": "整理测试覆盖状态筛选组合",
+                    "owner": "",
+                    "due_date": "",
+                    "priority": "medium",
+                    "confidence": 0.7,
+                    "meeting_id": "meeting_view_001",
+                    "minute_token": "minute_view_001",
+                    "review_session_id": "session_view_001",
+                    "meeting_topic": "M4 查看任务卡",
+                },
+            ],
+            source={"chat_id": "oc_test_chat", "receive_id_type": "chat_id", "review_session_id": "session_view_001"},
+        )
+        client = FakeFeishuClient()
+        payload = {
+            "event": {
+                "context": {"open_chat_id": "oc_test_chat", "open_message_id": "om_summary_001"},
+                "action": {
+                    "value": {
+                        "action": "view_pending_tasks",
+                        "source_card": "post_meeting_summary",
+                        "workflow_type": "post_meeting_followup",
+                        "meeting_id": "meeting_view_001",
+                        "minute_token": "minute_view_001",
+                        "review_session_id": "session_view_001",
+                    }
+                },
+            }
+        }
+
+        result = handle_post_meeting_card_callback(
+            payload=payload,
+            settings=self.settings,
+            client=client,
+            storage=self.storage,
+            policy=AgentPolicy(),
+        )
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(len(client.sent_cards), 1)
+        sent = client.sent_cards[0]
+        self.assertEqual(sent["receive_id"], "oc_test_chat")
+        self.assertEqual(sent["identity"], "tenant")
+        sent_text = str(sent["card"])
+        self.assertIn("补充状态流转文案", sent_text)
+        self.assertIn("整理测试覆盖状态筛选组合", sent_text)
+        self.assertIn("confirm_action_view_001", sent_text)
+        self.assertIn("confirm_action_view_002", sent_text)
+        records = load_pending_action_records(self.settings)
+        self.assertEqual(records["action_view_001"]["source"]["message_id"], "om_sent_001")
+        self.assertEqual(records["action_view_002"]["source"]["message_id"], "om_sent_001")
+
+        second_result = handle_post_meeting_card_callback(
+            payload=payload,
+            settings=self.settings,
+            client=client,
+            storage=self.storage,
+            policy=AgentPolicy(),
+        )
+
+        self.assertEqual(second_result.status, "success")
+        self.assertEqual(len(client.sent_cards), 1)
+        self.assertIn("已经发送过", second_result.message)
+
+    def test_aggregate_card_update_keeps_other_task_buttons(self) -> None:
+        save_pending_action_values(
+            self.settings,
+            [
+                {
+                    "item_id": "action_test_001",
+                    "title": "整理答辩材料 1",
+                    "owner": "张三",
+                    "due_date": "2026-05-13",
+                    "priority": "medium",
+                    "confidence": 0.95,
+                    "meeting_topic": "M4 聚合按钮回调",
+                    "evidence_refs": [],
+                },
+                {
+                    "item_id": "action_test_002",
+                    "title": "整理答辩材料 2",
+                    "owner": "筛选组合",
+                    "due_date": "周四前",
+                    "priority": "medium",
+                    "confidence": 0.9,
+                    "meeting_topic": "M4 聚合按钮回调",
+                    "extra": {
+                        "missing_fields": ["owner", "due_date"],
+                        "owner_candidate": "筛选组合",
+                        "owner_resolution_status": "not_found",
+                    },
+                    "evidence_refs": [],
+                },
+            ],
+            source={"chat_id": "oc_test_chat", "receive_id_type": "chat_id"},
+        )
+        bind_pending_action_message(self.settings, item_id="action_test_001", message_id="om_aggregate", chat_id="oc_test_chat")
+        bind_pending_action_message(self.settings, item_id="action_test_002", message_id="om_aggregate", chat_id="oc_test_chat")
+        client = FakeFeishuClient()
+        payload = {
+            "event": {
+                "context": {"open_message_id": "om_aggregate"},
+                "action": {"value": {"action": "reject_create_task", "item_id": "action_test_001"}},
+            }
+        }
+
+        result = handle_post_meeting_card_callback(
+            payload=payload,
+            settings=self.settings,
+            client=client,
+            storage=self.storage,
+            policy=AgentPolicy(),
+        )
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(len(client.updated_cards), 1)
+        updated_card = client.updated_cards[0]["card"]
+        updated_text = str(updated_card)
+        response = result.to_feishu_response()
+        self.assertIn("card", response)
+        self.assertEqual(response["card"]["data"], updated_card)
+        self.assertEqual(client.updated_cards[0]["message_id"], "om_aggregate")
+        self.assertIn("整理答辩材料 1", updated_text)
+        self.assertIn("已拒绝创建", updated_text)
+        self.assertIn("整理答辩材料 2", updated_text)
+        self.assertIn("**负责人：** 待补充", updated_text)
+        self.assertIn("**截止时间：** 待补充", updated_text)
+        self.assertNotIn("**负责人：** 筛选组合", updated_text)
+        self.assertNotIn("**截止时间：** 周四前", updated_text)
+        forms = [element for element in updated_card.get("body", {}).get("elements", []) if element.get("tag") == "form"]
+        self.assertEqual(len(forms), 1)
+        self.assertIn("confirm_action_test_002", updated_text)
+        self.assertIn("reject_action_test_002", updated_text)
+        self.assertNotIn("confirm_action_test_001", updated_text)
+
+    def test_aggregate_card_update_falls_back_to_review_session_group(self) -> None:
+        save_pending_action_values(
+            self.settings,
+            [
+                {
+                    "item_id": "action_session_001",
+                    "title": "按确认批次保留按钮 1",
+                    "owner": "张三",
+                    "due_date": "2026-05-13",
+                    "priority": "medium",
+                    "confidence": 0.95,
+                    "meeting_topic": "M4 聚合按钮回调",
+                    "review_session_id": "session_group_test",
+                },
+                {
+                    "item_id": "action_session_002",
+                    "title": "按确认批次保留按钮 2",
+                    "owner": "李四",
+                    "due_date": "2026-05-14",
+                    "priority": "medium",
+                    "confidence": 0.9,
+                    "meeting_topic": "M4 聚合按钮回调",
+                    "review_session_id": "session_group_test",
+                },
+            ],
+            source={"chat_id": "oc_test_chat", "review_session_id": "session_group_test"},
+        )
+        client = FakeFeishuClient()
+        payload = {
+            "event": {
+                "context": {"open_message_id": "om_callback_only"},
+                "action": {"value": {"action": "reject_create_task", "item_id": "action_session_001"}},
+            }
+        }
+
+        result = handle_post_meeting_card_callback(
+            payload=payload,
+            settings=self.settings,
+            client=client,
+            storage=self.storage,
+            policy=AgentPolicy(),
+        )
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(len(client.updated_cards), 1)
+        updated_card = client.updated_cards[0]["card"]
+        updated_text = str(updated_card)
+        response = result.to_feishu_response()
+        self.assertIn("card", response)
+        self.assertEqual(response["card"]["data"], updated_card)
+        self.assertEqual(client.updated_cards[0]["message_id"], "om_callback_only")
+        self.assertIn("按确认批次保留按钮 1", updated_text)
+        self.assertIn("已拒绝创建", updated_text)
+        self.assertIn("按确认批次保留按钮 2", updated_text)
+        self.assertIn("confirm_action_session_002", updated_text)
+        self.assertNotIn("confirm_action_session_001", updated_text)
+
+    def test_pending_card_strips_markdown_from_business_values(self) -> None:
+        item = ActionItem(
+            item_id="action_markdown_001",
+            title="**李健文**：周四前完成数据库表设计和接口草案",
+            owner="李健文",
+            due_date="2026-05-14",
+            priority="medium",
+            confidence=0.95,
+            needs_confirm=True,
+            evidence_refs=[
+                EvidenceRef(
+                    source_type="minute",
+                    source_id="minute_test_001",
+                    source_url="https://example.com/minute",
+                    snippet="**李健文**：周四前完成数据库表设计和接口草案。",
+                )
+            ],
+            extra={"confirm_reason": "待人工复核"},
+        )
+        artifacts = SimpleNamespace(
+            meeting_summary=SimpleNamespace(topic="项目组会"),
+            pending_action_items=[item],
+            action_items=[item],
+        )
+
+        card = build_pending_action_items_card(artifacts)
+        card_text = str(card)
+
+        self.assertIn("1. 李健文：周四前完成数据库表设计和接口草案", card_text)
+        self.assertIn("**负责人：** 待补充", card_text)
+        self.assertIn("**证据：** 李健文：周四前完成数据库表设计和接口草案。", card_text)
+        self.assertIn("补充字段", card_text)
+        self.assertNotIn("**李健文**", card_text)
+        self.assertNotIn("**补充字段**", card_text)
 
     def test_single_pending_button_card_contains_inline_inputs_and_buttons(self) -> None:
         item = ActionItem(
@@ -194,8 +514,51 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
         self.assertIn("负责人，例如：张三 / 我", card_text)
         self.assertIn("截止时间，例如：明天 / 2026-05-03", card_text)
         self.assertIn("确认创建", card_text)
-        self.assertIn("修改信息", card_text)
+        self.assertNotIn("修改信息", card_text)
+        self.assertNotIn("保存修改", card_text)
         self.assertIn("拒绝创建", card_text)
+        self.assertIn("**负责人：** 待补充", card_text)
+        self.assertIn("**截止时间：** 待补充", card_text)
+        self.assertIn("  \\n**任务 ID：** action_test_001", card_text)
+        self.assertNotIn("\\n\\n**任务 ID：** action_test_001", card_text)
+        self.assertNotIn("负责人：**待补充**", card_text)
+        self.assertNotIn("任务 ID：`action_test_001`", card_text)
+        self.assertNotIn("整理答辩材料**任务 ID", card_text)
+        self.assertNotIn("**修改字段**", card_text)
+
+    def test_reaction_pending_card_uses_label_only_bold_rendering(self) -> None:
+        item = ActionItem(
+            item_id="action_test_001",
+            title="整理答辩材料",
+            owner="张三",
+            due_date="2026-05-13",
+            priority="medium",
+            confidence=0.8,
+            needs_confirm=True,
+            evidence_refs=[
+                EvidenceRef(
+                    source_type="minute",
+                    source_id="minute_test_001",
+                    source_url="https://example.com/minute",
+                    snippet="张三负责整理答辩材料，明天前完成。",
+                )
+            ],
+            extra={"confirm_reason": "待人工复核"},
+        )
+        artifacts = SimpleNamespace(meeting_summary=SimpleNamespace(topic="M4 Reaction 兜底"))
+
+        card = build_pending_action_item_reaction_card(artifacts, item)
+        card_text = str(card)
+
+        self.assertIn("**会议：** M4 Reaction 兜底", card_text)
+        self.assertIn("**任务：** 整理答辩材料", card_text)
+        self.assertIn("**任务 ID：** action_test_001", card_text)
+        self.assertIn("**负责人：** 张三", card_text)
+        self.assertIn("**截止时间：** 2026-05-13", card_text)
+        self.assertIn("  \\n**任务 ID：** action_test_001", card_text)
+        self.assertNotIn("\\n\\n**任务 ID：** action_test_001", card_text)
+        self.assertNotIn("负责人：**张三**", card_text)
+        self.assertNotIn("任务 ID：`action_test_001`", card_text)
 
     def test_edit_button_updates_pending_registry(self) -> None:
         client = FakeFeishuClient()
@@ -454,7 +817,8 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
         response = result.to_feishu_response()
         self.assertEqual(response["toast"]["type"], "info")
         self.assertEqual(len(client.updated_cards), 1)
-        self.assertIn("保存修改", str(client.updated_cards[0]["card"]))
+        self.assertIn("确认创建", str(client.updated_cards[0]["card"]))
+        self.assertNotIn("保存修改", str(client.updated_cards[0]["card"]))
 
     def test_reject_after_created_is_blocked_and_keeps_created_state(self) -> None:
         client = FakeFeishuClient()

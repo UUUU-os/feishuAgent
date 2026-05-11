@@ -17,6 +17,19 @@ from core.confirmation_commands import pending_actions_path
 
 
 DEFAULT_MINUTE_TOKEN = "obcn7xk3bg1olx8lb811fq4i"
+M4_AGENT_TOOLS = [
+    "minutes.fetch_resource",
+    "docs.fetch_resource",
+    "knowledge.search",
+    "knowledge.fetch_chunk",
+    "post_meeting.build_artifacts",
+    "post_meeting.enrich_related_knowledge",
+    "post_meeting.prepare_task",
+    "post_meeting.send_summary_card",
+    "post_meeting.save_pending_actions",
+    "contact.get_current_user",
+    "contact.search_user",
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,8 +37,8 @@ def parse_args() -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(
         description=(
-            "真实环境测试 M4 Agent 化链路：minute.ready -> Agent Loop -> 发会后总结卡和待确认任务卡 -> "
-            "保存待确认任务；不会自动创建任务。"
+            "真实环境测试 M4 Agent 化链路：minute.ready -> Agent Loop -> 发会后总结卡 -> "
+            "保存待确认任务；点击总结卡“查看任务卡”后再发送任务卡，不会自动创建任务。"
         )
     )
     parser.add_argument("--minute-token", default=DEFAULT_MINUTE_TOKEN, help="飞书妙记 token。")
@@ -89,9 +102,13 @@ def run_agent_stage(args: argparse.Namespace) -> int:
         str(args.max_iterations),
         "--allow-write",
     ]
+    for tool_name in M4_AGENT_TOOLS:
+        # 会后验收要验证 M4 专用卡片链路，显式暴露 post_meeting 工具，
+        # 避免真实模型退回通用 im.send_card 简化卡片而丢失按钮。
+        command.extend(["--tool", tool_name])
     if args.enable_idempotency:
         command.append("--enable-idempotency")
-    print("\n[1/2] 运行 M4 Agent 主链路，真实读取妙记并向测试群发送会后总结卡和待确认任务卡...")
+    print("\n[1/2] 运行 M4 Agent 主链路，真实读取妙记并向测试群发送会后总结卡；任务卡需点击“查看任务卡”后发送...")
     return subprocess.call(command, cwd=PROJECT_ROOT)
 
 
@@ -129,7 +146,7 @@ def print_next_steps(args: argparse.Namespace) -> None:
     ]
     if args.watch_once:
         watcher_command.append("--once")
-    print("\n下一步优先直接点击待确认卡片里的“确认创建 / 修改信息 / 拒绝创建”按钮。")
+    print("\n下一步先点击会后总结卡里的“查看任务卡”，再在待确认任务卡里点击“确认创建 / 拒绝创建”。")
     print("若需要回退到旧的消息确认模式，再启动下面的 watcher。")
     print("WebSocket 监听命令：")
     print(" ".join(watcher_command))

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import copy
 import time
 from pathlib import Path
 from typing import Any
 
 from adapters.feishu_client import FeishuClient, IdentityMode
-from cards.post_meeting import build_pending_task_button_value
+from cards.post_meeting import (
+    build_pending_action_items_card,
+    build_pending_task_button_value,
+    build_post_meeting_summary_card,
+)
 from core.confirmation_commands import load_json_object, write_json_object
 from core.knowledge import KnowledgeIndexStore
 from core.models import ActionItem, EvidenceRef, Resource, WorkflowContext
@@ -14,6 +19,9 @@ from core.post_meeting import (
     build_post_meeting_artifacts_from_input,
     build_task_create_arguments,
     enrich_post_meeting_related_resources,
+    is_group_owner_candidate,
+    is_invalid_owner_candidate,
+    merge_d3_review_fields,
 )
 from core.storage import MeetFlowStorage
 from core.tools import AgentTool, ToolRegistry
@@ -39,7 +47,7 @@ def register_post_meeting_tools(
     registry.register(_build_post_meeting_enrich_related_knowledge_tool(knowledge_store))
     registry.register(_build_post_meeting_prepare_task_tool(timezone=timezone))
     registry.register(_build_post_meeting_send_summary_card_tool(client, default_chat_id=default_chat_id))
-    registry.register(_build_post_meeting_save_pending_actions_tool(storage))
+    registry.register(_build_post_meeting_save_pending_actions_tool(storage, client=client))
 
 
 def _build_post_meeting_build_artifacts_tool() -> AgentTool:
@@ -138,7 +146,8 @@ def _build_post_meeting_send_summary_card_tool(
     return AgentTool(
         internal_name="post_meeting.send_summary_card",
         description=(
-            "发送 M4 会后总结卡或待确认任务卡。写操作，必须携带 idempotency_key 并经过 AgentPolicy。"
+            "发送 M4 会后总结卡。待确认任务卡默认由会后总结卡的“查看任务卡”按钮触发发送；"
+            "写操作必须携带 idempotency_key 并经过 AgentPolicy。"
         ),
         parameters={
             "type": "object",
@@ -167,7 +176,10 @@ def _build_post_meeting_send_summary_card_tool(
     )
 
 
-def _build_post_meeting_save_pending_actions_tool(storage: MeetFlowStorage | None) -> AgentTool:
+def _build_post_meeting_save_pending_actions_tool(
+    storage: MeetFlowStorage | None,
+    client: FeishuClient | None,
+) -> AgentTool:
     """注册待确认任务 registry 保存工具。"""
 
     return AgentTool(
@@ -187,6 +199,7 @@ def _build_post_meeting_save_pending_actions_tool(storage: MeetFlowStorage | Non
         },
         handler=lambda artifacts, source=None, idempotency_key="", **_: save_pending_actions_tool_result(
             storage=storage,
+            client=client,
             artifacts=artifacts,
             source=source or {},
             idempotency_key=idempotency_key,
@@ -272,6 +285,7 @@ def send_post_meeting_card_tool_result(
 ) -> dict[str, Any]:
     """工具实现：发送 M4 卡片；本地模式返回 dry-run 结构。"""
 
+    artifacts = resolve_task_owner_candidates_for_artifacts(artifacts, client=client)
     card_payloads = artifacts.get("card_payloads") if isinstance(artifacts, dict) else {}
     if not isinstance(card_payloads, dict):
         card_payloads = {}
@@ -313,12 +327,14 @@ def send_post_meeting_card_tool_result(
 
 def save_pending_actions_tool_result(
     storage: MeetFlowStorage | None,
+    client: FeishuClient | None,
     artifacts: dict[str, Any],
     source: dict[str, Any],
     idempotency_key: str,
 ) -> dict[str, Any]:
     """工具实现：保存待确认 Action Item 的本地恢复上下文。"""
 
+    artifacts = resolve_task_owner_candidates_for_artifacts(artifacts, client=client)
     if storage is None:
         return {
             "saved": False,
@@ -339,6 +355,305 @@ def save_pending_actions_tool_result(
         "item_ids": [value.get("item_id", "") for value in values],
         "idempotency_key": idempotency_key,
     }
+
+
+def resolve_task_owner_candidates_for_artifacts(
+    artifacts: dict[str, Any],
+    client: FeishuClient | None,
+) -> dict[str, Any]:
+    """在发卡/保存前把负责人候选名解析为真实飞书用户。
+
+    妙记抽取出的 `owner` 只是文本候选。D4 的展示规则要求：只有通讯录能
+    唯一确认到用户时，任务卡才展示负责人并携带 open_id；查不到、多人同名
+    或候选本身是时间词/群体称呼时，都保持“待补充”。
+    """
+
+    if not isinstance(artifacts, dict):
+        return artifacts
+    resolved = copy.deepcopy(artifacts)
+    if client is None:
+        return resolved
+
+    stats = {
+        "attempted_count": 0,
+        "resolved_count": 0,
+        "not_found_count": 0,
+        "ambiguous_count": 0,
+        "invalid_count": 0,
+        "error_count": 0,
+    }
+    cache: dict[str, dict[str, Any]] = {}
+    for section in ("action_items", "pending_action_items"):
+        items = resolved.get(section)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            resolution = resolve_task_owner_candidate(item, client=client, cache=cache)
+            apply_task_owner_resolution(item, resolution)
+            update_owner_resolution_stats(stats, resolution)
+
+    extra = dict(resolved.get("extra") or {})
+    extra["owner_resolution_summary"] = stats
+    resolved["extra"] = extra
+    return rebuild_post_meeting_artifacts_payloads(resolved)
+
+
+def resolve_task_owner_candidate(
+    item: dict[str, Any],
+    client: FeishuClient,
+    cache: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """解析单条任务的负责人候选，返回可写入 `ActionItem.extra` 的结果。"""
+
+    extra = dict(item.get("extra") or {})
+    existing_open_id = str(extra.get("owner_open_id") or extra.get("assignee_open_id") or "").strip()
+    owner_text = str(item.get("owner") or extra.get("owner_candidate") or "").strip()
+    if existing_open_id:
+        return {
+            "status": "resolved",
+            "source": str(extra.get("owner_resolution_source") or "existing_extra"),
+            "owner_candidate": owner_text,
+            "open_id": existing_open_id,
+            "user_id": str(extra.get("owner_user_id") or ""),
+            "display_name": str(extra.get("owner_display_name") or owner_text),
+            "candidate_count": 1,
+        }
+    if not owner_text or is_group_owner_candidate(owner_text) or is_invalid_owner_candidate(owner_text):
+        return {
+            "status": "invalid_candidate" if owner_text else "missing",
+            "source": "local_validation",
+            "owner_candidate": owner_text,
+            "candidate_count": 0,
+        }
+    if owner_text in cache:
+        return dict(cache[owner_text])
+
+    try:
+        if owner_text in {"我", "本人", "自己"}:
+            resolution = resolve_current_user_owner(client, owner_text)
+        else:
+            resolution = resolve_named_owner(client, owner_text)
+    except Exception as error:  # noqa: BLE001 - 可选解析失败时保留原因并降级为待补充。
+        resolution = {
+            "status": "error",
+            "source": "contact.search_user",
+            "owner_candidate": owner_text,
+            "candidate_count": 0,
+            "error": str(error)[:240],
+        }
+    cache[owner_text] = dict(resolution)
+    return resolution
+
+
+def resolve_current_user_owner(client: FeishuClient, owner_text: str) -> dict[str, Any]:
+    """解析“我/本人/自己”为当前登录用户。"""
+
+    data = client.get_current_user_info()
+    open_id = first_user_identifier(data, keys=("open_id", "user_id", "union_id", "id"))
+    if not open_id:
+        return {
+            "status": "not_found",
+            "source": "contact.get_current_user",
+            "owner_candidate": owner_text,
+            "candidate_count": 0,
+        }
+    return {
+        "status": "resolved",
+        "source": "contact.get_current_user",
+        "owner_candidate": owner_text,
+        "open_id": open_id,
+        "user_id": str(data.get("user_id") or ""),
+        "display_name": user_display_name(data) or owner_text,
+        "candidate_count": 1,
+    }
+
+
+def resolve_named_owner(client: FeishuClient, owner_text: str) -> dict[str, Any]:
+    """通过飞书通讯录解析姓名，只有唯一可信候选才算解析成功。"""
+
+    data = client.search_users(query=owner_text, page_size=5, identity="user")
+    candidates = normalize_user_candidates(data)
+    if not candidates:
+        return {
+            "status": "not_found",
+            "source": "contact.search_user",
+            "owner_candidate": owner_text,
+            "candidate_count": 0,
+        }
+    exact_candidates = [candidate for candidate in candidates if user_candidate_matches(owner_text, candidate)]
+    selected = exact_candidates[0] if len(exact_candidates) == 1 else candidates[0] if len(candidates) == 1 else {}
+    if not selected:
+        return {
+            "status": "ambiguous",
+            "source": "contact.search_user",
+            "owner_candidate": owner_text,
+            "candidate_count": len(candidates),
+            "candidate_names": [candidate.get("display_name", "") for candidate in candidates[:5]],
+        }
+    open_id = str(selected.get("open_id") or "").strip()
+    if not open_id:
+        return {
+            "status": "not_found",
+            "source": "contact.search_user",
+            "owner_candidate": owner_text,
+            "candidate_count": len(candidates),
+        }
+    return {
+        "status": "resolved",
+        "source": "contact.search_user",
+        "owner_candidate": owner_text,
+        "open_id": open_id,
+        "user_id": str(selected.get("user_id") or ""),
+        "display_name": str(selected.get("display_name") or owner_text),
+        "candidate_count": len(candidates),
+    }
+
+
+def normalize_user_candidates(data: dict[str, Any]) -> list[dict[str, str]]:
+    """兼容飞书搜索接口可能返回的候选列表字段名。"""
+
+    raw_items = data.get("items") or data.get("users") or data.get("user_list") or []
+    if not isinstance(raw_items, list):
+        return []
+    candidates: list[dict[str, str]] = []
+    for raw in raw_items:
+        if not isinstance(raw, dict):
+            continue
+        open_id = first_user_identifier(raw, keys=("open_id", "user_id", "id"))
+        if not open_id:
+            continue
+        candidates.append(
+            {
+                "open_id": open_id,
+                "user_id": str(raw.get("user_id") or ""),
+                "display_name": user_display_name(raw),
+                "name": str(raw.get("name") or ""),
+                "en_name": str(raw.get("en_name") or ""),
+                "email": str(raw.get("email") or ""),
+            }
+        )
+    return candidates
+
+
+def user_candidate_matches(query: str, candidate: dict[str, str]) -> bool:
+    """判断搜索结果是否和负责人文本精确匹配。"""
+
+    normalized_query = normalize_user_match_text(query)
+    return any(
+        normalize_user_match_text(candidate.get(field, "")) == normalized_query
+        for field in ("display_name", "name", "en_name", "email")
+        if candidate.get(field)
+    )
+
+
+def normalize_user_match_text(value: str) -> str:
+    """归一化姓名/邮箱匹配文本。"""
+
+    return str(value or "").strip().lower().replace(" ", "")
+
+
+def user_display_name(data: dict[str, Any]) -> str:
+    """从飞书用户对象中提取可展示姓名。"""
+
+    return str(
+        data.get("name")
+        or data.get("display_name")
+        or data.get("en_name")
+        or data.get("email")
+        or ""
+    ).strip()
+
+
+def first_user_identifier(data: dict[str, Any], keys: tuple[str, ...]) -> str:
+    """从用户对象中读取第一个非空 ID。"""
+
+    for key in keys:
+        value = str(data.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def apply_task_owner_resolution(item: dict[str, Any], resolution: dict[str, Any]) -> None:
+    """把负责人解析结果写回 action item 字典。"""
+
+    extra = dict(item.get("extra") or {})
+    owner_candidate = str(resolution.get("owner_candidate") or item.get("owner") or "").strip()
+    if owner_candidate:
+        extra["owner_candidate"] = owner_candidate
+    status = str(resolution.get("status") or "")
+    extra["owner_resolution_status"] = status
+    extra["owner_resolution_source"] = str(resolution.get("source") or "")
+    extra["owner_resolution_candidate_count"] = int(resolution.get("candidate_count") or 0)
+    if resolution.get("error"):
+        extra["owner_resolution_error"] = str(resolution.get("error") or "")
+    if status == "ambiguous":
+        extra["owner_resolution_candidates"] = list(resolution.get("candidate_names") or [])
+    if status == "resolved":
+        display_name = str(resolution.get("display_name") or owner_candidate).strip()
+        extra["owner_open_id"] = str(resolution.get("open_id") or "")
+        if resolution.get("user_id"):
+            extra["owner_user_id"] = str(resolution.get("user_id") or "")
+        if display_name:
+            extra["owner_display_name"] = display_name
+            item["owner"] = display_name
+        extra["missing_fields"] = remove_owner_missing_fields(extra.get("missing_fields"))
+    item["extra"] = extra
+
+
+def remove_owner_missing_fields(fields: Any) -> list[str]:
+    """负责人已解析后，移除展示层不再需要的负责人缺字段标记。"""
+
+    return [
+        str(field)
+        for field in list(fields or [])
+        if str(field) not in {"owner", "owner_resolution"}
+    ]
+
+
+def update_owner_resolution_stats(stats: dict[str, int], resolution: dict[str, Any]) -> None:
+    """累计负责人解析摘要，便于报告和排查。"""
+
+    status = str(resolution.get("status") or "")
+    if status in {"missing", "resolved"} and resolution.get("source") == "existing_extra":
+        return
+    if status not in {"missing", ""}:
+        stats["attempted_count"] += 1
+    if status == "resolved":
+        stats["resolved_count"] += 1
+    elif status == "not_found":
+        stats["not_found_count"] += 1
+    elif status == "ambiguous":
+        stats["ambiguous_count"] += 1
+    elif status == "invalid_candidate":
+        stats["invalid_count"] += 1
+    elif status == "error":
+        stats["error_count"] += 1
+
+
+def rebuild_post_meeting_artifacts_payloads(artifacts: dict[str, Any]) -> dict[str, Any]:
+    """用解析后的 action items 重建 D4 分析包和卡片 payload。"""
+
+    return rebuild_post_meeting_artifacts_object(artifacts).to_dict()
+
+
+def rebuild_post_meeting_artifacts_object(artifacts: dict[str, Any]) -> Any:
+    """从 artifacts 字典恢复对象，并重建 D3/D4 展示字段和卡片。"""
+
+    rebuilt = build_post_meeting_artifacts_from_input(post_meeting_input_from_artifacts(artifacts))
+    rebuilt.extra.update(dict(artifacts.get("extra") or {}))
+    action_items = artifacts.get("action_items")
+    pending_items = artifacts.get("pending_action_items")
+    if isinstance(action_items, list):
+        rebuilt.action_items = [action_item_from_dict(item) for item in action_items if isinstance(item, dict)]
+    if isinstance(pending_items, list):
+        rebuilt.pending_action_items = [action_item_from_dict(item) for item in pending_items if isinstance(item, dict)]
+    merge_d3_review_fields(rebuilt)
+    rebuilt.card_payloads["summary_card"] = build_post_meeting_summary_card(rebuilt)
+    rebuilt.card_payloads["pending_card"] = build_pending_action_items_card(rebuilt)
+    return rebuilt
 
 
 def post_meeting_input_from_arguments(arguments: dict[str, Any]) -> PostMeetingInput:

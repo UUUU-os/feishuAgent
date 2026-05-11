@@ -234,6 +234,33 @@ def build_local_risk_demo_tasks() -> list[dict[str, Any]]:
             updated_at=now - 1 * 60 * 60,
         ),
         build_task(
+            task_id="task_missing_due_demo",
+            title="补充 OpenClaw 演示兜底截图",
+            owner="钱七",
+            due_timestamp=0,
+            updated_at=now - 3 * 60 * 60,
+        ),
+        build_task(
+            task_id="task_recurring_demo",
+            title="修复任务卡回调链路不稳定问题",
+            owner="孙八",
+            due_timestamp=now + 2 * 24 * 60 * 60,
+            updated_at=now - 4 * 60 * 60,
+            repeated_mentions=3,
+            recurring_evidence=[
+                {
+                    "source_id": "minute_review_1",
+                    "source_url": "https://example.feishu.cn/minutes/review_1",
+                    "snippet": "上次评审提到任务卡回调偶发更新失败，需要继续跟进。",
+                },
+                {
+                    "source_id": "minute_review_2",
+                    "source_url": "https://example.feishu.cn/minutes/review_2",
+                    "snippet": "本次会议再次讨论任务卡状态更新不稳定问题。",
+                },
+            ],
+        ),
+        build_task(
             task_id="task_done_demo",
             title="已完成的历史任务",
             owner="赵六",
@@ -253,6 +280,8 @@ def build_task(
     updated_at: int,
     status: str = "todo",
     completed_at: int = 0,
+    repeated_mentions: int = 0,
+    recurring_evidence: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """构造本地任务字典，模拟 `tasks.list_my_tasks` 的序列化结果。"""
 
@@ -260,13 +289,15 @@ def build_task(
         "item_id": task_id,
         "title": title,
         "owner": owner,
-        "due_date": str(due_timestamp),
+        "due_date": str(due_timestamp) if due_timestamp else "",
         "status": status,
         "extra": {
             "task_id": task_id,
             "updated_at": str(updated_at),
             "completed_at": str(completed_at) if completed_at else "",
             "url": f"https://example.feishu.cn/task/{task_id}",
+            "repeated_mentions": repeated_mentions,
+            "recurring_evidence": recurring_evidence or [],
         },
     }
 

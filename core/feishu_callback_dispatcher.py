@@ -24,6 +24,7 @@ POST_MEETING_ACTIONS = {
     "confirm_create_task",
     "reject_create_task",
     "edit_task_fields",
+    "view_pending_tasks",
 }
 
 PRE_MEETING_ACTIONS = {

@@ -80,6 +80,32 @@ class FeishuCallbackDispatcherTest(unittest.TestCase):
         self.assertEqual(result.body["toast"]["type"], "success")
         mocked.assert_called_once()
 
+    def test_summary_view_pending_tasks_routes_to_m4_handler(self) -> None:
+        dispatcher = self.build_dispatcher()
+        payload = {
+            "header": {"event_type": "card.action.trigger", "event_id": "evt_view_tasks", "token": "test-token"},
+            "event": {
+                "action": {
+                    "value": {
+                        "action": "view_pending_tasks",
+                        "source_card": "post_meeting_summary",
+                        "workflow_type": "post_meeting_followup",
+                        "minute_token": "minute_test_001",
+                    }
+                },
+                "context": {"open_chat_id": "oc_test", "open_message_id": "om_summary"},
+            },
+        }
+        with patch("core.feishu_callback_dispatcher.handle_post_meeting_card_callback") as mocked:
+            mocked.return_value = SimpleNamespace(
+                status="success",
+                to_feishu_response=lambda: {"toast": {"type": "success", "content": "已发送任务卡"}},
+            )
+            result = dispatcher.dispatch_http_callback(payload)
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.body["toast"]["content"], "已发送任务卡")
+        mocked.assert_called_once()
+
     def test_sdk_payload_normalizes_operator_value(self) -> None:
         payload = {
             "event": {

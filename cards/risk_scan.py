@@ -16,7 +16,7 @@ def build_risk_scan_card(
     卡内列出本次真正需要提醒的风险，同时展示被降噪跳过的数量。
     """
 
-    risks = decision.notify_risks or scan_result.risks[:3]
+    risks = merge_display_risks(decision, scan_result)
     elements: list[dict[str, Any]] = [
         {
             "tag": "markdown",
@@ -62,11 +62,16 @@ def render_risk_summary(decision: RiskNotificationDecision, scan_result: RiskSca
     """生成卡片顶部概览文本。"""
 
     generated_at = format_timestamp(scan_result.generated_at)
+    severity_counts = count_risks_by_severity(scan_result.risks)
     return "\n".join(
         [
             f"**巡检时间**：{generated_at}",
             f"**扫描任务数**：{scan_result.scanned_count}",
             f"**命中风险数**：{scan_result.risk_count}",
+            (
+                f"**风险概览**：高 {severity_counts['high']} / "
+                f"中 {severity_counts['medium']} / 低 {severity_counts['low']}"
+            ),
             f"**本次提醒**：{len(decision.notify_risks)} 条",
             f"**降噪跳过**：{len(decision.suppressed_risks)} 条",
             f"**决策说明**：{safe_text(decision.reason)}",
@@ -77,9 +82,20 @@ def render_risk_summary(decision: RiskNotificationDecision, scan_result: RiskSca
 def render_risk_items_markdown(risks: list[RiskRuleResult]) -> str:
     """把风险列表渲染为飞书 Markdown。"""
 
-    lines = ["**风险任务**"]
-    for index, risk in enumerate(risks[:5], start=1):
-        lines.extend(render_risk_item_lines(index, risk))
+    lines = ["**风险诊断清单**"]
+    shown_count = 0
+    for severity in ("high", "medium", "low"):
+        severity_risks = [risk for risk in risks if risk.severity == severity]
+        if not severity_risks:
+            continue
+        lines.append(f"\n**{severity_label(severity)}**")
+        for risk in severity_risks:
+            shown_count += 1
+            if shown_count > 6:
+                break
+            lines.extend(render_risk_item_lines(shown_count, risk))
+        if shown_count > 6:
+            break
     return "\n".join(lines)
 
 
@@ -94,6 +110,8 @@ def render_risk_item_lines(index: int, risk: RiskRuleResult) -> list[str]:
         f"{index}. {title}",
         f"   - 风险：{risk_type_label(risk.risk_type)} / {severity_label(risk.severity)}",
         f"   - 原因：{safe_text(risk.reason)}",
+        f"   - Agent 分析：{safe_text(risk.agent_analysis)}",
+        f"   - 影响范围：{safe_text(risk.impact_scope)}",
         f"   - 负责人：{owner}  |  截止时间：{due_text}",
         f"   - 建议：{safe_text(risk.suggestion)}",
     ]
@@ -173,6 +191,8 @@ def risk_type_label(risk_type: str) -> str:
         "due_soon": "即将截止",
         "stale_update": "长期未更新",
         "missing_owner": "缺少负责人",
+        "missing_due_date": "缺少截止时间",
+        "recurring_issue": "反复出现",
     }
     return labels.get(risk_type, risk_type)
 
@@ -206,6 +226,37 @@ def format_timestamp(timestamp: int) -> str:
     if not timestamp:
         return "未知"
     return time.strftime("%Y-%m-%d %H:%M", time.localtime(timestamp))
+
+
+def count_risks_by_severity(risks: list[RiskRuleResult]) -> dict[str, int]:
+    """统计高 / 中 / 低风险数量，供卡片顶部概览复用。"""
+
+    return {
+        "high": sum(1 for risk in risks if risk.severity == "high"),
+        "medium": sum(1 for risk in risks if risk.severity == "medium"),
+        "low": sum(1 for risk in risks if risk.severity == "low"),
+    }
+
+
+def merge_display_risks(
+    decision: RiskNotificationDecision,
+    scan_result: RiskScanResult,
+) -> list[RiskRuleResult]:
+    """合并本次提醒和降噪风险，确保 D5 诊断卡能展示完整风险面。
+
+    发送决策仍由 `decision.should_notify` 和 `notify_risks` 控制；这里仅影响卡片展示，
+    避免因为降噪窗口而让演示卡看不到“反复出现 / 缺字段”等诊断信息。
+    """
+
+    merged: list[RiskRuleResult] = []
+    seen: set[str] = set()
+    for risk in [*decision.notify_risks, *decision.suppressed_risks, *scan_result.risks]:
+        key = risk.risk_id or f"{risk.task_id}:{risk.risk_type}"
+        if key in seen:
+            continue
+        merged.append(risk)
+        seen.add(key)
+    return merged[:6]
 
 
 def safe_text(value: Any) -> str:

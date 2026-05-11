@@ -18,7 +18,7 @@
 
 验收标准：
 
-- `AGENTS.md` 说明默认集成分支为 `main`。
+- `AGENTS.md` 说明默认集成分支为 `d3-post-meeting-card-enhancement-plan`。
 - `AGENTS.md` 要求开发前检查 `git-instruction.md` 和 `team-work-division.md`。
 - `AGENTS.md` 要求开发前阅读 `tasks.md` 和对应 `docs/tasks/**` 任务文档。
 - `AGENTS.md` 要求提交前记录检查结果。

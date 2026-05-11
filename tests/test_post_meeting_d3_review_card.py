@@ -34,6 +34,7 @@ class PostMeetingD3ReviewCardTest(unittest.TestCase):
 
     def test_summary_card_contains_d3_sections(self) -> None:
         artifacts = build_post_meeting_artifacts_from_input(build_d3_input())
+        artifacts.extra["review_session_id"] = "session_d3"
         card = build_post_meeting_summary_card(artifacts)
         payload = json.dumps(card, ensure_ascii=False)
 
@@ -45,6 +46,9 @@ class PostMeetingD3ReviewCardTest(unittest.TestCase):
         self.assertIn("后续建议", payload)
         self.assertIn("Evidence Pack", payload)
         self.assertIn("执行风险巡检", payload)
+        self.assertIn("查看任务卡", payload)
+        self.assertIn('"action": "view_pending_tasks"', payload)
+        self.assertIn('"review_session_id": "session_d3"', payload)
 
 
 def build_d3_input() -> PostMeetingInput:
