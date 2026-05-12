@@ -750,6 +750,62 @@ M5 风险巡检与提醒工作流的仓库级详细改造计划已整理到
 `py_compile`、M5 单测、本地风险 demo、`agent_demo.py --event-type risk.scan.tick`
 和全量 `unittest discover`，结果均通过。
 
+2026-05-12 修复 D3 会后总结卡快捷按钮真实回调协议不一致问题。
+本轮修改 `cards/post_meeting.py`、`core/card_callback.py`、
+`core/feishu_callback_dispatcher.py`、`core/router.py`、
+`tests/test_post_meeting_d3_review_card.py`、`tests/test_post_meeting_card_callback.py`、
+`tests/test_feishu_callback_dispatcher.py`、`tests/test_card_actions.py` 和
+`docs/tasks/d3-post-meeting-card-enhancement-plan.md`。定位结论：D4 任务卡按钮可点击，
+是因为使用了 schema 2.0 `button.behaviors.callback`；D3 会后总结卡快捷按钮仍沿用旧版
+`tag=action/value` 结构，真实飞书客户端点击后不会进入同一条稳定 callback 链路。
+本轮将“查看任务卡 / 执行风险巡检 / 查看完整报告”统一改为 schema 2.0 callback 按钮；
+`start_risk_scan` 和 `view_post_meeting_report` 已接入 M4 回调处理器，前者可生成受控
+`AgentInput(event_type=\"card.start_risk_scan\")` 并通过统一 dispatcher 交给
+`feishu_event_sdk_server.py` / `feishu_event_server.py` 的异步执行或入队逻辑，后者返回成功 toast；
+`card.start_risk_scan` 已在 `WorkflowRouter` 映射到 `risk_scan` 工作流。另补强“查看完整报告”
+按钮行为：本地 `report_path` 仅通过 callback value 回传，不再误写入飞书按钮 `url` 字段；
+只有真实 `http(s)/lark/feishu` 链接才作为可点击外链。验证命令：
+`python3 -m py_compile cards/post_meeting.py core/card_callback.py core/feishu_callback_dispatcher.py core/router.py tests/test_post_meeting_d3_review_card.py tests/test_post_meeting_card_callback.py tests/test_feishu_callback_dispatcher.py tests.test_card_actions`、
+`python3 -m unittest tests.test_post_meeting_d3_review_card tests.test_post_meeting_card_callback tests.test_feishu_callback_dispatcher tests.test_card_actions`
+均通过，共 52 条测试。检查结果：已阅读 `AGENTS.md` / `git-instruction.md` / `team-work-division.md` /
+`tasks.md` / `docs/tasks/d3-post-meeting-card-enhancement-plan.md`；当前目录不是 Git 仓库，无法记录实际分支名；
+未执行真实飞书按钮联调，真实结果仍依赖开放平台回调配置、SDK 环境和长连接服务是否在线。
+
+2026-05-12 继续修复 D3 会后总结卡三个快捷按钮真实点击无反应问题。
+参考旧项目中已跑通的“查看任务卡”按钮链路和当前 `storage/card_callbacks.jsonl` 记录，
+定位到旧链路使用 `tag=action/button.value` 时能触发回调并发送聚合任务卡；上一轮把 D3
+总结卡快捷按钮改为 `column_set + button.behaviors.callback` 后，新发卡片点击没有新增回调日志。
+本轮修改 `cards/post_meeting.py` 和 `tests/test_post_meeting_d3_review_card.py`：D3 总结卡恢复旧版
+interactive card 外壳，三个快捷按钮回退到旧项目已验证的 `tag: action` 容器和 `button.value` 协议；`view_pending_tasks`、
+`start_risk_scan`、`view_post_meeting_report` 后端分发保持不变；完整报告入口继续只把
+`report_url/report_path` 放入 callback value，不写 `url` 字段，避免跳转吞掉回调。
+同步更新 `docs/tasks/d3-post-meeting-card-enhancement-plan.md` 记录本次真实日志结论。
+验证命令：
+`python3 -m py_compile cards/post_meeting.py tests/test_post_meeting_d3_review_card.py tests/test_post_meeting_card_callback.py tests/test_feishu_callback_dispatcher.py tests/test_card_actions.py`、
+`python3 -m unittest tests.test_post_meeting_d3_review_card tests.test_post_meeting_card_callback tests.test_feishu_callback_dispatcher tests.test_card_actions`
+均通过，共 52 条测试。检查结果：已阅读 `AGENTS.md` / `git-instruction.md` / `team-work-division.md` /
+`tasks.md` / `docs/tasks/d3-post-meeting-card-enhancement-plan.md`；当前 `.git` 目录为空，无法记录实际分支名；
+尚未重新真实飞书点击联调，下一步需要重新发送一张 D3 总结卡并观察三个动作是否写入
+`storage/card_callbacks.jsonl`。
+
+2026-05-12 继续补齐 D3 会后总结卡剩余两个快捷按钮闭环。
+真实联调确认 `view_pending_tasks` 已能触发并发送聚合任务卡，但 `start_risk_scan` 和
+`view_post_meeting_report` 没有形成当前会话可见结果。定位结论：`view_pending_tasks` 是在
+`core/card_callback.py` 里直接查 pending registry、组卡并通过 `im.send_card` 发群卡；另外两个按钮此前只返回
+toast / `AgentInput`，使用 M4 专用回调服务或后台执行器未运行时不会有可见动作。本轮修改
+`core/card_callback.py`、`tests/test_post_meeting_card_callback.py`、`tests/test_feishu_callback_dispatcher.py`
+和 `docs/tasks/d3-post-meeting-card-enhancement-plan.md`：新增
+`send_risk_scan_card_from_summary_callback()`，复用同一批 pending action 执行确定性 M5 风险规则并发送
+风险巡检卡；新增 `send_post_meeting_report_card_from_summary_callback()`，优先使用按钮 value 中的
+`report_url/report_path`，缺失时按 `minute_token` 查找 `storage/reports/m4/**` 最新 Markdown 报告并发送
+完整报告入口卡。验证命令：
+`python3 -m py_compile cards/post_meeting.py core/card_callback.py core/feishu_callback_dispatcher.py core/router.py tests/test_post_meeting_d3_review_card.py tests/test_post_meeting_card_callback.py tests/test_feishu_callback_dispatcher.py tests/test_card_actions.py`、
+`python3 -m unittest tests.test_post_meeting_d3_review_card tests.test_post_meeting_card_callback tests.test_feishu_callback_dispatcher tests.test_card_actions`
+均通过，共 52 条测试。检查结果：已阅读 `AGENTS.md` / `git-instruction.md` / `team-work-division.md` /
+`tasks.md` / `docs/tasks/d3-post-meeting-card-enhancement-plan.md`；当前 `.git` 目录为空，无法记录实际分支名；
+尚未重新真实飞书点击联调，下一轮实测应观察 `view_pending_tasks_sent`、`start_risk_scan_sent`、
+`view_post_meeting_report_sent` 三类回调日志。
+
 M3 的核心边界是“轻量 RAG + 结构化元数据 + 增量更新”：
 
 RAGFlow 代码阅读中可借鉴的 RAG 设计已整理到 [RAGFlow 代码阅读笔记](docs/ragflow-design-notes.md)，作为后续增强 M3 检索、chunk 元数据、rerank 和索引任务的参考。

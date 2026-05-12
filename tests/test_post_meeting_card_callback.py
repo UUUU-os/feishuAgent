@@ -322,6 +322,75 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
         self.assertEqual(len(client.sent_cards), 1)
         self.assertIn("已经发送过", second_result.message)
 
+    def test_start_risk_scan_quick_action_sends_risk_card(self) -> None:
+        payload = {
+            "header": {"event_id": "evt_risk_001"},
+            "event": {
+                "context": {"open_chat_id": "oc_test_chat", "open_message_id": "om_summary_001"},
+                "operator": {"operator_id": {"open_id": "ou_user"}},
+                "action": {
+                    "value": {
+                        "action": "start_risk_scan",
+                        "source_card": "post_meeting_summary",
+                        "workflow_type": "post_meeting_followup",
+                        "meeting_id": "meeting_test_001",
+                        "minute_token": "minute_test_001",
+                    }
+                },
+            },
+        }
+        client = FakeFeishuClient()
+
+        result = handle_post_meeting_card_callback(
+            payload=payload,
+            settings=self.settings,
+            client=client,
+            storage=self.storage,
+            policy=AgentPolicy(),
+        )
+
+        self.assertEqual(result.status, "success")
+        self.assertIn("风险巡检", result.message)
+        self.assertIsNone(result.agent_input)
+        self.assertEqual(len(client.sent_cards), 1)
+        sent = client.sent_cards[0]
+        self.assertEqual(sent["receive_id"], "oc_test_chat")
+        self.assertEqual(sent["identity"], "tenant")
+        self.assertIn("MeetFlow 风险巡检提醒", str(sent["card"]))
+        self.assertEqual(result.to_feishu_response()["toast"]["type"], "success")
+
+    def test_view_post_meeting_report_quick_action_sends_report_card(self) -> None:
+        payload = {
+            "event": {
+                "context": {"open_chat_id": "oc_test_chat", "open_message_id": "om_summary_001"},
+                "action": {
+                    "value": {
+                        "action": "view_post_meeting_report",
+                        "source_card": "post_meeting_summary",
+                        "workflow_type": "post_meeting_followup",
+                        "report_url": "https://example.com/post-meeting-report",
+                    }
+                },
+            }
+        }
+        client = FakeFeishuClient()
+
+        result = handle_post_meeting_card_callback(
+            payload=payload,
+            settings=self.settings,
+            client=client,
+            storage=self.storage,
+            policy=AgentPolicy(),
+        )
+
+        self.assertEqual(result.status, "success")
+        self.assertIsNone(result.agent_input)
+        self.assertEqual(len(client.sent_cards), 1)
+        sent_text = str(client.sent_cards[0]["card"])
+        self.assertIn("MeetFlow 完整复盘报告", sent_text)
+        self.assertIn("https://example.com/post-meeting-report", sent_text)
+        self.assertEqual(result.to_feishu_response()["toast"]["type"], "success")
+
     def test_aggregate_card_update_keeps_other_task_buttons(self) -> None:
         save_pending_action_values(
             self.settings,

@@ -38,6 +38,8 @@ class PostMeetingD3ReviewCardTest(unittest.TestCase):
         card = build_post_meeting_summary_card(artifacts)
         payload = json.dumps(card, ensure_ascii=False)
 
+        self.assertNotIn("schema", card)
+        self.assertIn("elements", card)
         self.assertIn("MeetFlow 会后复盘", payload)
         self.assertIn("会议复盘摘要", payload)
         self.assertIn("行动项概览", payload)
@@ -47,8 +49,34 @@ class PostMeetingD3ReviewCardTest(unittest.TestCase):
         self.assertIn("Evidence Pack", payload)
         self.assertIn("执行风险巡检", payload)
         self.assertIn("查看任务卡", payload)
+        self.assertIn("查看完整报告", payload)
         self.assertIn('"action": "view_pending_tasks"', payload)
+        self.assertIn('"action": "start_risk_scan"', payload)
+        self.assertIn('"action": "view_post_meeting_report"', payload)
         self.assertIn('"review_session_id": "session_d3"', payload)
+        self.assertIn('"tag": "action"', payload)
+        self.assertIn('"value": {"action": "view_pending_tasks"', payload)
+        self.assertNotIn('"behaviors": [{"type": "callback"', payload)
+
+    def test_summary_report_button_keeps_local_path_in_callback_value(self) -> None:
+        artifacts = build_post_meeting_artifacts_from_input(build_d3_input())
+        artifacts.extra["report_path"] = "storage/reports/m4/demo.md"
+        card = build_post_meeting_summary_card(artifacts)
+        payload = json.dumps(card, ensure_ascii=False)
+
+        self.assertIn('"report_path": "storage/reports/m4/demo.md"', payload)
+        self.assertNotIn('"url": "storage/reports/m4/demo.md"', payload)
+
+    def test_summary_report_button_uses_http_url_when_available(self) -> None:
+        artifacts = build_post_meeting_artifacts_from_input(build_d3_input())
+        artifacts.extra["report_url"] = "https://example.com/report"
+        card = build_post_meeting_summary_card(artifacts)
+        payload = json.dumps(card, ensure_ascii=False)
+
+        self.assertIn('"report_url": "https://example.com/report"', payload)
+        self.assertIn('"tag": "action"', payload)
+        self.assertIn('"value": {"action": "view_post_meeting_report"', payload)
+        self.assertNotIn('"url": "https://example.com/report"', payload)
 
 
 def build_d3_input() -> PostMeetingInput:

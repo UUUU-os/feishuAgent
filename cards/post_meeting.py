@@ -12,6 +12,9 @@ def build_post_meeting_summary_card(artifacts: Any) -> dict[str, Any]:
 
     这张卡片用于展示会议产出，而不是触发写操作。任务是否创建、是否待确认，
     都来自 M4 业务层已经标记好的结构，卡片层只负责清晰呈现。
+    快捷按钮沿用旧项目已验证可用的 `tag: action` + `button.value`
+    协议。D4 任务卡的表单按钮仍使用 schema 2.0 `behaviors.callback`，
+    两类卡片不要混用同一种交互容器，避免真实飞书客户端不触发总结卡回调。
     """
 
     summary = getattr(artifacts, "meeting_summary", None)
@@ -699,8 +702,9 @@ def render_evidence_pack_markdown(artifacts: Any) -> str:
 def render_post_meeting_quick_action_elements(artifacts: Any) -> list[dict[str, Any]]:
     """渲染 D3 快捷入口按钮。
 
-    这些按钮只传递受控 action value，不直接产生写操作。后端如果尚未接入某个
-    action，也会走统一卡片动作路由返回提示。
+    总结卡没有表单输入，旧项目里“查看任务卡”已经通过 `tag: action`
+    容器跑通真实回调。这里继续使用同一协议，并把另外两个 D3 快捷动作
+    接到相同后端 handler；D4 待确认任务卡再单独使用 schema 2.0 表单按钮。
     """
 
     workflow_input = getattr(artifacts, "workflow_input", None)
@@ -708,16 +712,36 @@ def render_post_meeting_quick_action_elements(artifacts: Any) -> list[dict[str, 
     meeting_id = safe_text(getattr(workflow_input, "meeting_id", ""))
     minute_token = safe_text(getattr(workflow_input, "minute_token", ""))
     review_session_id = safe_text(extra.get("review_session_id", ""))
-    report_url = safe_text(extra.get("report_url", "")) or safe_text(extra.get("report_path", ""))
+    report_url = safe_text(extra.get("report_url", ""))
+    report_path = safe_text(extra.get("report_path", ""))
     actions = [
-        build_quick_action_button("查看任务卡", "view_pending_tasks", meeting_id, minute_token, review_session_id=review_session_id),
-        build_quick_action_button("执行风险巡检", "start_risk_scan", meeting_id, minute_token, review_session_id=review_session_id),
+        build_quick_action_button(
+            "查看任务卡",
+            "view_pending_tasks",
+            meeting_id,
+            minute_token,
+            review_session_id=review_session_id,
+        ),
+        build_quick_action_button(
+            "执行风险巡检",
+            "start_risk_scan",
+            meeting_id,
+            minute_token,
+            review_session_id=review_session_id,
+        ),
+        build_quick_action_button(
+            "查看完整报告",
+            "view_post_meeting_report",
+            meeting_id,
+            minute_token,
+            review_session_id=review_session_id,
+            extra_value={"report_url": report_url, "report_path": report_path},
+        ),
     ]
-    if report_url:
-        actions.append(build_quick_action_button("查看完整报告", "view_post_meeting_report", meeting_id, minute_token, url=report_url, review_session_id=review_session_id))
-    else:
-        actions.append(build_quick_action_button("查看完整报告", "view_post_meeting_report", meeting_id, minute_token, review_session_id=review_session_id))
-    return [divider(), {"tag": "action", "actions": actions}]
+    return [
+        divider(),
+        {"tag": "action", "actions": actions},
+    ]
 
 
 def build_quick_action_button(
@@ -726,27 +750,43 @@ def build_quick_action_button(
     meeting_id: str,
     minute_token: str,
     *,
-    url: str = "",
     review_session_id: str = "",
+    extra_value: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """构造会后复盘卡快捷按钮。"""
+    """构造会后复盘卡快捷按钮。
 
-    button: dict[str, Any] = {
+    飞书总结卡快捷入口不需要提交表单，使用旧项目已跑通的按钮 `value`
+    作为回调载荷。完整报告链接也只放入 value，由后端 toast 或后续云文档
+    链接处理，避免 `url` 跳转吞掉 callback。
+    """
+
+    value = {
+        "action": action,
+        "source_card": "post_meeting_summary",
+        "workflow_type": "post_meeting_followup",
+        "meeting_id": meeting_id,
+        "minute_token": minute_token,
+        "review_session_id": review_session_id,
+    }
+    if extra_value:
+        value.update({key: safe_text(value) for key, value in extra_value.items() if safe_text(value)})
+    return {
         "tag": "button",
         "text": {"tag": "plain_text", "content": text},
-        "type": "default",
-        "value": {
-            "action": action,
-            "source_card": "post_meeting_summary",
-            "workflow_type": "post_meeting_followup",
-            "meeting_id": meeting_id,
-            "minute_token": minute_token,
-            "review_session_id": review_session_id,
-        },
+        "type": "primary" if action == "view_pending_tasks" else "default",
+        "value": value,
     }
-    if url:
-        button["url"] = url
-    return button
+
+
+def is_clickable_report_url(value: str) -> bool:
+    """判断完整报告入口是否能作为飞书按钮 URL 直接打开。
+
+    本地 Markdown 路径只能交给后端 callback toast 提示，不能放进 `url` 字段；
+    否则飞书客户端会尝试按外链打开，真实点击容易表现为回调/跳转失败。
+    """
+
+    text = safe_text(value).lower()
+    return text.startswith(("https://", "http://", "lark://", "feishu://"))
 
 
 def render_action_items_markdown(title: str, items: list[Any], empty_text: str) -> str:

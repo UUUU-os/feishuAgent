@@ -577,3 +577,114 @@ D3-10 的演示样例建议放在 `scripts/post_meeting_demo.py` 或独立 fixtu
   直接打开完整报告，需要后续把 Markdown 报告同步生成飞书云文档或可访问 URL。
 - 风险和分歧抽取首版采用确定性关键词规则，适合稳定演示和可审计输出；后续可在 Evidence Pack
   约束下接入真实 LLM 润色，但不能让 LLM 新增无证据事实。
+
+### 16.6 2026-05-12：修复 D3 快捷按钮真实回调协议
+
+- 问题现象：
+  会后总结卡里的“查看任务卡 / 执行风险巡检 / 查看完整报告”点击后在真实飞书客户端没有反应，
+  但 D4 待确认任务卡按钮可正常回调。
+- 定位结论：
+  D4 任务卡按钮已经使用 schema 2.0 `button.behaviors.callback`，能稳定触发
+  `card.action.trigger`；D3 会后总结卡快捷按钮仍使用旧版 `tag=action` 容器和按钮 `value`，
+  没有和任务卡走同一条 callback 协议，因此真实点击不稳定甚至无回调。
+- 本轮改动：
+  `cards/post_meeting.py::build_post_meeting_summary_card()` 改为 schema 2.0 卡片；
+  D3 快捷按钮改为 `column_set + button.behaviors.callback`，与 D4 任务卡按钮结构对齐；
+  `core/card_callback.py` 新增 D3 快捷动作分发，`start_risk_scan` 通过 `CardActionRouter`
+  生成受控 `AgentInput(event_type="card.start_risk_scan")`，`view_post_meeting_report`
+  返回成功 toast；`core/feishu_callback_dispatcher.py` 把这两个动作纳入会后回调分发并透传
+  `agent_input`；`core/router.py` 为 `card.start_risk_scan` 增加 `risk_scan` 路由规则。
+- 报告按钮补强：
+  本地 `report_path` 只放进 callback value，不再写入飞书按钮 `url` 字段；只有真实
+  `http(s)/lark/feishu` 链接才作为外链，避免客户端把本地路径当可打开 URL 处理。
+- 验证命令：
+
+```bash
+python3 -m py_compile \
+  cards/post_meeting.py core/card_callback.py core/feishu_callback_dispatcher.py core/router.py \
+  tests/test_post_meeting_d3_review_card.py tests/test_post_meeting_card_callback.py \
+  tests/test_feishu_callback_dispatcher.py tests/test_card_actions.py
+
+python3 -m unittest \
+  tests.test_post_meeting_d3_review_card \
+  tests.test_post_meeting_card_callback \
+  tests.test_feishu_callback_dispatcher \
+  tests.test_card_actions
+```
+
+- 验证结果：
+  `py_compile` 通过；相关单测共 52 条通过。
+
+### 16.7 2026-05-12：按旧项目跑通链路回退总结卡快捷按钮协议
+
+- 问题现象：
+  新发出的 D3 会后总结卡点击三个快捷按钮后没有任何前端反馈，`storage/card_callbacks.jsonl`
+  也没有新增记录；同一环境里旧项目/旧链路的“查看任务卡”曾经成功进入回调并发送聚合任务卡。
+- 定位结论：
+  对 D3 总结卡而言，旧项目已跑通的是 `tag: action` 容器 + `button.value` 回调协议；
+  上一轮把总结卡按钮改成 `column_set + button.behaviors.callback` 后，真实飞书客户端没有把点击送到
+  `card.action.trigger` 回调服务。D4 待确认任务卡因为有 schema 2.0 表单提交场景，仍保留
+  `button.behaviors.callback`。
+- 本轮改动：
+  `cards/post_meeting.py::build_post_meeting_summary_card()` 恢复旧版 interactive card 外壳；
+  `render_post_meeting_quick_action_elements()` 回退到旧项目已验证的
+  `{"tag": "action", "actions": [...]}` 结构；三个按钮都只通过 `value` 携带
+  `view_pending_tasks`、`start_risk_scan`、`view_post_meeting_report`，不把本地
+  `report_path` 或真实 URL 写入按钮 `url`，避免跳转吞掉 callback。后端
+  `core/card_callback.py` 和 `core/feishu_callback_dispatcher.py` 的三个动作分发保持不变。
+- 验证命令：
+
+```bash
+python3 -m py_compile \
+  cards/post_meeting.py tests/test_post_meeting_d3_review_card.py \
+  tests/test_post_meeting_card_callback.py tests/test_feishu_callback_dispatcher.py tests/test_card_actions.py
+
+python3 -m unittest \
+  tests.test_post_meeting_d3_review_card \
+  tests.test_post_meeting_card_callback \
+  tests.test_feishu_callback_dispatcher \
+  tests.test_card_actions
+```
+
+- 验证结果：
+  `py_compile` 通过；相关单测 52 条通过。尚未重新进行真实飞书点击联调，下一步需要重新发送一张
+  D3 会后总结卡，并观察 `storage/card_callbacks.jsonl` 是否出现三个快捷动作。
+
+### 16.8 2026-05-12：补齐风险巡检和完整报告按钮的可见闭环
+
+- 问题现象：
+  “查看任务卡”已经能真实触发并发送聚合任务卡，但“执行风险巡检”和“查看完整报告”没有形成
+  当前会话可见结果。
+- 定位结论：
+  `view_pending_tasks` 在 `core/card_callback.py` 中直接从 pending registry 恢复同一会议任务，
+  然后通过 `im.send_card` 受 `AgentPolicy` 检查后发卡；另外两个按钮此前主要走
+  `CardActionRouter` 返回 toast / `AgentInput`，如果使用 M4 专用回调服务或没有后台执行器，就不会有
+  群内可见结果。
+- 本轮改动：
+  `start_risk_scan` 新增 `send_risk_scan_card_from_summary_callback()`，复用
+  `find_pending_records_for_summary_action()` 找同一批行动项，执行确定性 M5 风险规则，构造
+  `build_risk_scan_card()` 并通过 `im.send_card` 发送到当前会话；回调日志状态包括
+  `start_risk_scan_sent`、`start_risk_scan_not_found`、`start_risk_scan_send_failed`。
+  `view_post_meeting_report` 新增 `send_post_meeting_report_card_from_summary_callback()`，优先使用按钮
+  value 中的 `report_url/report_path`，缺失时按 `minute_token` 在 `storage/reports/m4/**` 查找最新
+  Markdown 报告，并发送“完整复盘报告入口”卡；回调日志状态包括
+  `view_post_meeting_report_sent`、`view_post_meeting_report_send_failed`。
+- 验证命令：
+
+```bash
+python3 -m py_compile \
+  cards/post_meeting.py core/card_callback.py core/feishu_callback_dispatcher.py core/router.py \
+  tests/test_post_meeting_d3_review_card.py tests/test_post_meeting_card_callback.py \
+  tests/test_feishu_callback_dispatcher.py tests/test_card_actions.py
+
+python3 -m unittest \
+  tests.test_post_meeting_d3_review_card \
+  tests.test_post_meeting_card_callback \
+  tests.test_feishu_callback_dispatcher \
+  tests.test_card_actions
+```
+
+- 验证结果：
+  `py_compile` 通过；相关单测 52 条通过。真实联调时点击三个按钮后应分别在
+  `storage/card_callbacks.jsonl` 中看到 `view_pending_tasks_sent`、`start_risk_scan_sent`、
+  `view_post_meeting_report_sent`。
