@@ -168,6 +168,44 @@ class CardActionRouterTest(unittest.TestCase):
         decision = WorkflowRouter().route(result.agent_input)
         self.assertEqual(decision.workflow_type, "post_meeting_followup")
 
+    def test_start_risk_scan_builds_risk_agent_input(self) -> None:
+        action_input = build_card_action_input(
+            action="start_risk_scan",
+            trace_id="trace_d3_risk",
+            event_id="evt_d3_risk",
+            operator_open_id="ou_user",
+            chat_id="oc_group",
+            source_card="post_meeting_summary",
+            meeting_id="meeting_001",
+            value={"minute_token": "minute_001"},
+        )
+
+        result = CardActionRouter().route(action_input)
+
+        self.assertEqual(result.status, "accepted")
+        self.assertIsNotNone(result.agent_input)
+        assert result.agent_input is not None
+        self.assertEqual(result.agent_input.event_type, "card.start_risk_scan")
+        self.assertEqual(result.agent_input.payload["workflow_type"], "risk_scan")
+        self.assertEqual(result.agent_input.payload["minute_token"], "minute_001")
+        decision = WorkflowRouter().route(result.agent_input)
+        self.assertEqual(decision.status, "ready")
+        self.assertEqual(decision.workflow_type, "risk_scan")
+        self.assertIn("tasks.list_my_tasks", decision.required_tools)
+
+    def test_view_post_meeting_report_returns_controlled_message(self) -> None:
+        action_input = build_card_action_input(
+            action="view_post_meeting_report",
+            trace_id="trace_report",
+            value={"report_url": "https://example.com/report"},
+        )
+
+        result = CardActionRouter().route(action_input)
+
+        self.assertEqual(result.status, "accepted")
+        self.assertIsNone(result.agent_input)
+        self.assertIn("https://example.com/report", result.message)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -480,7 +480,7 @@ function SimpleRecordsTable({ title, rows, keys }: SimpleRecordsTableProps) {
   return (
     <div className="records-panel">
       <h3>{title}</h3>
-      <DataTable
+      <DataTable<Record<string, unknown>>
         rows={rows}
         empty="暂无记录"
         columns={keys.map((key) => ({

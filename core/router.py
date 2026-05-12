@@ -198,6 +198,16 @@ def build_default_route_rules() -> list[RouteRule]:
             ],
         ),
         RouteRule(
+            event_type="card.start_risk_scan",
+            workflow_type="risk_scan",
+            reason="用户在会后总结卡片中点击执行风险巡检，需要进入受控 M5 风险巡检链路。",
+            required_tools=[
+                "tasks.list_my_tasks",
+                "calendar.list_events",
+                "im.send_card",
+            ],
+        ),
+        RouteRule(
             event_type="message.command",
             workflow_type="manual_qa",
             reason="收到人工命令，进入受控工具集内的手动问答或指定工作流。",

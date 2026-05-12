@@ -25,6 +25,8 @@ POST_MEETING_ACTIONS = {
     "reject_create_task",
     "edit_task_fields",
     "view_pending_tasks",
+    "start_risk_scan",
+    "view_post_meeting_report",
 }
 
 PRE_MEETING_ACTIONS = {
@@ -149,6 +151,7 @@ class FeishuCallbackDispatcher:
         return FeishuCallbackResponse(
             status=result.status,
             body=result.to_feishu_response(),
+            agent_input=getattr(result, "agent_input", None),
             envelope=envelope,
         )
 
