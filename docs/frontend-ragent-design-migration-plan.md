@@ -104,7 +104,7 @@ MeetFlow 当前色彩偏深色 navy + teal：
 
 - 将主强调色从 teal 调整到 Ragent 蓝/靛体系，降低“单一青绿色”观感。
 - 保留少量 teal 作为 MeetFlow 品牌辅助色，用于成功态或 Evidence/RAG 标签。
-- 风险巡检、真实写入等场景保持红/橙状态色，避免全蓝。
+- M5 任务风险提醒、真实写入等场景保持红/橙状态色，避免全蓝。
 
 推荐 MeetFlow token：
 
@@ -217,7 +217,7 @@ MeetFlow Console
 - 用 Ragent 的蓝/靛色作为主操作；
 - 用 MeetFlow 的 teal 作为会议知识/RAG 辅助色；
 - 用红色突出真实飞书写入；
-- 用 amber 突出风险巡检；
+- 用 amber 突出 M5 任务风险提醒；
 - 用绿色突出健康/评测通过。
 
 ## 4. 设计 Token 迁移方案

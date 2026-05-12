@@ -25,6 +25,7 @@ POST_MEETING_ACTIONS = {
     "reject_create_task",
     "edit_task_fields",
     "view_pending_tasks",
+    "start_action_item_risk_preview",
     "start_risk_scan",
     "view_post_meeting_report",
 }

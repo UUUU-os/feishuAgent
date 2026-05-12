@@ -214,7 +214,7 @@ class M4SendCardsRequest:
 
 @dataclass(slots=True)
 class M5RiskScanRequest:
-    """触发 M5 风险巡检的请求。"""
+    """触发 M5 任务风险提醒的请求。"""
 
     backend: str = "local"
     mode: str = "direct"
@@ -674,7 +674,7 @@ const [running, setRunning] = useState("");
 PageHeader
 服务控制区
 M4 会后总结区
-M5 风险巡检区
+M5 任务风险提醒区
 最近 M4/M5 状态表
 ```
 
@@ -921,7 +921,7 @@ npm run build
 - `真实联调` 页面
 - 服务列表和启动停止按钮
 - M4 妙记链接输入和发送按钮
-- M5 风险巡检输入和执行按钮
+- M5 任务风险提醒输入和执行按钮
 - 结果面板
 
 暂缓：
@@ -995,6 +995,6 @@ Authorization: Bearer xxx
 5. M4 区填写飞书妙记链接，点击真实发送会后总结和待确认任务卡。
 6. 在飞书群点击确认任务按钮。
 7. 回到 Console 查看 review session、task mapping 和 job 状态。
-8. M5 区点击风险巡检，测试群收到风险提醒卡。
+8. M5 区点击任务风险提醒，测试群收到任务风险提醒卡。
 
 这样原本需要多终端手工输入的流程，收敛为一个本地控制台中的可视化、安全、可复现操作链路。

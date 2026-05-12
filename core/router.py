@@ -190,7 +190,7 @@ def build_default_route_rules() -> list[RouteRule]:
         RouteRule(
             event_type="risk.scan.tick",
             workflow_type="risk_scan",
-            reason="定时风险巡检触发，需要读取任务状态并生成低噪声风险提醒。",
+            reason="定时 M5 任务风险提醒触发，需要读取任务状态并生成低噪声风险提醒。",
             required_tools=[
                 "tasks.list_my_tasks",
                 "calendar.list_events",
@@ -199,11 +199,21 @@ def build_default_route_rules() -> list[RouteRule]:
         ),
         RouteRule(
             event_type="card.start_risk_scan",
-            workflow_type="risk_scan",
-            reason="用户在会后总结卡片中点击执行风险巡检，需要进入受控 M5 风险巡检链路。",
+            workflow_type="post_meeting_followup",
+            reason="兼容旧会后总结卡风险按钮；实际含义是本次会议行动项风险预检，不是 M5 周期任务风险提醒。",
             required_tools=[
-                "tasks.list_my_tasks",
-                "calendar.list_events",
+                "post_meeting.build_artifacts",
+                "post_meeting.save_pending_actions",
+                "im.send_card",
+            ],
+        ),
+        RouteRule(
+            event_type="card.start_action_item_risk_preview",
+            workflow_type="post_meeting_followup",
+            reason="用户在会后总结卡片中点击行动项风险预检，需要基于本次会议待确认行动项生成即时风险提示。",
+            required_tools=[
+                "post_meeting.build_artifacts",
+                "post_meeting.save_pending_actions",
                 "im.send_card",
             ],
         ),

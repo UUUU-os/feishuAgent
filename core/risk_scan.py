@@ -28,7 +28,7 @@ SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
 @dataclass(slots=True)
 class TaskSnapshot(BaseModel):
-    """风险巡检使用的任务快照。
+    """M5 任务风险提醒使用的任务快照。
 
     飞书任务、会后 ActionItem 和本地 mock 的字段形态不完全一样，M5 先把它们
     统一到这个模型中，避免风险规则里到处散落字段兼容逻辑。
@@ -65,7 +65,7 @@ class RiskRuleResult(BaseModel):
 
 @dataclass(slots=True)
 class RiskScanResult(BaseModel):
-    """一次风险巡检的聚合结果。"""
+    """一次 M5 任务风险扫描的聚合结果。"""
 
     scanned_count: int
     risk_count: int

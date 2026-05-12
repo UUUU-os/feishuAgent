@@ -28,13 +28,13 @@ from core.jobs import JobQueue
 
 
 def parse_args() -> argparse.Namespace:
-    """解析 M5 风险巡检 demo 参数。"""
+    """解析 M5 任务风险提醒 demo 参数。"""
 
-    parser = argparse.ArgumentParser(description="MeetFlow M5 风险巡检本地/飞书演示入口。")
+    parser = argparse.ArgumentParser(description="MeetFlow M5 任务风险提醒本地/飞书演示入口。")
     parser.add_argument("--backend", choices=["local", "feishu"], default="local", help="local 使用 mock；feishu 真实读取任务。")
-    parser.add_argument("--show-card", action="store_true", help="打印风险卡片 JSON。")
-    parser.add_argument("--allow-write", action="store_true", help="允许向飞书测试群发送风险卡片。")
-    parser.add_argument("--chat-id", default="", help="风险卡片接收群，不传则使用配置 feishu.default_chat_id。")
+    parser.add_argument("--show-card", action="store_true", help="打印任务风险提醒卡 JSON。")
+    parser.add_argument("--allow-write", action="store_true", help="允许向飞书测试群发送任务风险提醒卡。")
+    parser.add_argument("--chat-id", default="", help="任务风险提醒卡接收群，不传则使用配置 feishu.default_chat_id。")
     parser.add_argument("--identity", choices=["user", "tenant"], default="user", help="读取任务使用的飞书身份，任务接口通常用 user。")
     parser.add_argument("--send-identity", choices=["user", "tenant"], default="tenant", help="发送群消息使用的飞书身份，机器人通常用 tenant。")
     parser.add_argument("--completed", choices=["true", "false", "all"], default="false", help="任务完成状态过滤。")
@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    """执行一次风险巡检 demo。"""
+    """执行一次 M5 任务风险提醒 demo。"""
 
     args = parse_args()
     settings = load_settings()
@@ -62,7 +62,7 @@ def main() -> int:
     storage.initialize()
     if args.enqueue:
         job = enqueue_risk_scan_job(args, settings)
-        print("已写入风险巡检后台任务：")
+        print("已写入 M5 任务风险提醒后台任务：")
         print(json.dumps(job.to_dict(), ensure_ascii=False, indent=2))
         return 0
     now = int(time.time())
@@ -99,7 +99,7 @@ def main() -> int:
     print_scan_result(scan_result.to_dict(), decision.to_dict())
     if args.show_card:
         print("\n" + "=" * 80)
-        print("RiskScanCard JSON")
+        print("TaskRiskReminderCard JSON")
         print("=" * 80)
         print(json.dumps(card, ensure_ascii=False, indent=2))
 
@@ -112,7 +112,7 @@ def main() -> int:
         return 0
 
     if not decision.should_notify:
-        print(f"\n无需发送风险提醒：{decision.reason}")
+        print(f"\n无需发送任务风险提醒：{decision.reason}")
         return 0
 
     client = FeishuClient(settings.feishu)
@@ -140,7 +140,7 @@ def main() -> int:
         workflow_name="risk_scan",
         trace_id=f"risk_scan_demo_{now}",
     )
-    print("\n风险卡片发送成功：")
+    print("\n任务风险提醒卡发送成功：")
     print(json.dumps(response, ensure_ascii=False, indent=2))
     return 0
 
@@ -160,7 +160,7 @@ def load_tasks(args: argparse.Namespace, settings: Any) -> list[Any]:
 
 
 def enqueue_risk_scan_job(args: argparse.Namespace, settings: Any) -> Any:
-    """把风险巡检请求写入后台队列。
+    """把 M5 任务风险提醒请求写入后台队列。
 
     入队只记录运行参数，不直接访问飞书任务，也不发送卡片；真实副作用由
     `scripts/meetflow_worker.py` 后续执行，仍会检查 `--allow-write`。
@@ -201,7 +201,7 @@ def parse_completed(value: str) -> bool | None:
 
 
 def build_local_risk_demo_tasks() -> list[dict[str, Any]]:
-    """构造本地 M5 风险巡检样本任务。"""
+    """构造本地 M5 任务风险提醒样本任务。"""
 
     now = int(time.time())
     return [
@@ -303,7 +303,7 @@ def build_task(
 
 
 def print_scan_result(scan_result: dict[str, Any], decision: dict[str, Any]) -> None:
-    """打印风险巡检结果摘要。"""
+    """打印任务风险提醒结果摘要。"""
 
     print("\n" + "=" * 80)
     print("RiskScanResult")

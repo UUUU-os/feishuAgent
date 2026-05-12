@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from adapters.feishu_client import FeishuAPIError, FeishuClient
 from cards.post_meeting import (
     build_pending_action_item_button_card,
     build_pending_action_item_reaction_card,
@@ -107,6 +108,61 @@ class FakeRegistry:
                 data={"guid": "task_test_001", "summary": summary, "status": "todo"},
             )
         raise AssertionError(f"unexpected tool call: {tool_call.tool_name}")
+
+
+class EmptyContactRegistry(FakeRegistry):
+    """模拟通讯录查不到负责人的场景。"""
+
+    def execute(self, tool_call):  # noqa: ANN001 - 与项目现有 ToolRegistry 接口保持一致
+        if tool_call.tool_name == "contact_search_user":
+            return AgentToolResult(
+                call_id=tool_call.call_id,
+                tool_name="contact.search_user",
+                status="success",
+                content="ok",
+                data={"items": []},
+            )
+        return super().execute(tool_call)
+
+
+class OperatorOnlyRegistry(FakeRegistry):
+    """确认“我”使用卡片操作人 open_id，不再依赖用户 OAuth。"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.created_arguments: list[dict[str, object]] = []
+
+    def execute(self, tool_call):  # noqa: ANN001 - 与项目现有 ToolRegistry 接口保持一致
+        if tool_call.tool_name in {"contact_get_current_user", "contact_search_user"}:
+            raise AssertionError("负责人为我时不应再调用通讯录查询工具")
+        if tool_call.tool_name == "tasks_create_task":
+            self.created_arguments.append(dict(tool_call.arguments))
+        return super().execute(tool_call)
+
+
+class DirectoryFallbackClient(FeishuClient):
+    """只覆盖 get，用于验证通讯录 tenant 兜底搜索逻辑。"""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def get(self, path, params=None, identity=None):  # noqa: ANN001 - 测试双桩保持轻量
+        self.calls.append({"path": path, "params": params or {}, "identity": identity})
+        if path == "search/v1/user":
+            raise FeishuAPIError("飞书接口业务错误 code=99991679 msg=Unauthorized")
+        if path == "contact/v3/users/find_by_department":
+            return {
+                "data": {
+                    "items": [
+                        {"name": "李四", "open_id": "ou_lisi"},
+                        {"name": "叶抒锐", "open_id": "ou_yeshurui", "email": "yeshurui@example.com"},
+                    ],
+                    "has_more": False,
+                }
+            }
+        if path == "contact/v3/departments/0/children":
+            return {"data": {"items": [], "has_more": False}}
+        raise AssertionError(f"unexpected path: {path}")
 
 
 class PostMeetingCardCallbackTest(unittest.TestCase):
@@ -239,6 +295,21 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
         self.assertEqual(len(forms), 10)
         self.assertTrue(all("elements" in form for form in forms))
         self.assertTrue(all("body" not in form for form in forms))
+        self.assertTrue(
+            all(
+                not any(element.get("tag") == "column_set" for element in form.get("elements", []))
+                for form in forms
+            )
+        )
+        self.assertTrue(
+            all(
+                any(
+                    element.get("tag") == "button" and element.get("form_action_type") == "submit"
+                    for element in form.get("elements", [])
+                )
+                for form in forms
+            )
+        )
 
     def test_view_pending_tasks_sends_aggregate_task_card_once(self) -> None:
         save_pending_action_values(
@@ -322,7 +393,7 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
         self.assertEqual(len(client.sent_cards), 1)
         self.assertIn("已经发送过", second_result.message)
 
-    def test_start_risk_scan_quick_action_sends_risk_card(self) -> None:
+    def test_action_item_risk_preview_quick_action_sends_preview_card(self) -> None:
         payload = {
             "header": {"event_id": "evt_risk_001"},
             "event": {
@@ -330,7 +401,7 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
                 "operator": {"operator_id": {"open_id": "ou_user"}},
                 "action": {
                     "value": {
-                        "action": "start_risk_scan",
+                        "action": "start_action_item_risk_preview",
                         "source_card": "post_meeting_summary",
                         "workflow_type": "post_meeting_followup",
                         "meeting_id": "meeting_test_001",
@@ -350,14 +421,43 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
         )
 
         self.assertEqual(result.status, "success")
-        self.assertIn("风险巡检", result.message)
+        self.assertIn("行动项风险预检", result.message)
         self.assertIsNone(result.agent_input)
         self.assertEqual(len(client.sent_cards), 1)
         sent = client.sent_cards[0]
         self.assertEqual(sent["receive_id"], "oc_test_chat")
         self.assertEqual(sent["identity"], "tenant")
-        self.assertIn("MeetFlow 风险巡检提醒", str(sent["card"]))
+        self.assertIn("MeetFlow 会后行动项风险预检", str(sent["card"]))
         self.assertEqual(result.to_feishu_response()["toast"]["type"], "success")
+
+    def test_legacy_start_risk_scan_action_still_routes_to_preview(self) -> None:
+        payload = {
+            "event": {
+                "context": {"open_chat_id": "oc_test_chat", "open_message_id": "om_summary_legacy"},
+                "action": {
+                    "value": {
+                        "action": "start_risk_scan",
+                        "source_card": "post_meeting_summary",
+                        "workflow_type": "post_meeting_followup",
+                        "meeting_id": "meeting_test_001",
+                        "minute_token": "minute_test_001",
+                    }
+                },
+            }
+        }
+        client = FakeFeishuClient()
+
+        result = handle_post_meeting_card_callback(
+            payload=payload,
+            settings=self.settings,
+            client=client,
+            storage=self.storage,
+            policy=AgentPolicy(),
+        )
+
+        self.assertEqual(result.status, "success")
+        self.assertIn("行动项风险预检", result.message)
+        self.assertEqual(len(client.sent_cards), 1)
 
     def test_view_post_meeting_report_quick_action_sends_report_card(self) -> None:
         payload = {
@@ -586,6 +686,9 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
         self.assertNotIn("修改信息", card_text)
         self.assertNotIn("保存修改", card_text)
         self.assertIn("拒绝创建", card_text)
+        form = elements[1]
+        self.assertFalse(any(element.get("tag") == "column_set" for element in form.get("elements", [])))
+        self.assertTrue(any(element.get("tag") == "button" for element in form.get("elements", [])))
         self.assertIn("**负责人：** 待补充", card_text)
         self.assertIn("**截止时间：** 待补充", card_text)
         self.assertIn("  \\n**任务 ID：** action_test_001", card_text)
@@ -773,6 +876,137 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
         self.assertEqual(response["card"]["type"], "raw")
         self.assertEqual(len(client.updated_cards), 1)
         self.assertIn("已创建任务", str(client.updated_cards[0]["card"]))
+
+    def test_confirm_reads_schema2_form_values_list_payload(self) -> None:
+        client = FakeFeishuClient()
+        payload = {
+            "event": {
+                "context": {"open_message_id": "om_test_form_values"},
+                "action": {
+                    "value": {
+                        "action": "confirm_create_task",
+                        "item_id": "action_test_001",
+                        "title": "整理答辩材料",
+                        "owner_field": "owner_override__action_test_001",
+                        "due_date_field": "due_date_override__action_test_001",
+                        "meeting_id": "meeting_test_001",
+                        "minute_token": "minute_test_001",
+                        "project_id": "meetflow",
+                    },
+                    "form_values": [
+                        {"name": "owner_override__action_test_001", "input_value": "王五"},
+                        {"name": "due_date_override__action_test_001", "value": "2026-05-13"},
+                    ],
+                },
+            }
+        }
+
+        with patch("adapters.create_feishu_tool_registry", return_value=FakeRegistry()):
+            result = handle_post_meeting_card_callback(
+                payload=payload,
+                settings=self.settings,
+                client=client,
+                storage=self.storage,
+                policy=AgentPolicy(),
+            )
+
+        self.assertEqual(result.status, "success")
+        mapping = result.data["task_mapping"]
+        self.assertEqual(mapping["owner"], "王五")
+        self.assertEqual(mapping["due_date"], "2026-05-13")
+
+    def test_confirm_owner_me_uses_card_operator_open_id(self) -> None:
+        """负责人填写“我”时，直接使用卡片操作人，避免用户 token 失效。"""
+
+        client = FakeFeishuClient()
+        registry = OperatorOnlyRegistry()
+        payload = {
+            "event": {
+                "context": {"open_message_id": "om_test_operator"},
+                "operator": {"operator_id": {"open_id": "ou_operator_card"}},
+                "action": {
+                    "value": {
+                        "action": "confirm_create_task",
+                        "item_id": "action_test_001",
+                        "title": "整理答辩材料",
+                        "owner_field": "owner_override__action_test_001",
+                        "due_date_field": "due_date_override__action_test_001",
+                        "meeting_id": "meeting_test_001",
+                        "minute_token": "minute_test_001",
+                        "project_id": "meetflow",
+                    },
+                    "form_values": [
+                        {"name": "owner_override__action_test_001", "value": "我"},
+                        {"name": "due_date_override__action_test_001", "value": "2026-05-13"},
+                    ],
+                },
+            }
+        }
+
+        with patch("adapters.create_feishu_tool_registry", return_value=registry):
+            result = handle_post_meeting_card_callback(
+                payload=payload,
+                settings=self.settings,
+                client=client,
+                storage=self.storage,
+                policy=AgentPolicy(),
+            )
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(registry.created_arguments[0]["assignee_ids"], ["ou_operator_card"])
+        self.assertEqual(result.data["task_mapping"]["owner"], "我")
+
+    def test_confirm_blocks_owner_not_found_in_contacts(self) -> None:
+        client = FakeFeishuClient()
+        payload = {
+            "event": {
+                "context": {"open_message_id": "om_test_owner_missing"},
+                "action": {
+                    "value": {
+                        "action": "confirm_create_task",
+                        "item_id": "action_test_001",
+                        "title": "整理答辩材料",
+                        "owner_field": "owner_override__action_test_001",
+                        "due_date_field": "due_date_override__action_test_001",
+                        "meeting_id": "meeting_test_001",
+                        "minute_token": "minute_test_001",
+                        "project_id": "meetflow",
+                    },
+                    "form_values": [
+                        {"name": "owner_override__action_test_001", "value": "不存在的人"},
+                        {"name": "due_date_override__action_test_001", "value": "2026-05-13"},
+                    ],
+                },
+            }
+        }
+
+        with patch("adapters.create_feishu_tool_registry", return_value=EmptyContactRegistry()):
+            result = handle_post_meeting_card_callback(
+                payload=payload,
+                settings=self.settings,
+                client=client,
+                storage=self.storage,
+                policy=AgentPolicy(),
+            )
+
+        self.assertEqual(result.status, "error")
+        self.assertIn("通讯录未找到负责人", result.message)
+        self.assertEqual(load_pending_action_records(self.settings)["action_test_001"]["status"], "pending")
+
+    def test_feishu_client_contact_search_falls_back_to_tenant_directory(self) -> None:
+        client = DirectoryFallbackClient()
+
+        result = client.search_users(query="叶抒锐", page_size=5, identity="user")
+
+        self.assertEqual(result["source"], "contact_v3_directory_fallback")
+        self.assertEqual(result["items"][0]["open_id"], "ou_yeshurui")
+        self.assertTrue(any(call["path"] == "search/v1/user" for call in client.calls))
+        self.assertTrue(
+            any(
+                call["path"] == "contact/v3/users/find_by_department" and call["identity"] == "tenant"
+                for call in client.calls
+            )
+        )
 
     def test_confirm_uses_cached_fields_when_button_value_is_stale_empty(self) -> None:
         update_payload = {

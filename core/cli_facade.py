@@ -219,7 +219,7 @@ class MeetFlowCLI:
         allow_write: bool = False,
         timeout_seconds: int = 180,
     ) -> CLIResult:
-        """触发 M5 风险巡检。"""
+        """触发 M5 任务风险提醒。"""
 
         result = self.api.run_m5_risk_scan(
             M5RiskScanRequest(

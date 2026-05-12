@@ -64,7 +64,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--project-id", default="meetflow", help="项目 ID，用于读取项目记忆。")
     parser.add_argument("--minute-token", default="", help="妙记 token，用于测试会后场景。")
     parser.add_argument("--document", default="", help="文档 URL 或 token，用于测试文档读取。")
-    parser.add_argument("--task-id", default="", help="任务 ID，用于测试风险巡检上下文。")
+    parser.add_argument("--task-id", default="", help="任务 ID，用于测试 M5 任务风险提醒上下文。")
     parser.add_argument(
         "--llm-provider",
         default="scripted_calendar",

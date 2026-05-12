@@ -1,7 +1,7 @@
 # MeetFlow CLI / OpenClaw Skill
 
 本 Skill 面向 AI / Agent / OpenClaw。它的作用是把用户的自然语言需求映射到当前仓库已经实现的
-MeetFlow CLI 白名单入口，安全、正确、可复现地完成会前准备、会后复盘、任务卡片生成、风险巡检、
+MeetFlow CLI 白名单入口，安全、正确、可复现地完成会前准备、会后复盘、任务卡片生成、M5 任务风险提醒、
 评测回放和真实飞书联调。
 
 统一入口必须保持为：
@@ -24,7 +24,7 @@ python3 scripts/meetflow_cli.py <command> [options]
 - 生成 M3 会前背景知识卡；
 - 读取飞书妙记并生成 M4 会后总结卡；
 - 从妙记中生成任务卡片视角；
-- 执行 M5 风险巡检；
+- 执行 M5 任务风险提醒；
 - 运行 Agent 评测；
 - 运行离线 demo-replay；
 - 启动 SDK 长连接回调服务；
@@ -51,7 +51,7 @@ python3 scripts/meetflow_cli.py <command> [options]
 | `pre-meeting` | 触发 M3 会前背景知识卡 | 会前卡片 dry-run 或真实发卡 | 可选 | 是 | 真实发卡需要 | `scripts/card_send_live.py m3` -> `scripts/pre_meeting_live_test.py` | 用户要会前背景卡、RAG/Evidence Pack | 没有 `event-title`/`event-id` 时不要调用 |
 | `post-meeting` | 触发 M4 妙记复盘和会后总结卡 | 用户提供妙记链接做会后复盘 | 可选 | 是 | 真实发卡需要 | `scripts/card_send_live.py m4` -> `scripts/post_meeting_live_test.py` | 用户要会后总结、行动项、开放问题、风险点 | 没有 `minute` 时不要调用；不要默认真实发卡 |
 | `task-cards` | 基于妙记生成任务卡视角摘要 | 展示待办识别、任务卡数量 | 可选 | 是 | 真实发卡需要 | 复用 `post-meeting` / M4 链路 | 用户强调“任务卡”“待办”“按人分组” | 不要直接写 `pending_actions` 或任务表 |
-| `risk-scan` | 触发 M5 风险巡检 | local 演示或真实飞书任务风险扫描 | 可选 | 是 | 真实发送风险卡需要 | `scripts/risk_scan_demo.py` | 用户要求风险扫描、逾期任务、风险卡 | `mode=enqueue` 但 worker 未运行时不要直接宣称已处理 |
+| `risk-scan` | 触发 M5 任务风险提醒 | local 演示或真实飞书任务风险扫描 | 可选 | 是 | 真实发送任务风险提醒卡需要 | `scripts/risk_scan_demo.py` | 用户要求风险扫描、逾期任务、任务风险提醒卡 | `mode=enqueue` 但 worker 未运行时不要直接宣称已处理 |
 | `eval` | 运行 Agent 轨迹评测 | 验证工具调用、安全边界、答辩质量 | 否 | 是 | 否 | `scripts/agent_eval_suite.py` via `core.console_api` | 用户要求评测、评分、回归验证 | 不应作为真实飞书联调成功证明 |
 | `demo-replay` | 运行离线 E2E 回放 | 无飞书网络、无 token、答辩兜底 | 否 | 是 | 否 | `scripts/e2e_replay.py` | 用户需要离线演示或网络不可用降级 | 不应伪装成真实飞书发送成功 |
 | `live sdk-callback` | 前台启动飞书 SDK 回调服务 | D3 四终端真实按钮联调终端 1 | 不直接发卡 | 否，前台长进程 | 不需要；可传 SDK 自身 `--agent-provider` | `.venv-lark-oapi/bin/python scripts/feishu_event_sdk_server.py` | 用户要真实点击飞书卡片按钮联调 | SDK 环境缺失或已启动同类回调时不要重复启动 |
@@ -254,9 +254,9 @@ python3 scripts/meetflow_cli.py task-cards \
   --allow-write
 ```
 
-### 4.5 风险巡检流程
+### 4.5 任务风险提醒流程
 
-用户要求风险扫描时：
+用户要求扫描任务风险或发送 M5 任务风险提醒时：
 
 1. 判断使用 `local` backend 还是 `feishu` backend；
 2. 默认 dry-run；
@@ -340,7 +340,7 @@ python3 scripts/meetflow_cli.py live watch-callbacks
 - 指定测试群时加 `--chat-id "<测试群 chat_id>" --receive-id-type chat_id`；
 - 点击飞书卡片按钮后重点观察：
   - `view_pending_tasks_sent`
-  - `start_risk_scan_sent`
+  - `start_action_item_risk_preview_sent`
   - `view_post_meeting_report_sent`
 - 如果无日志，应优先检查 SDK 回调服务是否还在运行，以及飞书开放平台回调订阅是否指向当前应用。
 
@@ -397,7 +397,7 @@ python3 scripts/meetflow_cli.py openclaw-tools
 | `meetflow_pre_meeting` | 生成 M3 会前背景知识卡 | `date` 必填；可选 `event_title`、`event_id`、`provider`、`project_id`、`doc`、`minute`、`allow_write`、`idempotency_suffix` | 会前准备、RAG/Evidence Pack | 可选 | 是 | `report_path`、`data.parsed`、`command` | 真实发卡需 `allow_write=true` 和幂等后缀 |
 | `meetflow_post_meeting` | 读取妙记生成 M4 会后总结卡和待确认任务卡 | `minute` 必填；可选 `chat_id`、`allow_write` | 会后复盘 | 可选 | 是 | `pending_action_count`、`action_item_count`、`report_path` | 真实发卡需测试群 |
 | `meetflow_task_cards` | 基于妙记生成 D4 任务卡视角摘要 | `minute` 必填；可选 `allow_write` | 展示任务识别和任务卡 | 可选 | 是 | `pending_action_count`、`action_item_count` | 复用 M4，不直接写业务表 |
-| `meetflow_risk_scan` | 执行 M5 风险巡检 | 可选 `backend`、`mode`、`chat_id`、`allow_write` | 风险扫描、风险卡 | 可选 | 是 | `risk_count`、`should_notify`、`job`、`report_path` | `feishu + allow_write` 才可真实发送 |
+| `meetflow_risk_scan` | 执行 M5 任务风险提醒 | 可选 `backend`、`mode`、`chat_id`、`allow_write` | 风险扫描、任务风险提醒卡 | 可选 | 是 | `risk_count`、`should_notify`、`job`、`report_path` | `feishu + allow_write` 才可真实发送 |
 | `meetflow_eval` | 运行 Agent 轨迹评测 | 可选 `suite`、`case_id`、`fail_under`、`write_report` | 回归评测、安全评分 | 否 | 是 | `score`、`safety_score`、`passed_threshold`、`report_path` | 不代表真实飞书写入成功 |
 | `meetflow_demo_replay` | 运行离线 E2E 回放 | 可选 `case`、`all`、`write_report` | 无网络/无 token 兜底 | 否 | 是 | `score`、`case_count`、`report_path` | 不伪造成真实联调 |
 
@@ -514,9 +514,9 @@ python3 scripts/meetflow_cli.py task-cards \
 - 预期输出：`workflow_type=task_cards`，`pending_action_count`，`action_item_count`。
 - 失败处理：同 M4；不要伪造 `pending_actions`。
 
-### 示例 5：执行风险巡检
+### 示例 5：执行 M5 任务风险提醒
 
-- 用户请求：跑一下风险巡检，先看卡片效果。
+- 用户请求：跑一下 M5 任务风险提醒，先看卡片效果。
 - AI 判断：先用 local backend dry-run。
 - 应调用命令：
 
@@ -564,7 +564,7 @@ python3 scripts/meetflow_cli.py live watch-callbacks
 
 - dry-run：前两个是长进程；`d3-card` 默认真实发卡，加 `--dry-run` 才只打印命令。
 - 需要 `--allow-write`：`live d3-card` 不暴露该参数，下游 `card_send_live.py m4` 包装真实发卡链路。
-- 预期输出：点击后日志出现 `view_pending_tasks_sent`、`start_risk_scan_sent`、`view_post_meeting_report_sent`。
+- 预期输出：点击后日志出现 `view_pending_tasks_sent`、`start_action_item_risk_preview_sent`、`view_post_meeting_report_sent`。
 - 失败处理：检查 SDK 回调、开放平台订阅、worker、测试群、妙记权限。
 
 ### 示例 8：输出 OpenClaw 工具清单
@@ -590,7 +590,7 @@ python3 scripts/meetflow_cli.py openclaw-tools
 | M3 会前卡片 | `pre-meeting` | `card_send_live.py m3` | 是 | 是 | 是 | 输出更稳定的卡片摘要字段 |
 | M4 会后总结 | `post-meeting` | `card_send_live.py m4` | 是 | 是 | 是 | JSON 中补充结论、开放问题、风险点结构 |
 | D4 任务卡视角 | `task-cards` | M4 链路 | 是 | 是 | 是 | 输出更详细的 per-owner 任务结构 |
-| M5 风险巡检 | `risk-scan` | `risk_scan_demo.py` | 是 | 是 | 是 | 输出更完整的 risk evidence |
+| M5 任务风险提醒 | `risk-scan` | `risk_scan_demo.py` | 是 | 是 | 是 | 输出更完整的 risk evidence |
 | Agent 评测 | `eval` | `agent_eval_suite.py` | 是 | 不需要 | 是 | 输出更适合 Console 展示的摘要 |
 | 离线回放 | `demo-replay` | `e2e_replay.py` | 是 | 不需要 | 是 | 增加完整演示 summary |
 | D3 SDK 回调 | `live sdk-callback` | `feishu_event_sdk_server.py` | 不适用 | 不直接写 | 暂不建议作为 OpenClaw 工具 | 需要长进程管理 schema |

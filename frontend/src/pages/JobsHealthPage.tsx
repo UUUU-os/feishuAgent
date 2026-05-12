@@ -116,7 +116,7 @@ export function JobsHealthPage() {
         <DataTable
           rows={jobs?.items ?? []}
           empty="暂无任务"
-          emptyHint="可以先执行 M3 发卡、M5 风险巡检或 callback 入队流程。"
+          emptyHint="可以先执行 M3 发卡、M5 任务风险提醒或 callback 入队流程。"
           columns={[
             { key: "job", header: "Job", render: (row) => <code>{row.job_id}</code> },
             { key: "queue", header: "Queue", render: (row) => row.queue_name },

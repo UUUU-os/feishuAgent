@@ -1,12 +1,14 @@
-## 5.5 M5：风险巡检与提醒工作流
+## 5.5 M5：任务风险提醒工作流
 
 协作者开发前请先阅读总览文档：[m5-risk-scan-overview.md](./m5-risk-scan-overview.md)。
 
 这份总览说明了 M5 与 M4 的关系、推荐实现顺序、建议新增文件、冲突规避边界和验收标准。M5 第一版应优先独立基于任务状态做风险扫描，不阻塞 M4 的会后总结与任务落地开发。
 
-当前仓库级详细改造计划见：[M5 风险巡检与提醒工作流详细改造计划](../m5-risk-scan-implementation-plan.md)。
+当前仓库级详细改造计划见：[M5 任务风险提醒工作流详细改造计划](../m5-risk-scan-implementation-plan.md)。
 
-第二版代码施工方案见：[M5 风险巡检第二版代码改造方案](../m5-risk-scan-code-change-plan.md)。该文档按文件、函数、数据契约、补丁顺序和验收命令拆解后续实现工作。
+第二版代码施工方案见：[M5 任务风险提醒第二版代码改造方案](../m5-risk-scan-code-change-plan.md)。该文档按文件、函数、数据契约、补丁顺序和验收命令拆解后续实现工作。
+
+命名边界：M5 对外统一称为“任务风险提醒”，负责扫描真实或 mock 任务状态中的逾期、临期、长期未更新、缺负责人等风险，并写入 `risk_notifications` 做降噪。会后总结卡按钮中的“行动项风险预检”只针对当前会议待确认行动项做即时诊断，不写入 M5 降噪历史。
 
 ### T5.1 定义 `risk_scan` 工作流
 
@@ -69,7 +71,7 @@
   - 可通过真实定时或模拟调度运行
 - 实现记录：
   - 新增 `scripts/risk_scan_demo.py`，支持 `--backend local|feishu`。
-  - `scripts/agent_demo.py --event-type risk.scan.tick` 已能跑通 Agent 风险巡检链路。
+  - `scripts/agent_demo.py --event-type risk.scan.tick` 已能跑通 Agent 任务风险提醒链路。
 
 ### T5.6 实现提醒降噪机制
 
@@ -126,7 +128,7 @@
 - 新增 M5 单测 11 个通过。
 - 全量测试 29 个通过。
 - 本地 demo 扫描 5 个 mock 任务，命中 4 条风险，生成风险卡片 JSON。
-- Agent 风险巡检链路已在 `result.payload["risk_scan"]` 中生成 `scan_result`、`notification_decision` 和 `card_payload`。
+- Agent 任务风险提醒链路已在 `result.payload["risk_scan"]` 中生成 `scan_result`、`notification_decision` 和 `card_payload`。
 - 2026-05-04 闭环改造后，`/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest discover -s tests` 通过 61 条测试。
 
 ---

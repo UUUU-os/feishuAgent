@@ -966,7 +966,7 @@ docs/live-evaluation-guide.md
 读取测试妙记
 发送测试群卡片
 点击回调仍需要人工或 SDK probe
-任务创建和风险巡检有报告
+任务创建和 M5 任务风险提醒有报告
 ```
 
 验收：

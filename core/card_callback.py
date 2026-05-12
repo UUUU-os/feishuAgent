@@ -115,8 +115,8 @@ def handle_post_meeting_card_callback(
             storage=storage,
             policy=policy or AgentPolicy(),
         )
-    if action == "start_risk_scan":
-        return send_risk_scan_card_from_summary_callback(
+    if action in {"start_action_item_risk_preview", "start_risk_scan"}:
+        return send_action_item_risk_preview_card_from_summary_callback(
             action_value=action_value,
             payload=payload,
             settings=settings,
@@ -216,9 +216,9 @@ def handle_post_meeting_summary_quick_action(
     """处理会后总结卡上的 D3 快捷按钮。
 
     “查看任务卡”已经有专用发送逻辑；这里复用通用 CardActionRouter 处理
-    风险巡检和完整报告入口，保证 HTTP 回调和官方 SDK 长连接都能在 3 秒内
-    返回成功 toast。风险巡检只生成受控 AgentInput，是否入队或异步执行由
-    统一事件服务的 `--enqueue-agent/--execute-agent` 开关决定。
+    行动项风险预检和完整报告入口，保证 HTTP 回调和官方 SDK 长连接都能在
+    3 秒内返回成功 toast。旧卡片里的 `start_risk_scan` 仍兼容，但新卡片使用
+    `start_action_item_risk_preview`，避免和 M5 任务风险提醒混淆。
     """
 
     action = str(action_value.get("action") or "")
@@ -420,7 +420,7 @@ def send_pending_tasks_card_from_summary_callback(
     return CardCallbackResult(status="success", message="已发送 MeetFlow 待确认任务卡，请在当前会话中查看。")
 
 
-def send_risk_scan_card_from_summary_callback(
+def send_action_item_risk_preview_card_from_summary_callback(
     *,
     action_value: dict[str, Any],
     payload: dict[str, Any],
@@ -429,12 +429,15 @@ def send_risk_scan_card_from_summary_callback(
     storage: MeetFlowStorage,
     policy: AgentPolicy,
 ) -> CardCallbackResult:
-    """点击“执行风险巡检”后，按同一会议任务直接发送 M5 风险巡检卡。
+    """点击“行动项风险预检”后，按同一会议行动项发送即时预检卡。
 
     这个入口对齐 `view_pending_tasks`：不依赖后台 Agent 是否启动，而是从
-    pending registry 恢复同一批行动项，执行确定性风险规则后在当前会话发卡。
+    pending registry 恢复同一批行动项，执行确定性任务风险规则后在当前会话发卡。
+    它不是 M5 周期性任务风险提醒；M5 的入口仍是 `risk_scan_demo.py` /
+    `risk_scan.run`，扫描真实飞书任务状态并写入 `risk_notifications`。
     """
 
+    log_action = "start_action_item_risk_preview"
     records = load_pending_action_records(settings)
     related_records, group_reason = find_pending_records_for_summary_action(
         records=records,
@@ -447,10 +450,10 @@ def send_risk_scan_card_from_summary_callback(
             settings,
             payload=payload,
             action_value=action_value,
-            status="start_risk_scan_not_found",
+            status=f"{log_action}_not_found",
             result={"group_reason": group_reason},
         )
-        return CardCallbackResult(status="info", message="当前会议没有可巡检的会后任务，请先点击“查看任务卡”确认任务上下文。")
+        return CardCallbackResult(status="info", message="当前会议没有可预检的会后行动项，请先点击“查看任务卡”确认任务上下文。")
 
     receive_id = resolve_summary_action_receive_id(action_value=action_value, payload=payload, records=related_records, settings=settings)
     if not receive_id:
@@ -458,10 +461,10 @@ def send_risk_scan_card_from_summary_callback(
             settings,
             payload=payload,
             action_value=action_value,
-            status="start_risk_scan_missing_receive_id",
+            status=f"{log_action}_missing_receive_id",
             result={"related_record_count": len(related_records), "group_reason": group_reason},
         )
-        return CardCallbackResult(status="error", message="无法确定风险巡检卡发送到哪个会话，请检查回调 payload 或默认测试群配置。")
+        return CardCallbackResult(status="error", message="无法确定行动项风险预检卡发送到哪个会话，请检查回调 payload 或默认测试群配置。")
 
     receive_id_type = first_non_empty_text(
         str(action_value.get("receive_id_type") or ""),
@@ -471,12 +474,18 @@ def send_risk_scan_card_from_summary_callback(
     items = [action_item_from_pending_record(record) for record in related_records]
     now = int(time.time())
     risk_settings = build_callback_risk_rule_settings(settings)
+    idempotency_key = build_summary_action_idempotency_key(
+        action=log_action,
+        action_value=action_value,
+        records=related_records,
+        receive_id=receive_id,
+    )
 
     from cards.risk_scan import build_risk_scan_card  # noqa: PLC0415 - 避免 cards/core 初始化循环。
     from core.risk_scan import (
-        decide_risk_notification,
         enrich_risks_with_task_mappings,
         normalize_task_snapshots,
+        RiskNotificationDecision,
         scan_risks,
     )
 
@@ -487,53 +496,54 @@ def send_risk_scan_card_from_summary_callback(
         due_soon_hours=int(risk_settings["due_soon_hours"]),
     )
     scan_result = enrich_risks_with_task_mappings(scan_result=scan_result, storage=storage)
-    notification_decision = decide_risk_notification(
-        scan_result=scan_result,
-        storage=storage,
-        max_reminders_per_day=int(risk_settings["max_reminders_per_day"]),
-        now=now,
+    notification_decision = RiskNotificationDecision(
+        should_notify=bool(scan_result.risks),
+        reason="会后行动项即时预检，不参与 M5 任务风险提醒降噪。",
+        notify_risks=list(scan_result.risks),
+        suppressed_risks=[],
+        idempotency_key=idempotency_key,
+        notification_keys=[risk.dedupe_key for risk in scan_result.risks if risk.dedupe_key],
     )
     if not scan_result.risks:
         append_card_callback_log(
             settings,
             payload=payload,
             action_value=action_value,
-            status="start_risk_scan_no_risk",
+            status=f"{log_action}_no_risk",
             result={"scanned_count": scan_result.scanned_count, "group_reason": group_reason},
         )
-        return CardCallbackResult(status="success", message=f"已完成风险巡检：扫描 {scan_result.scanned_count} 个任务，未发现风险。")
+        return CardCallbackResult(status="success", message=f"已完成行动项风险预检：扫描 {scan_result.scanned_count} 个行动项，未发现风险。")
 
-    card = build_risk_scan_card(decision=notification_decision, scan_result=scan_result)
+    card = build_risk_scan_card(
+        decision=notification_decision,
+        scan_result=scan_result,
+        title="MeetFlow 会后行动项风险预检",
+        empty_message="本次预检没有需要推送的会后行动项风险。",
+    )
     context = workflow_context_from_callback_value(
         {
             **action_value,
-            "action": "start_risk_scan",
+            "action": log_action,
             "chat_id": receive_id,
-            "workflow_type": "risk_scan",
+            "workflow_type": "post_meeting_followup",
             "meeting_id": first_non_empty_text(str(action_value.get("meeting_id") or ""), *(record_value(record).get("meeting_id") for record in related_records)),
             "minute_token": first_non_empty_text(str(action_value.get("minute_token") or ""), *(record_value(record).get("minute_token") for record in related_records)),
         }
     )
-    context.workflow_type = "risk_scan"
-    context.raw_context["decision"]["workflow_type"] = "risk_scan"
+    context.workflow_type = "post_meeting_followup"
+    context.raw_context["decision"]["workflow_type"] = "post_meeting_followup"
 
     from adapters import create_feishu_tool_registry  # noqa: PLC0415 - 避免 adapters/core 初始化循环。
 
     registry = create_feishu_tool_registry(client, default_chat_id=settings.feishu.default_chat_id)
-    idempotency_key = build_summary_action_idempotency_key(
-        action="start_risk_scan",
-        action_value=action_value,
-        records=related_records,
-        receive_id=receive_id,
-    )
     tool_result = execute_callback_tool_with_policy(
         registry=registry,
         policy=policy,
         context=context,
         tool_name="im.send_card",
         arguments={
-            "title": card.get("header", {}).get("title", {}).get("content", "MeetFlow 风险巡检提醒"),
-            "summary": "MeetFlow 会后任务风险巡检卡",
+            "title": card.get("header", {}).get("title", {}).get("content", "MeetFlow 会后行动项风险预检"),
+            "summary": "MeetFlow 会后行动项风险预检卡",
             "card": card,
             "receive_id": receive_id,
             "receive_id_type": receive_id_type,
@@ -546,29 +556,22 @@ def send_risk_scan_card_from_summary_callback(
         storage=storage,
     )
     if tool_result.status != "success":
-        reason = tool_result.error_message or tool_result.content or "风险巡检卡发送失败。"
+        reason = tool_result.error_message or tool_result.content or "行动项风险预检卡发送失败。"
         append_card_callback_log(
             settings,
             payload=payload,
             action_value=action_value,
-            status="start_risk_scan_send_failed",
+            status=f"{log_action}_send_failed",
             result={"reason": reason, "tool_result": tool_result.to_dict(), "group_reason": group_reason},
         )
-        return CardCallbackResult(status="error", message=f"风险巡检卡发送失败：{reason}")
+        return CardCallbackResult(status="error", message=f"行动项风险预检卡发送失败：{reason}")
 
-    record_callback_risk_notifications(
-        storage=storage,
-        decision=notification_decision.to_dict(),
-        scan_result=scan_result.to_dict(),
-        recipient=receive_id,
-        now=now,
-    )
     message_id = str(tool_result.data.get("message_id") or "")
     append_card_callback_log(
         settings,
         payload=payload,
         action_value=action_value,
-        status="start_risk_scan_sent",
+        status=f"{log_action}_sent",
         result={
             "message_id": message_id,
             "receive_id": receive_id,
@@ -580,7 +583,13 @@ def send_risk_scan_card_from_summary_callback(
             "group_reason": group_reason,
         },
     )
-    return CardCallbackResult(status="success", message="已发送 MeetFlow 风险巡检卡，请在当前会话中查看。")
+    return CardCallbackResult(status="success", message="已发送 MeetFlow 会后行动项风险预检卡，请在当前会话中查看。")
+
+
+def send_risk_scan_card_from_summary_callback(**kwargs: Any) -> CardCallbackResult:
+    """兼容旧调用名；新代码应使用行动项风险预检命名。"""
+
+    return send_action_item_risk_preview_card_from_summary_callback(**kwargs)
 
 
 def send_post_meeting_report_card_from_summary_callback(
@@ -681,14 +690,21 @@ def confirm_create_task_from_card(
     """从卡片回调中确认创建任务。"""
 
     item_id = str(action_value.get("item_id") or "")
-    merged_action_value = merge_cached_action_value(settings, action_value)
-    action_item = action_item_from_callback_value(merged_action_value)
     overrides = extract_edit_overrides(action_value)
+    action_value_with_overrides = dict(action_value)
+    if overrides.get("owner"):
+        action_value_with_overrides["owner"] = str(overrides["owner"])
+    if overrides.get("due_date"):
+        action_value_with_overrides["due_date"] = str(overrides["due_date"])
+    if overrides.get("owner_open_id"):
+        action_value_with_overrides["owner_open_id_override"] = str(overrides["owner_open_id"])
+    merged_action_value = merge_cached_action_value(settings, action_value_with_overrides)
+    action_item = action_item_from_callback_value(merged_action_value)
     if overrides.get("owner"):
         action_item.owner = str(overrides["owner"])
     if overrides.get("due_date"):
         action_item.due_date = str(overrides["due_date"])
-    context = workflow_context_from_callback_value(action_value)
+    context = workflow_context_from_callback_value(merged_action_value)
     from adapters import create_feishu_tool_registry  # noqa: PLC0415 - 避免 adapters/core 初始化循环。
 
     registry = create_feishu_tool_registry(client, default_chat_id=settings.feishu.default_chat_id)
@@ -727,11 +743,15 @@ def confirm_create_task_from_card(
             state_guard.response_card = response_card
             return state_guard
     assignee_ids = []
-    owner_open_id = str(overrides.get("owner_open_id") or "").strip()
+    owner_open_id = str(overrides.get("owner_open_id") or merged_action_value.get("owner_open_id_override") or "").strip()
     if owner_open_id:
         assignee_ids = [owner_open_id]
     else:
-        assignee_ids = resolve_owner_open_ids_for_callback(registry, action_item.owner)
+        assignee_ids = resolve_owner_open_ids_for_callback(
+            registry,
+            action_item.owner,
+            operator_open_id=extract_callback_operator_open_id(payload),
+        )
     arguments = build_task_create_arguments(
         action_item=action_item,
         context=context,
@@ -739,6 +759,42 @@ def confirm_create_task_from_card(
         timezone=settings.app.timezone,
     )
     arguments["confidence"] = max(float(arguments.get("confidence", 0.0) or 0.0), 0.95)
+    field_error = build_confirm_field_error(action_item=action_item, assignee_ids=assignee_ids, arguments=arguments)
+    if field_error:
+        response_card = build_card_from_callback_value(
+            action_item_to_callback_value(action_item, context=context, action_value=merged_action_value),
+            mode="edit",
+            status_message=field_error[:180],
+            status_kind="error",
+        )
+        mark_pending_action_status(
+            settings,
+            action_item.item_id,
+            status="pending",
+            result={"status": "field_error", "message": field_error, "arguments": arguments},
+        )
+        append_card_callback_log(
+            settings,
+            payload=payload,
+            action_value=merged_action_value,
+            status="create_field_error",
+            result={"message": field_error, "arguments": arguments},
+        )
+        updated_card = apply_callback_card_update(
+            client=client,
+            settings=settings,
+            payload=payload,
+            action_value=merged_action_value,
+            card=response_card,
+        )
+        if updated_card:
+            response_card = updated_card
+        return CardCallbackResult(
+            status="error",
+            message=field_error[:180],
+            data={"arguments": arguments},
+            response_card=response_card,
+        )
     tool_result = execute_callback_tool_with_policy(
         registry=registry,
         policy=policy,
@@ -821,6 +877,33 @@ def confirm_create_task_from_card(
         data={"tool_result": tool_result.to_dict(), "task_mapping": mapping},
         response_card=response_card,
     )
+
+
+def build_confirm_field_error(
+    *,
+    action_item: ActionItem,
+    assignee_ids: list[str],
+    arguments: dict[str, Any],
+) -> str:
+    """生成确认创建前的字段错误提示。
+
+    负责人必须能解析为组织通讯录里的 open_id；截止时间必须能转换成飞书
+    任务接口需要的毫秒时间戳。提前给出明确提示，比让 Policy 返回笼统的
+    “缺少负责人或截止时间”更适合卡片内修正。
+    """
+
+    owner = sanitize_callback_text(action_item.owner)
+    due_date = sanitize_callback_text(action_item.due_date)
+    missing: list[str] = []
+    if not owner:
+        missing.append("请填写负责人姓名，或填写“我”。")
+    elif not assignee_ids:
+        missing.append(f"通讯录未找到负责人：{owner}。请填写组织内成员姓名，或填写“我”。")
+    if not due_date:
+        missing.append("请填写截止时间，例如：明天 / 2026-05-13。")
+    elif not str(arguments.get("due_timestamp_ms") or ""):
+        missing.append(f"截止时间无法解析：{due_date}。请改成 YYYY-MM-DD、明天或周几。")
+    return " ".join(missing)
 
 
 def handle_edit_task_fields(action_value: dict[str, Any], payload: dict[str, Any], settings: Settings, client: Any | None = None) -> CardCallbackResult:
@@ -930,8 +1013,8 @@ def extract_card_action_value(payload: dict[str, Any]) -> dict[str, Any]:
         value = candidate.get("value")
         if isinstance(value, dict):
             merged = dict(value)
-            form_value = candidate.get("form_value")
-            if isinstance(form_value, dict):
+            form_value = collect_form_values(candidate)
+            if form_value:
                 merged["form_value"] = form_value
             input_value = candidate.get("input_value")
             if input_value is not None:
@@ -948,9 +1031,7 @@ def extract_edit_overrides(action_value: dict[str, Any]) -> dict[str, str]:
     edit = action_value.get("edit")
     if not isinstance(edit, dict):
         edit = {}
-    form_value = action_value.get("form_value")
-    if not isinstance(form_value, dict):
-        form_value = {}
+    form_value = collect_form_values(action_value)
     owner_field = sanitize_callback_text(action_value.get("owner_field"))
     due_date_field = sanitize_callback_text(action_value.get("due_date_field"))
     owner = first_non_empty_form_value(
@@ -981,6 +1062,59 @@ def extract_edit_overrides(action_value: dict[str, Any]) -> dict[str, str]:
         for key, value in {"owner": owner, "due_date": due_date, "owner_open_id": owner_open_id}.items()
         if value
     }
+
+
+def collect_form_values(data: Any) -> dict[str, Any]:
+    """收集飞书卡片表单输入值。
+
+    真实回调里输入值可能叫 `form_value`、`form_values`、`values` 或
+    `input_value`；部分 SDK 还会把字段表示为 `[{name, value}]`。这里统一
+    归一成可递归检索的 dict，避免用户已填写字段但后端看起来仍为空。
+    """
+
+    if not isinstance(data, dict):
+        return {}
+    collected: dict[str, Any] = {}
+    for key in ("form_value", "form_values", "values", "input_value"):
+        value = data.get(key)
+        if value is None:
+            continue
+        merge_form_value(collected, value)
+    return collected
+
+
+def merge_form_value(target: dict[str, Any], value: Any) -> None:
+    """把不同形态的表单字段合并进 target。"""
+
+    if value is None:
+        return
+    if isinstance(value, dict):
+        name = value.get("name") or value.get("field_name") or value.get("key")
+        if name:
+            field_value = first_present_value(value, ("value", "input_value", "text", "date", "open_id", "user_id", "id"))
+            target[sanitize_callback_text(name)] = field_value
+            return
+        for key, item in value.items():
+            clean_key = sanitize_callback_text(key)
+            if isinstance(item, (dict, list)):
+                nested: dict[str, Any] = {}
+                merge_form_value(nested, item)
+                target[clean_key] = nested or item
+            else:
+                target[clean_key] = item
+        return
+    if isinstance(value, list):
+        for item in value:
+            merge_form_value(target, item)
+
+
+def first_present_value(data: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    """读取表单字段对象中的第一个存在值，保留空字符串供后续归一化判断。"""
+
+    for key in keys:
+        if key in data:
+            return data.get(key)
+    return ""
 
 
 def find_form_value_by_key(form_value: Any, key: str) -> Any:
@@ -1057,7 +1191,7 @@ def normalize_form_field_value(value: Any) -> str:
                 return normalized
         return ""
     if isinstance(value, dict):
-        for key in ("value", "text", "date", "open_id", "user_id", "id", "option"):
+        for key in ("value", "input_value", "text", "date", "open_id", "user_id", "id", "option"):
             normalized = normalize_form_field_value(value.get(key))
             if normalized:
                 return normalized
@@ -1168,13 +1302,20 @@ def workflow_context_from_callback_value(action_value: dict[str, Any]) -> Workfl
     )
 
 
-def resolve_owner_open_ids_for_callback(registry: Any, owner: str) -> list[str]:
-    """把负责人文本解析为 open_id。"""
+def resolve_owner_open_ids_for_callback(registry: Any, owner: str, operator_open_id: str = "") -> list[str]:
+    """把负责人文本解析为 open_id。
+
+    卡片回调里用户点击按钮时，飞书 payload 会带操作人的 open_id。负责人填写
+    “我/本人/自己”时直接使用这个值，比再走 OAuth 当前用户接口更稳定，也避免
+    refresh_token 失效导致明明字段完整却回到待确认。
+    """
 
     owner_text = owner.strip()
     if not owner_text or is_group_owner_candidate(owner_text):
         return []
     if owner_text in {"我", "本人", "自己"}:
+        if operator_open_id.strip():
+            return [operator_open_id.strip()]
         result = registry.execute(AgentToolCall(call_id="callback_resolve_current_user", tool_name="contact_get_current_user", arguments={}))
         open_id = str(result.data.get("open_id") or result.data.get("user_id") or "")
         return [open_id] if open_id else []
@@ -1183,7 +1324,7 @@ def resolve_owner_open_ids_for_callback(registry: Any, owner: str) -> list[str]:
         AgentToolCall(
             call_id=f"callback_resolve_owner:{owner_text}",
             tool_name="contact_search_user",
-            arguments={"query": owner_text, "page_size": 5, "identity": "user"},
+            arguments={"query": owner_text, "page_size": 5, "identity": "tenant"},
         )
     )
     items = result.data.get("items") or result.data.get("users") or []
@@ -1195,6 +1336,19 @@ def resolve_owner_open_ids_for_callback(registry: Any, owner: str) -> list[str]:
             if open_id:
                 return [open_id]
     return []
+
+
+def extract_callback_operator_open_id(payload: dict[str, Any]) -> str:
+    """从飞书卡片回调 payload 中提取操作人 open_id。"""
+
+    event = payload.get("event") if isinstance(payload.get("event"), dict) else {}
+    operator = event.get("operator") if isinstance(event.get("operator"), dict) else {}
+    return first_non_empty_text(
+        str(operator.get("open_id") or ""),
+        str(deep_get(operator, "operator_id", "open_id") or ""),
+        str(deep_get(event, "operator_id", "open_id") or ""),
+        str(deep_get(event, "operator", "user_id", "open_id") or ""),
+    )
 
 
 def execute_callback_tool_with_policy(
@@ -1585,7 +1739,7 @@ def build_summary_action_idempotency_key(
 
 
 def build_callback_risk_rule_settings(settings: Settings) -> dict[str, int]:
-    """读取回调风险巡检规则，测试配置缺字段时使用保守默认值。"""
+    """读取会后行动项风险预检规则，测试配置缺字段时使用保守默认值。"""
 
     risk_rules = getattr(settings, "risk_rules", None)
     return {

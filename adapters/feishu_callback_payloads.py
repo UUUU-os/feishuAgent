@@ -117,8 +117,8 @@ def build_callback_envelope(payload: dict[str, Any], source: str) -> FeishuCallb
     context = as_dict(event.get("context"))
     operator = as_dict(event.get("operator"))
     action_value = parse_action_value(action.get("value"))
-    form_value = action.get("form_value")
-    if isinstance(form_value, dict):
+    form_value = action.get("form_value") or action.get("form_values") or action.get("values")
+    if isinstance(form_value, (dict, list)):
         action_value["form_value"] = form_value
     input_value = action.get("input_value")
     if input_value is not None:
@@ -187,7 +187,7 @@ def copy_form_fields(source: dict[str, Any], target: dict[str, Any]) -> None:
     显式保留这些输入字段，否则用户在卡片里填写的负责人/截止时间会丢失。
     """
 
-    for key in ("form_value", "input_value"):
+    for key in ("form_value", "form_values", "values", "input_value"):
         value = source.get(key)
         if value is not None:
             target[key] = value

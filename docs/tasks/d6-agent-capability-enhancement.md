@@ -24,7 +24,7 @@ Console、OpenClaw 工具说明、评测中心和答辩材料复用。
 
 | 能力 | 当前实现 | D6 判断 |
 |---|---|---|
-| 工作流路由 | `core/router.py::WorkflowRouter` | 已能区分会前、会后、风险巡检和手动问答 |
+| 工作流路由 | `core/router.py::WorkflowRouter` | 已能区分会前、会后、M5 任务风险提醒和手动问答 |
 | 上下文构建 | `core/context.py::WorkflowContextBuilder` | 已统一抽取会议、妙记、任务、参与人和项目记忆 |
 | 工作流骨架 | `core/workflows.py::WorkflowRunner` | 已固定 prepare、Agent Loop、后处理和校验阶段 |
 | 工具注册 | `core/tools.py::ToolRegistry` | 已区分内部工具名、LLM 工具名、读写属性和副作用 |

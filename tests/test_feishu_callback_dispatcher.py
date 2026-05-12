@@ -108,14 +108,14 @@ class FeishuCallbackDispatcherTest(unittest.TestCase):
         self.assertEqual(result.body["toast"]["content"], "已发送任务卡")
         mocked.assert_called_once()
 
-    def test_summary_start_risk_scan_routes_to_m4_handler(self) -> None:
+    def test_summary_action_item_risk_preview_routes_to_m4_handler(self) -> None:
         dispatcher = self.build_dispatcher()
         payload = {
             "header": {"event_type": "card.action.trigger", "event_id": "evt_risk", "token": "test-token"},
             "event": {
                 "action": {
                     "value": {
-                        "action": "start_risk_scan",
+                        "action": "start_action_item_risk_preview",
                         "source_card": "post_meeting_summary",
                         "workflow_type": "post_meeting_followup",
                         "meeting_id": "meeting_test_001",
@@ -128,14 +128,14 @@ class FeishuCallbackDispatcherTest(unittest.TestCase):
         with patch("core.feishu_callback_dispatcher.handle_post_meeting_card_callback") as mocked:
             mocked.return_value = SimpleNamespace(
                 status="success",
-                to_feishu_response=lambda: {"toast": {"type": "success", "content": "已发送风险巡检卡"}},
+                to_feishu_response=lambda: {"toast": {"type": "success", "content": "已发送行动项风险预检卡"}},
                 agent_input=None,
             )
             result = dispatcher.dispatch_http_callback(payload)
 
         self.assertEqual(result.status, "success")
         self.assertEqual(result.body["toast"]["type"], "success")
-        self.assertEqual(result.body["toast"]["content"], "已发送风险巡检卡")
+        self.assertEqual(result.body["toast"]["content"], "已发送行动项风险预检卡")
         self.assertIsNone(result.agent_input)
         mocked.assert_called_once()
 

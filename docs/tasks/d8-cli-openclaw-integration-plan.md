@@ -23,7 +23,7 @@ OpenClaw / CLI
 | M3 会前卡片 | `scripts/card_send_live.py m3` -> `scripts/pre_meeting_live_test.py` | CLI `pre-meeting` 子命令优先调用 `MeetFlowConsoleAPI.run_m3_send_card()` 或等价 facade |
 | M4 会后总结与任务卡 | `scripts/card_send_live.py m4` -> `scripts/post_meeting_live_test.py` | CLI `post-meeting` 子命令复用现有真实发卡链路，默认 dry-run |
 | M4 任务卡按钮回调 | `scripts/card_send_live.py m4-callback` | CLI 只提供服务启动说明或 `service start`，不直接处理回调 |
-| M5 风险巡检 | `scripts/risk_scan_demo.py`、`core/risk_scan.py` | CLI `risk-scan` 子命令复用 Console facade 的白名单命令 |
+| M5 任务风险提醒 | `scripts/risk_scan_demo.py`、`core/risk_scan.py` | CLI `risk-scan` 子命令复用 Console facade 的白名单命令 |
 | 评测入口 | `scripts/agent_eval_suite.py`、`scripts/e2e_replay.py` | CLI `eval` 和 `demo-replay` 子命令复用现有评测脚本 |
 | Console facade | `core/console_api.py::MeetFlowConsoleAPI` | D8 首选复用对象，避免 CLI 自己拼接所有脚本细节 |
 | 服务白名单 | `core/service_manager.py` | CLI `service list/start/stop/logs` 可复用，禁止任意命令执行 |
@@ -212,7 +212,7 @@ python3 scripts/meetflow_cli.py task-cards \
 
 ### 4.6 `risk-scan`
 
-目标：触发 M5 风险巡检。
+目标：触发 M5 任务风险提醒。
 
 复用：
 
@@ -439,7 +439,7 @@ python3 scripts/meetflow_cli.py eval --suite agent_trajectory --write-report
 | `meetflow_pre_meeting` | `pre-meeting` | M3 会前背景知识卡 |
 | `meetflow_post_meeting` | `post-meeting` | M4 妙记复盘和总结卡 |
 | `meetflow_task_cards` | `task-cards` | D4 按人分组任务卡 |
-| `meetflow_risk_scan` | `risk-scan` | M5 风险巡检 |
+| `meetflow_risk_scan` | `risk-scan` | M5 任务风险提醒 |
 | `meetflow_eval` | `eval` | Agent 评测 |
 | `meetflow_demo_replay` | `demo-replay` | 离线回放兜底 |
 

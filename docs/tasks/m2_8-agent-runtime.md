@@ -340,14 +340,14 @@ WorkflowRunner
 - 当前演示脚本逻辑：
   - `scripts/workflow_router_demo.py --event-type meeting.soon --meeting-id meeting_001` 模拟会前路由
   - `scripts/workflow_router_demo.py --event-type minute.ready --minute-token minute_001` 模拟会后路由
-  - `scripts/workflow_router_demo.py --event-type risk.scan.tick --trigger-type schedule` 模拟定时风险巡检
+  - `scripts/workflow_router_demo.py --event-type risk.scan.tick --trigger-type schedule` 模拟定时任务风险提醒
   - `scripts/workflow_router_demo.py --event-type message.command --workflow-type risk_scan` 模拟人工命令指定工作流
   - `scripts/workflow_router_demo.py --event-type unknown.event` 模拟未知事件降级
 - 当前验证方式：
   - 已通过 `python3 -m py_compile core/router.py core/__init__.py scripts/workflow_router_demo.py` 验证语法正确
   - 已验证 `meeting.soon` 能路由到 `pre_meeting_brief` 并生成会前工具集
   - 已验证 `minute.ready` 能路由到 `post_meeting_followup` 并生成会后工具集
-  - 已验证 `risk.scan.tick` 能路由到 `risk_scan` 并生成风险巡检工具集
+  - 已验证 `risk.scan.tick` 能路由到 `risk_scan` 并生成任务风险提醒工具集
   - 已验证 `message.command` 可以指定 `workflow_type=risk_scan`
   - 已验证未知事件会返回 `unsupported` 决策而不是中断程序
 - 这一步对后续任务的意义：
@@ -408,7 +408,7 @@ WorkflowRunner
 - 当前演示脚本逻辑：
   - `scripts/workflow_context_demo.py --event-type meeting.soon --meeting-id meeting_001 --calendar-event-id event_001 --with-memory` 模拟会前上下文，并写入/读取项目记忆
   - `scripts/workflow_context_demo.py --event-type minute.ready --minute-token minute_001 --project-id meetflow` 模拟会后上下文
-  - `scripts/workflow_context_demo.py --event-type risk.scan.tick --task-id task_001 --project-id meetflow` 模拟风险巡检上下文
+  - `scripts/workflow_context_demo.py --event-type risk.scan.tick --task-id task_001 --project-id meetflow` 模拟任务风险提醒上下文
 - 当前验证方式：
   - 已通过 `python3 -m py_compile core/router.py core/context.py core/__init__.py scripts/workflow_context_demo.py` 验证语法正确
   - 已验证会前场景可解析 `meeting_id`、`calendar_event_id`、参与人、相关资源和项目记忆
@@ -492,7 +492,7 @@ WorkflowRunner
   - 已通过 `python3 scripts/agent_loop_demo.py --event-type meeting.soon --meeting-id meeting_loop_demo --max-iterations 1` 验证最大轮数保护生效
 - 这一步对后续任务的意义：
   - T2.14 可以把 `WorkflowRouter`、`WorkflowContextBuilder`、`MeetFlowAgentLoop` 串成真正的业务 Agent 主入口
-  - M3 会前卡片、M4 会后任务、M5 风险巡检都可以复用同一个 Agent Loop
+  - M3 会前卡片、M4 会后任务、M5 任务风险提醒都可以复用同一个 Agent Loop
   - 后续只需要替换真实 LLM Provider 和真实飞书工具注册器，就能从 dry-run demo 迁移到真实业务执行
 
 ### T2.14 实现 MeetFlowAgent 主入口
@@ -574,12 +574,12 @@ WorkflowRunner
   - `WorkflowRunner`：通用工作流骨架，固定准备上下文、调用 Agent Loop、校验输出和写入审计 payload
   - `PreMeetingBriefWorkflow`：会前工作流骨架，当前会构造 `retrieval_query_draft`，并把“证据不足时不能写成确定事实”等约束追加到 Agent 目标中
   - `PostMeetingFollowupWorkflow`：会后工作流骨架，当前会构造 `post_meeting_plan`，固定“读取妙记/纪要 -> 清洗 -> 抽取 Action Items -> 校验字段和证据 -> Policy 决定创建任务或待确认”的阶段边界
-  - `RiskScanWorkflow`：风险巡检工作流骨架，当前会构造 `risk_scan_plan`，固定“读取任务状态 -> 风险规则预筛 -> Agent 生成提醒草案 -> 去重/降噪 -> Policy 决定是否推送”的阶段边界
+  - `RiskScanWorkflow`：任务风险提醒工作流骨架，当前会构造 `risk_scan_plan`，固定“读取任务状态 -> 风险规则预筛 -> Agent 生成提醒草案 -> 去重/降噪 -> Policy 决定是否推送”的阶段边界
   - `build_default_workflow_runners()`：提供默认 Runner 注册表，`pre_meeting_brief`、`post_meeting_followup`、`risk_scan` 都使用专用 Runner，其他工作流先使用通用 Runner
 - 当前边界与待补事项：
   - 当前三个专用 Runner 仍然是骨架级代码，不等于 M3/M4/M5 业务功能已经完成
   - `PostMeetingFollowupWorkflow` 还没有实现真实纪要清洗、严格 `MeetingSummary` / `ActionItem` schema 解析和会后卡片渲染，这些仍属于 M4
-  - `RiskScanWorkflow` 还没有实现真实风险规则、历史提醒降噪和风险卡片渲染，这些仍属于 M5
+  - `RiskScanWorkflow` 还没有实现真实风险规则、历史提醒降噪和任务风险提醒卡片渲染，这些仍属于 M5
   - 写操作仍必须经过 `AgentPolicy`，专用 Runner 只负责固定阶段和校验边界，不直接绕过策略执行副作用
 - 已补充验证脚本：
   - `scripts/workflow_runner_demo.py`
@@ -695,7 +695,7 @@ WorkflowRunner
   - 已通过 `python3 scripts/agent_policy_demo.py --scenario write_disabled` 验证未开启写权限时，LLM 不能绕过 Policy 发送消息
 - 这一步对后续任务的意义：
   - M4 会后任务创建可以先让 LLM 抽取候选行动项，再由 `AgentPolicy` 判断自动创建还是进入确认卡
-  - M5 风险巡检可以用幂等键和本地存储做降噪，避免同一风险一天内重复提醒
+  - M5 任务风险提醒可以用幂等键和本地存储做降噪，避免同一风险一天内重复提醒
   - 后续 `AgentPolicyConfig` 可以从配置文件读取，让比赛 Demo 和真实使用采用不同自动化强度
 
 ### T2.16 实现 Agent 手动调试入口

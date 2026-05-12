@@ -42,7 +42,7 @@ Prove it：用业务评测、Agent 轨迹评测和真实飞书闭环数据证明
 
 - M3 会前背景卡：会议主题识别、相关资源召回、会前卡片 payload、真实发卡脚本。
 - M4 会后总结与待确认任务：妙记解析、总结卡、待确认任务卡、按钮回调、人工确认后创建任务。
-- M5 风险巡检：任务风险扫描、M4 task mapping 来源富化、风险提醒卡、降噪记录。
+- M5 任务风险提醒：任务风险扫描、M4 task mapping 来源富化、任务风险提醒卡、降噪记录。
 - 飞书接入：SDK WebSocket 回调、HTTP fallback、OAuth Device Flow、真实读写联调脚本。
 - 工程化：SQLite migrations、workflow_jobs、worker、daemon、结构化事件日志。
 - 控制台：Dashboard、M3 发卡、真实联调、评测中心、Jobs/Health。

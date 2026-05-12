@@ -215,7 +215,7 @@
   - 第二步，从飞书读取到的文档、妙记、任务等对象统一转换成 `Resource`
   - 第三步，知识处理层输出结构化行动项时使用 `ActionItem`
   - 第四步，会后总结阶段使用 `MeetingSummary` 聚合决策、问题、行动项和风险
-  - 第五步，风险巡检阶段使用 `RiskAlert` 表示一条可推送的风险结果
+  - 第五步，M5 任务风险提醒阶段使用 `RiskAlert` 表示一条可推送的风险结果
   - 第六步，任何工作流执行结束后，都可以把最终结果封装为 `WorkflowResult` 再交给存储层保存
 - 当前演示脚本中的使用方式：
   - `scripts/storage_demo.py` 已实际构造 `Event`、`ActionItem`、`MeetingSummary`、`RiskAlert`、`WorkflowResult`
@@ -226,4 +226,3 @@
   - 已验证这些模型已被存储脚本实际使用，而不是只停留在定义层
 
 ---
-

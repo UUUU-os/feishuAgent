@@ -45,7 +45,7 @@ def build_samples() -> list[PreMeetingBriefInput]:
         "project_id": "meetflow",
         "project_name": "MeetFlow",
         "aliases": ["飞书会议知识闭环", "会议 Agent"],
-        "keywords": ["会前卡片", "轻量 RAG", "Action Item", "风险巡检"],
+        "keywords": ["会前卡片", "轻量 RAG", "Action Item", "任务风险提醒"],
         "owners": ["产品负责人", "研发负责人"],
     }
     return [

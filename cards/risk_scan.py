@@ -9,11 +9,14 @@ from core.risk_scan import RiskNotificationDecision, RiskRuleResult, RiskScanRes
 def build_risk_scan_card(
     decision: RiskNotificationDecision,
     scan_result: RiskScanResult,
+    title: str = "MeetFlow 任务风险提醒",
+    empty_message: str = "本次扫描没有需要推送的任务风险。",
 ) -> dict[str, Any]:
-    """构造风险巡检飞书 interactive card。
+    """构造任务风险提醒飞书 interactive card。
 
-    风险提醒需要低噪声，所以卡片采用聚合展示：一次巡检最多发一张卡，
-    卡内列出本次真正需要提醒的风险，同时展示被降噪跳过的数量。
+    M5 的主语是“任务状态”：逾期、临期、长期未更新、缺负责人等。会后
+    总结卡里的即时预检也复用这张诊断卡，但会传入不同标题，避免和 M5
+    周期性任务风险提醒混淆。
     """
 
     risks = merge_display_risks(decision, scan_result)
@@ -39,7 +42,7 @@ def build_risk_scan_card(
         elements.append(
             {
                 "tag": "markdown",
-                "content": "本次巡检没有需要推送的任务风险。",
+                "content": empty_message,
             }
         )
 
@@ -51,7 +54,7 @@ def build_risk_scan_card(
             "template": choose_header_template(decision, scan_result),
             "title": {
                 "tag": "plain_text",
-                "content": "MeetFlow 风险巡检提醒",
+                "content": title,
             },
         },
         "elements": elements,
@@ -122,7 +125,7 @@ def render_risk_item_lines(index: int, risk: RiskRuleResult) -> list[str]:
 
 
 def render_m4_source_lines(risk: RiskRuleResult) -> list[str]:
-    """渲染 M4 任务来源，体现“会后生成任务 -> 风险巡检跟踪”的闭环。"""
+    """渲染 M4 任务来源，体现“会后生成任务 -> M5 任务风险提醒”的闭环。"""
 
     source = extract_m4_task_mapping(risk)
     if not source:

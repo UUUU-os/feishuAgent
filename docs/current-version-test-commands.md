@@ -361,7 +361,7 @@ sqlite3 storage/meetflow.sqlite \
 3. 或把截止时间改成 24 小时内，触发 due_soon
 ```
 
-运行 M5 风险巡检并发群：
+运行 M5 任务风险提醒并发群：
 
 ```bash
 /home/tanyd/anaconda3/envs/meetflow/bin/python scripts/risk_scan_demo.py \

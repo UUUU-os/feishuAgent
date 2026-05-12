@@ -223,6 +223,7 @@ AgentInput
 | `AGENTS.md` | 固化“保存 docs/tasks 里程碑文件 + tasks.md 精简记录”的协作流程 |
 | `core/post_meeting.py` | 新增 D4 任务卡分析包、按负责人任务卡分组、去重提示和 D4 指标 |
 | `core/post_meeting_tools.py` | 发卡/保存待确认任务前解析负责人候选，唯一匹配真实飞书用户后再展示 |
+| `adapters/feishu_client.py` | 通讯录搜索在用户态搜索失败或空结果时，使用 tenant 身份按部门用户列表做兜底匹配 |
 | `cards/post_meeting.py` | 待确认任务卡展示 Agent 建议和缺失字段，固定任务字段“标签加粗、值普通”的渲染规则，并支持聚合卡中已处理任务只展示状态 |
 | `core/card_callback.py` | 聚合卡按钮回调后重建整张聚合卡，避免单条结果卡替换整条消息 |
 | `scripts/post_meeting_live_test.py` | 真实发卡脚本发卡前复用 D4 负责人解析，并在报告中输出解析摘要 |
@@ -242,7 +243,37 @@ python3 -m py_compile core/card_callback.py tests/test_post_meeting_card_callbac
 python3 -m unittest tests.test_post_meeting_d4_task_cards
 python3 -m unittest tests.test_post_meeting_d3_review_card tests.test_post_meeting_card_callback
 python3 -m unittest tests.test_post_meeting_card_callback tests.test_risk_scan_card
+python3 -m py_compile cards/post_meeting.py core/card_callback.py adapters/feishu_callback_payloads.py tests/test_post_meeting_card_callback.py
+python3 -m py_compile adapters/feishu_client.py core/card_callback.py tests/test_post_meeting_card_callback.py
+python3 -m unittest tests.test_post_meeting_card_callback
+python3 -m unittest tests.test_post_meeting_d4_task_cards tests.test_feishu_callback_dispatcher tests.test_post_meeting_card_callback
 ```
+
+2026-05-12 修复待确认任务卡填写负责人/截止时间后仍被判定缺字段的问题：
+
+- `cards/post_meeting.py` 将 schema 2.0 表单提交按钮调整为直接位于 `form.elements`，
+  不再嵌套在 `column_set` 内，避免真实飞书客户端只触发按钮回调但不提交输入框值。
+- `core/card_callback.py` 扩展表单字段解析，兼容 `form_value`、`form_values`、`values`、
+  `input_value` 以及 `{name, value/input_value}` 列表形态；确认创建时先合并用户填写字段和
+  pending registry，再构造 `ActionItem`、上下文和任务创建参数。
+- `core/card_callback.py` 在创建前明确校验负责人是否能解析为组织通讯录 open_id、截止时间是否能
+  转为飞书任务时间戳；查不到负责人或日期无法解析时，卡片返回可修正的错误提示，而不是继续显示笼统的
+  “任务缺少负责人或截止时间”。
+- `adapters/feishu_callback_payloads.py` 保留 SDK/HTTP 回调中的 `form_values`、`values` 等字段，
+  避免归一化阶段丢掉表单输入。
+- `tests/test_post_meeting_card_callback.py` 新增 schema 2.0 `form_values` 列表回调、通讯录查不到负责人
+  和按钮必须直接在 `form.elements` 下的回归测试。
+
+2026-05-12 继续修复负责人为组织内成员但回调仍识别不到的问题：
+
+- 真实日志中 `contact.search_user` 使用用户态 `/search/v1/user` 返回 `code=99991679 Unauthorized`；
+  同一批回调里用户 OAuth refresh 也可能返回 `code=20064`。因此卡片确认阶段不能只依赖用户态搜索。
+- `adapters/feishu_client.py::search_users()` 保留原搜索接口，同时在接口失败或无结果时，使用 tenant 身份
+  遍历 `contact/v3/users/find_by_department`，并按官方通讯录本地示例的部门 children 思路有限递归搜索。
+- `core/card_callback.py::resolve_owner_open_ids_for_callback()` 对姓名解析默认请求 tenant 侧通讯录；
+  对 `我 / 本人 / 自己` 直接读取飞书卡片回调 payload 中的操作人 open_id，避免当前用户 OAuth 失效导致误判缺负责人。
+- `tests/test_post_meeting_card_callback.py` 新增回归：用户态搜索 Unauthorized 后应走 tenant 通讯录兜底；
+  负责人填写“我”时不再调用 `contact.get_current_user`，而是直接把卡片操作人 open_id 传给任务创建参数。
 
 ## 6. 真实发卡测试
 
@@ -266,7 +297,7 @@ python3 scripts/post_meeting_agent_live_test.py \
 
 成功时应在测试群看到：
 
-- 会后总结卡：包含“查看任务卡 / 执行风险巡检 / 查看完整报告”等入口。
+- 会后总结卡：包含“查看任务卡 / 行动项风险预检 / 查看完整报告”等入口；M5 任务风险提醒是独立入口，用于扫描真实任务状态。
 - 点击“查看任务卡”后发送待确认任务卡：同一会议的所有待确认任务聚合在一条消息中；每条任务包含任务标题、负责人、截止时间、优先级、缺失字段、Agent 建议、来源证据和按钮。
 - 按钮：`确认创建`、`拒绝创建`。负责人或截止时间可在输入框内补充后直接点击确认创建，不再提供单独的“修改信息”按钮。
 

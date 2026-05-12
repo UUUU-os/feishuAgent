@@ -486,23 +486,249 @@ class FeishuClient:
         GET /open-apis/search/v1/user
         """
 
-        if not query.strip():
+        query_text = query.strip()
+        if not query_text:
             raise FeishuAPIError("搜索用户时 query 不能为空")
 
         params: dict[str, Any] = {
-            "query": query.strip(),
+            "query": query_text,
             "page_size": page_size,
         }
         if page_token:
             params["page_token"] = page_token
 
+        primary_error: FeishuAPIError | None = None
+        primary_data: dict[str, Any] = {}
+        try:
+            response_json = self.get(
+                path="search/v1/user",
+                params=params,
+                identity=identity or "user",
+            )
+            data = response_json.get("data", {})
+            primary_data = data if isinstance(data, dict) else {}
+            if self._extract_user_items(primary_data):
+                primary_data.setdefault("source", "search_v1_user")
+                return primary_data
+        except FeishuAPIError as error:
+            primary_error = error
+
+        try:
+            fallback_data = self.search_users_in_contact_directory(
+                query=query_text,
+                page_size=page_size,
+                identity="tenant",
+            )
+        except FeishuAPIError as fallback_error:
+            if primary_error is not None:
+                raise primary_error from fallback_error
+            return primary_data
+
+        if self._extract_user_items(fallback_data) or primary_error is not None:
+            return fallback_data
+        return primary_data
+
+    def list_department_users(
+        self,
+        department_id: str = "0",
+        page_size: int = 50,
+        page_token: str = "",
+        department_id_type: str = "department_id",
+        user_id_type: str = "open_id",
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """读取部门直属用户列表。
+
+        官方通讯录快速接入示例使用应用身份遍历部门；卡片回调没有稳定的
+        user_access_token 时，也应回到 tenant 身份读取组织通讯录，再把姓名
+        解析成任务接口需要的 open_id。
+        """
+
+        params: dict[str, Any] = {
+            "department_id": department_id or "0",
+            "department_id_type": department_id_type,
+            "user_id_type": user_id_type,
+            "page_size": max(1, min(int(page_size or 50), 100)),
+        }
+        if page_token:
+            params["page_token"] = page_token
         response_json = self.get(
-            path="search/v1/user",
+            path="contact/v3/users/find_by_department",
             params=params,
-            identity=identity or "user",
+            identity=identity or "tenant",
         )
         data = response_json.get("data", {})
         return data if isinstance(data, dict) else {}
+
+    def list_child_departments(
+        self,
+        department_id: str = "0",
+        page_size: int = 50,
+        page_token: str = "",
+        department_id_type: str = "department_id",
+        identity: IdentityMode | None = None,
+    ) -> dict[str, Any]:
+        """读取部门下级部门列表，用于通讯录兜底搜索递归遍历。"""
+
+        params: dict[str, Any] = {
+            "department_id_type": department_id_type,
+            "page_size": max(1, min(int(page_size or 50), 100)),
+        }
+        if page_token:
+            params["page_token"] = page_token
+        response_json = self.get(
+            path=f"contact/v3/departments/{department_id or '0'}/children",
+            params=params,
+            identity=identity or "tenant",
+        )
+        data = response_json.get("data", {})
+        return data if isinstance(data, dict) else {}
+
+    def search_users_in_contact_directory(
+        self,
+        query: str,
+        page_size: int = 20,
+        identity: IdentityMode | None = None,
+        max_departments: int = 100,
+        max_pages_per_department: int = 10,
+    ) -> dict[str, Any]:
+        """用通讯录部门 API 兜底搜索用户。
+
+        这个路径主要服务卡片回调：回调中用户提交的是姓名文本，而 `search/v1/user`
+        依赖用户态授权，真实群聊里很容易因为 refresh_token 失效或权限不足失败。
+        通讯录 API 与官方本地示例一致，使用应用身份从根部门开始有限遍历。
+        """
+
+        query_text = query.strip()
+        if not query_text:
+            raise FeishuAPIError("通讯录兜底搜索用户时 query 不能为空")
+
+        matched: list[tuple[int, dict[str, Any]]] = []
+        visited_departments: set[str] = set()
+        department_queue: list[str] = ["0"]
+        scanned_departments = 0
+        effective_identity = identity or "tenant"
+
+        while department_queue and scanned_departments < max_departments and len(matched) < page_size:
+            department_id = department_queue.pop(0)
+            if department_id in visited_departments:
+                continue
+            visited_departments.add(department_id)
+            scanned_departments += 1
+
+            user_page_token = ""
+            for _ in range(max_pages_per_department):
+                data = self.list_department_users(
+                    department_id=department_id,
+                    page_size=50,
+                    page_token=user_page_token,
+                    identity=effective_identity,
+                )
+                for item in self._extract_user_items(data):
+                    if not isinstance(item, dict):
+                        continue
+                    score = self._score_user_query_match(item, query_text)
+                    if score > 0:
+                        matched.append((score, self._normalize_contact_user(item)))
+                if not data.get("has_more"):
+                    break
+                user_page_token = str(data.get("page_token") or "")
+                if not user_page_token:
+                    break
+
+            department_page_token = ""
+            for _ in range(max_pages_per_department):
+                try:
+                    data = self.list_child_departments(
+                        department_id=department_id,
+                        page_size=50,
+                        page_token=department_page_token,
+                        identity=effective_identity,
+                    )
+                except FeishuAPIError:
+                    # 有些企业只给了用户读取权限、未给部门列表权限。已扫描到的
+                    # 用户仍然有效，不能因为下级部门接口失败整体丢弃。
+                    break
+                for item in data.get("items", []) or data.get("departments", []) or []:
+                    if not isinstance(item, dict):
+                        continue
+                    child_id = str(
+                        item.get("department_id")
+                        or item.get("open_department_id")
+                        or item.get("id")
+                        or ""
+                    )
+                    if child_id and child_id not in visited_departments:
+                        department_queue.append(child_id)
+                if not data.get("has_more"):
+                    break
+                department_page_token = str(data.get("page_token") or "")
+                if not department_page_token:
+                    break
+
+        matched.sort(key=lambda item: item[0], reverse=True)
+        items = [item for _, item in matched[:page_size]]
+        return {
+            "items": items,
+            "users": items,
+            "count": len(items),
+            "source": "contact_v3_directory_fallback",
+            "scanned_department_count": scanned_departments,
+        }
+
+    @staticmethod
+    def _extract_user_items(data: dict[str, Any]) -> list[Any]:
+        """兼容不同通讯录接口返回的用户数组字段名。"""
+
+        for key in ("items", "users", "user_list"):
+            items = data.get(key)
+            if isinstance(items, list):
+                return items
+        return []
+
+    @staticmethod
+    def _normalize_contact_user(item: dict[str, Any]) -> dict[str, Any]:
+        """把通讯录用户对象整理成上层统一读取的字段。"""
+
+        user = item.get("user") if isinstance(item.get("user"), dict) else item
+        normalized = dict(user)
+        for key in ("open_id", "user_id", "union_id", "name", "en_name", "email", "mobile"):
+            if key not in normalized and key in item:
+                normalized[key] = item[key]
+        return normalized
+
+    @classmethod
+    def _score_user_query_match(cls, item: dict[str, Any], query: str) -> int:
+        """按姓名 / 邮箱 / 手机号等字段给候选用户打分。
+
+        精确姓名优先，避免同名片段误命中；邮箱、手机号等唯一字段也按精确
+        匹配处理。兜底包含匹配只用于中文姓名或英文名的模糊输入。
+        """
+
+        user = cls._normalize_contact_user(item)
+        query_text = query.strip()
+        query_lower = query_text.lower()
+        exact_fields = [
+            str(user.get("name") or ""),
+            str(user.get("en_name") or ""),
+            str(user.get("email") or ""),
+            str(user.get("mobile") or ""),
+            str(user.get("employee_no") or ""),
+            str(user.get("open_id") or ""),
+            str(user.get("user_id") or ""),
+        ]
+        for value in exact_fields:
+            if value.strip().lower() == query_lower:
+                return 100
+        for value in exact_fields:
+            normalized = value.strip().lower()
+            if normalized and normalized.startswith(query_lower):
+                return 80
+        for value in exact_fields:
+            normalized = value.strip().lower()
+            if normalized and query_lower in normalized:
+                return 60
+        return 0
 
     def get_primary_calendars(self, identity: IdentityMode | None = None) -> list[CalendarInfo]:
         """获取主日历列表，并解析出真实日历信息。

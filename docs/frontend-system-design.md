@@ -54,7 +54,7 @@ scripts/web_console_server.py 或 apps/api/
 - 今日 / 明日会议数量
 - 最近一次 M3 发卡状态
 - 最近一次 M4 会后任务确认状态
-- 最近一次 M5 风险巡检状态
+- 最近一次 M5 任务风险提醒状态
 - Worker / callback / daemon 健康状态
 - 最新评测分数：`score`、`safety_score`、`passed_cases / total_cases`
 
@@ -115,7 +115,7 @@ scripts/pre_meeting_live_test.py
 - `task_mappings`
 - `storage/reports/m4/**`
 
-### 3.4 M5 风险巡检控制台
+### 3.4 M5 任务风险提醒控制台
 
 目的：查看任务风险、提醒降噪和后台巡检。
 
@@ -214,7 +214,7 @@ scripts/meetflow_worker.py --once --dry-run
   - SDK 回调
   - M4 按钮回调
 - 输入飞书妙记链接，触发 M4 只读解析、M4 dry-run 或真实发送会后总结卡和待确认任务卡。
-- 输入风险巡检参数，触发 M5 local/feishu dry-run、入队或真实发送风险提醒卡。
+- 输入任务风险提醒参数，触发 M5 local/feishu dry-run、入队或真实发送任务风险提醒卡。
 - 展示命令返回结果、脱敏 stdout、report path、job 摘要和最近业务状态表。
 - 真实飞书写入继续要求 `allow_write` 和二次确认。
 

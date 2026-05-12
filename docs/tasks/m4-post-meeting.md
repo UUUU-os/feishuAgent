@@ -54,7 +54,7 @@
   - `register_post_meeting_tools()` 已接入 `create_meetflow_agent()`，会后流程可以通过 ToolRegistry 暴露 `post_meeting.build_artifacts`、`post_meeting.prepare_task`、`post_meeting.send_summary_card` 等工具
   - 会后主链路不再自动创建飞书任务；所有 Action Item 先进入总结卡或待确认卡，用户确认后再进入 `handle_post_meeting_card_callback()`
   - `AgentPolicy._authorize_create_task()` 增加人工确认检查，任务创建必须具备 `human_confirmation.confirmed=True`，并继续校验负责人、截止时间、置信度和幂等键
-  - `task_mappings` 扩展 `meeting_id`、`minute_token`、`title`、`evidence_refs`、`source_url`，用于把 M4 创建的任务和后续 M5 风险巡检证据链关联起来
+  - `task_mappings` 扩展 `meeting_id`、`minute_token`、`title`、`evidence_refs`、`source_url`，用于把 M4 创建的任务和后续 M5 任务风险提醒证据链关联起来
 - 当前验证方式：
   - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest tests.test_post_meeting_card_callback tests.test_post_meeting_rag_query` 验证 M4 卡片确认状态机、重复点击拦截、截止日期归一和 RAG query 去噪
   - 已通过 `/home/tanyd/anaconda3/envs/meetflow/bin/python -m unittest discover -s tests` 验证融合后全量 58 条单测通过

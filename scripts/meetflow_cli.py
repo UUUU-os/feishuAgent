@@ -49,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     tasks = subparsers.add_parser("task-cards", help="根据妙记生成 D4 任务卡视角摘要。")
     add_post_meeting_args(tasks)
 
-    risk = subparsers.add_parser("risk-scan", help="触发 M5 风险巡检。")
+    risk = subparsers.add_parser("risk-scan", help="触发 M5 任务风险提醒。")
     risk.add_argument("--backend", default="local", choices=["local", "feishu"], help="任务来源。")
     risk.add_argument("--mode", default="direct", choices=["direct", "enqueue"], help="直接执行或只入队。")
     risk.add_argument("--chat-id", default="", help="测试群 chat_id。")
@@ -61,8 +61,8 @@ def build_parser() -> argparse.ArgumentParser:
     risk.add_argument("--stale-update-days", type=int, default=0, help="长期未更新阈值。")
     risk.add_argument("--due-soon-hours", type=int, default=0, help="即将截止阈值。")
     risk.add_argument("--max-reminders", type=int, default=0, help="每日最大提醒数。")
-    risk.add_argument("--show-card", action="store_true", help="输出风险卡 JSON。")
-    risk.add_argument("--allow-write", action="store_true", help="允许真实发送风险卡。")
+    risk.add_argument("--show-card", action="store_true", help="输出任务风险提醒卡 JSON。")
+    risk.add_argument("--allow-write", action="store_true", help="允许真实发送任务风险提醒卡。")
     risk.add_argument("--dry-run", action="store_true", help="显式 dry-run；默认已经是 dry-run。")
     risk.add_argument("--timeout-seconds", type=int, default=180, help="下游脚本超时时间。")
 

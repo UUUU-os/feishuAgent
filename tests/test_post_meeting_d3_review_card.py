@@ -47,11 +47,11 @@ class PostMeetingD3ReviewCardTest(unittest.TestCase):
         self.assertIn("争议点 / 分歧点", payload)
         self.assertIn("后续建议", payload)
         self.assertIn("Evidence Pack", payload)
-        self.assertIn("执行风险巡检", payload)
+        self.assertIn("行动项风险预检", payload)
         self.assertIn("查看任务卡", payload)
         self.assertIn("查看完整报告", payload)
         self.assertIn('"action": "view_pending_tasks"', payload)
-        self.assertIn('"action": "start_risk_scan"', payload)
+        self.assertIn('"action": "start_action_item_risk_preview"', payload)
         self.assertIn('"action": "view_post_meeting_report"', payload)
         self.assertIn('"review_session_id": "session_d3"', payload)
         self.assertIn('"tag": "action"', payload)
@@ -94,15 +94,15 @@ def build_d3_input() -> PostMeetingInput:
         raw_text="\n".join(
             [
                 "# 会议总结",
-                "结论：本次确认 OpenClaw 演示主线采用会前准备、会后复盘和风险巡检的闭环叙事。",
+                "结论：本次确认 OpenClaw 演示主线采用会前准备、会后复盘和任务风险提醒的闭环叙事。",
                 "结论：会后总结卡必须升级为结构化复盘卡。",
                 "开放问题：完整报告入口是先使用本地 Markdown 路径，还是同步生成飞书云文档链接？",
-                "开放问题：风险巡检按钮是否直接触发 M5？",
+                "开放问题：M5 是否需要单独配置降噪窗口？",
                 "待办：李四周五前完成 D3 会后总结卡 JSON 样式走查。",
                 "待办：王五下周三前补充真实妙记脱敏样例和截图。",
                 "待办：请赵六整理 Evidence Pack 中关键结论对应的妙记片段。",
                 "风险：如果真实妙记没有返回 AI 总结，演示会缺少素材，需要准备脱敏兜底样例。",
-                "风险：风险巡检依赖 M4 任务映射，如果用户没有确认创建任务，M5 演示可能扫不到本轮任务。",
+                "风险：M5 任务风险提醒依赖 M4 任务映射，如果用户没有确认创建任务，M5 演示可能扫不到本轮任务。",
                 "争议点：前端倾向于做卡片按钮，但是后端认为本地 Markdown 路径不能直接作为飞书链接。",
                 "分歧：是否直接发送真实群消息暂未统一，倾向于先只读报告，再在测试群灰度发卡。",
             ]

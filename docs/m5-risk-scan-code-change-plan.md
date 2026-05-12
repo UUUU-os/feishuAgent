@@ -1,4 +1,4 @@
-# M5 风险巡检第二版代码改造方案
+# M5 任务风险提醒第二版代码改造方案
 
 本文档是 `docs/m5-risk-scan-implementation-plan.md` 的第二版施工方案，目标是把 M5 从“已有骨架和总体计划”推进到“可以按补丁顺序实现”的代码改造清单。
 
@@ -230,7 +230,7 @@ def build_risk_scan_card(
     decision: RiskNotificationDecision,
     scan_result: RiskScanResult,
 ) -> dict[str, Any]:
-    """构造风险巡检飞书卡片。"""
+    """构造任务风险提醒飞书卡片。"""
 ```
 
 ```python
@@ -829,4 +829,3 @@ M5 第二版完成后，应满足：
 - `tasks.md`：记录完成了哪些文件、核心函数、验证命令和结果。
 - `docs/tasks/m5-risk-scan.md`：勾勒当前 T5.1 到 T5.6 的完成状态。
 - 如改动 Agent 流程边界，需要同步 `architecture.md`。
-

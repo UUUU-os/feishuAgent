@@ -90,7 +90,7 @@ class M4SendCardsRequest:
 
 @dataclass(slots=True)
 class M5RiskScanRequest:
-    """MeetFlow Console 触发 M5 风险巡检的请求。"""
+    """MeetFlow Console 触发 M5 任务风险提醒的请求。"""
 
     backend: str = "local"
     mode: str = "direct"
@@ -399,7 +399,7 @@ class MeetFlowConsoleAPI:
         )
 
     def run_m5_risk_scan(self, request: M5RiskScanRequest) -> dict[str, Any]:
-        """触发 M5 风险巡检，支持直接执行或只入队。"""
+        """触发 M5 任务风险提醒，支持直接执行或只入队。"""
 
         validate_m5_risk_scan_request(request)
         command = [
@@ -457,7 +457,7 @@ class MeetFlowConsoleAPI:
         return {"items": query_table_recent(Path(self.settings.storage.db_path), "task_mappings", limit=limit)}
 
     def list_risk_notifications(self, *, limit: int = 20) -> dict[str, Any]:
-        """读取 M5 风险提醒历史摘要。"""
+        """读取 M5 任务风险提醒历史摘要。"""
 
         return {"items": query_table_recent(Path(self.settings.storage.db_path), "risk_notifications", limit=limit)}
 
@@ -549,7 +549,7 @@ def validate_m4_send_cards_request(request: M4SendCardsRequest) -> None:
 
 
 def validate_m5_risk_scan_request(request: M5RiskScanRequest) -> None:
-    """校验 M5 风险巡检请求。"""
+    """校验 M5 任务风险提醒请求。"""
 
     request.backend = clean_text_argument("backend", request.backend)
     request.mode = clean_text_argument("mode", request.mode)
@@ -830,7 +830,7 @@ def parse_m4_stdout(output: str) -> dict[str, Any]:
 
 
 def parse_m5_stdout(output: str) -> dict[str, Any]:
-    """从 M5 stdout 中提取风险巡检和入队摘要。"""
+    """从 M5 stdout 中提取任务风险提醒和入队摘要。"""
 
     parsed: dict[str, Any] = {
         "should_notify": False,

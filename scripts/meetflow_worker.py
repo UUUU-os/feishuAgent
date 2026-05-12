@@ -252,7 +252,7 @@ def build_post_meeting_command(payload: dict[str, Any], *, settings: Any) -> lis
 
 
 def build_risk_scan_command(payload: dict[str, Any]) -> list[str]:
-    """把 M5 job payload 转换为风险巡检命令。"""
+    """把 M5 job payload 转换为任务风险提醒命令。"""
 
     command = [
         sys.executable,

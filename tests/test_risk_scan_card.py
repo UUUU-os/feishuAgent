@@ -7,7 +7,7 @@ from core.risk_scan import RiskNotificationDecision, RiskScanResult, TaskSnapsho
 
 
 class RiskScanCardTest(unittest.TestCase):
-    """验证风险巡检卡片包含必要业务信息。"""
+    """验证 M5 任务风险提醒卡片包含必要业务信息。"""
 
     def test_card_contains_risk_fields(self) -> None:
         now = 1_700_000_000
@@ -37,7 +37,7 @@ class RiskScanCardTest(unittest.TestCase):
         rendered = str(card)
 
         self.assertIsInstance(card, dict)
-        self.assertEqual(card["header"]["title"]["content"], "MeetFlow 风险巡检提醒")
+        self.assertEqual(card["header"]["title"]["content"], "MeetFlow 任务风险提醒")
         self.assertIn("完成方案评审", rendered)
         self.assertIn("张三", rendered)
         self.assertIn("已逾期", rendered)
@@ -45,6 +45,20 @@ class RiskScanCardTest(unittest.TestCase):
         self.assertIn("Agent 分析", rendered)
         self.assertIn("影响范围", rendered)
         self.assertIn("建议", rendered)
+
+    def test_card_title_can_distinguish_post_meeting_preview(self) -> None:
+        scan_result = RiskScanResult(scanned_count=1, risk_count=0, generated_at=1_700_000_000)
+        decision = RiskNotificationDecision(should_notify=False, reason="没有风险")
+
+        card = build_risk_scan_card(
+            decision=decision,
+            scan_result=scan_result,
+            title="MeetFlow 会后行动项风险预检",
+            empty_message="本次预检没有需要推送的会后行动项风险。",
+        )
+
+        self.assertEqual(card["header"]["title"]["content"], "MeetFlow 会后行动项风险预检")
+        self.assertIn("会后行动项风险", str(card))
 
     def test_card_contains_m4_source_and_evidence(self) -> None:
         now = 1_700_000_000

@@ -28,7 +28,7 @@ python3 scripts/oauth_device_login.py
 | `python3 scripts/meetflow_cli.py pre-meeting ...` | 生成/发送 M3 会前背景知识卡 | 会前卡片演示 | 默认 dry-run，真实发卡需 `--allow-write` |
 | `python3 scripts/meetflow_cli.py post-meeting ...` | 生成/发送 M4 会后总结卡 | 会后总结演示 | 默认 dry-run，真实发卡需 `--allow-write` |
 | `python3 scripts/meetflow_cli.py task-cards ...` | 从妙记生成任务卡视角 | 展示待办识别与任务卡 | 默认 dry-run，真实发卡需 `--allow-write` |
-| `python3 scripts/meetflow_cli.py risk-scan ...` | 执行 M5 风险巡检 | 风险卡、逾期任务扫描 | 默认 dry-run，真实发送需 `--allow-write` |
+| `python3 scripts/meetflow_cli.py risk-scan ...` | 执行 M5 任务风险提醒 | 任务风险提醒卡、逾期任务扫描 | 默认 dry-run，真实发送需 `--allow-write` |
 | `python3 scripts/meetflow_cli.py eval ...` | 运行 Agent 评测 | 验证工具调用、安全边界 | 无真实飞书写入 |
 | `python3 scripts/meetflow_cli.py demo-replay ...` | 运行离线 Demo 回放 | 无网络或答辩兜底 | 无真实飞书写入 |
 | `python3 scripts/meetflow_cli.py live sdk-callback` | 启动飞书 SDK 回调服务 | D3 点击按钮真实联调终端 1 | 前台长进程，不直接发卡 |
@@ -150,7 +150,7 @@ python3 scripts/meetflow_cli.py live watch-callbacks
 
 ```text
 view_pending_tasks_sent
-start_risk_scan_sent
+start_action_item_risk_preview_sent
 view_post_meeting_report_sent
 ```
 
@@ -335,7 +335,7 @@ python3 scripts/meetflow_cli.py task-cards \
 
 该命令复用 M4 链路，不直接写 `pending_actions` 或任务表。输出会突出 `pending_action_count` 和 `action_item_count`，方便答辩单独展示“从妙记到任务卡”的能力。
 
-## 8. M5 风险巡检
+## 8. M5 任务风险提醒
 
 本地 dry-run：
 

@@ -199,7 +199,7 @@ export function LiveFlowPage() {
       <PageHeader
         eyebrow="Live Flow"
         title="真实联调"
-        description="把 M4 会后总结、待确认任务卡、M5 风险巡检和长期服务控制收敛到一个本地控制台。"
+        description="把 M4 会后总结、待确认任务卡、M5 任务风险提醒和长期服务控制收敛到一个本地控制台。"
         meta={
           <>
             <StatusBadge status="白名单命令" tone="ok" />
@@ -332,7 +332,7 @@ export function LiveFlowPage() {
         <form className="form-panel form-panel--live" onSubmit={submitM5}>
           <div className="form-section-title">
             <ShieldAlert size={18} />
-            <span>M5 风险巡检</span>
+            <span>M5 任务风险提醒</span>
           </div>
           <label>
             Backend
@@ -418,7 +418,7 @@ export function LiveFlowPage() {
               checked={m5Form.show_card}
               onChange={(event) => setM5Form({ ...m5Form, show_card: event.target.checked })}
             />
-            <span>展示风险卡片 JSON</span>
+            <span>展示任务风险提醒卡 JSON</span>
           </label>
           <label className="check-row check-row--danger">
             <input
@@ -426,7 +426,7 @@ export function LiveFlowPage() {
               checked={m5Form.allow_write}
               onChange={(event) => setM5Form({ ...m5Form, allow_write: event.target.checked })}
             />
-            <span>允许真实发送风险提醒</span>
+            <span>允许真实发送任务风险提醒</span>
           </label>
           <div className="form-panel__actions form-field--wide">
             <button className={m5Form.allow_write ? "button button--danger" : "button"} disabled={running === "m5"}>
@@ -442,7 +442,7 @@ export function LiveFlowPage() {
         <div className="panel__header">
           <div>
             <h2>最近业务状态</h2>
-            <p>用于确认 M4 按钮闭环和 M5 风险提醒是否产生了可追踪记录。</p>
+            <p>用于确认 M4 按钮闭环和 M5 任务风险提醒是否产生了可追踪记录。</p>
           </div>
           <div className="callout callout--warn">
             <AlertTriangle size={16} />
@@ -457,7 +457,7 @@ export function LiveFlowPage() {
       </section>
       <ConfirmWriteDialog
         open={confirmTarget !== null}
-        title={confirmTarget === "m4" ? "确认真实发送 M4 卡片" : "确认真实执行 M5 风险巡检"}
+        title={confirmTarget === "m4" ? "确认真实发送 M4 卡片" : "确认真实执行 M5 任务风险提醒"}
         details={
           confirmTarget === "m4"
             ? [`妙记：${m4Form.minute || "-"}`, `接收群：${m4Form.chat_id || "默认测试群"}`, `身份：${m4Form.identity}`]

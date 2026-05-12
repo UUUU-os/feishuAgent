@@ -153,9 +153,10 @@ def build_pending_action_item_button_card(
     - `edit`：突出展示可编辑输入框，提示用户补齐字段
     - `resolved`：确认创建或拒绝后展示结果态，移除交互按钮
 
-    根据飞书官方 JSON 2.0 表单容器说明，输入框必须放在根级 `form` 容器内，
-    按钮交互使用 `behaviors + form_action_type=submit`。之前看不到输入框的根因，
-    是把旧版 interactive card 的输入框 / 按钮写法混进了新版卡片。
+    根据飞书官方 JSON 2.0 表单容器说明，输入框和提交按钮必须放在根级
+    `form.elements` 内，按钮交互使用 `behaviors + form_action_type=submit`。
+    这里不要把提交按钮再嵌入 column_set，否则真实客户端可能只触发按钮
+    回调而不提交表单输入值。
     """
 
     summary = getattr(artifacts, "meeting_summary", None)
@@ -292,71 +293,58 @@ def build_pending_action_item_schema2_form(
                     "text": {"tag": "plain_text", "content": "截止时间输入框仅支持在较新版本飞书客户端中编辑。"},
                 },
             },
-            {
-                "tag": "column_set",
-                "flex_mode": "bisect",
-                "horizontal_spacing": "8px",
-                "horizontal_align": "left",
-                "columns": [
-                    build_form_button_column(
-                        text="确认创建",
-                        button_name=f"confirm_{item_id}",
-                        button_type="primary_filled",
-                        callback_value={
-                            **value,
-                            "action": "confirm_create_task",
-                            "owner_field": owner_field,
-                            "due_date_field": due_date_field,
-                        },
-                    ),
-                    build_form_button_column(
-                        text="拒绝创建",
-                        button_name=f"reject_{item_id}",
-                        button_type="danger",
-                        callback_value={
-                            **value,
-                            "action": "reject_create_task",
-                            "owner_field": owner_field,
-                            "due_date_field": due_date_field,
-                        },
-                    ),
-                ],
-            },
+            build_form_submit_button(
+                text="确认创建",
+                button_name=f"confirm_{item_id}",
+                button_type="primary_filled",
+                callback_value={
+                    **value,
+                    "action": "confirm_create_task",
+                    "owner_field": owner_field,
+                    "due_date_field": due_date_field,
+                },
+            ),
+            build_form_submit_button(
+                text="拒绝创建",
+                button_name=f"reject_{item_id}",
+                button_type="danger",
+                callback_value={
+                    **value,
+                    "action": "reject_create_task",
+                    "owner_field": owner_field,
+                    "due_date_field": due_date_field,
+                },
+            ),
         ],
     }
 
 
-def build_form_button_column(
+def build_form_submit_button(
     *,
     text: str,
     button_name: str,
     button_type: str,
     callback_value: dict[str, Any],
 ) -> dict[str, Any]:
-    """构造 schema 2.0 表单提交按钮列。"""
+    """构造 schema 2.0 表单提交按钮。
+
+    飞书表单提交需要按钮直接位于 `form.elements`，这样点击按钮时客户端
+    才会把同一表单里的 input 值放入回调 payload。
+    """
 
     return {
-        "tag": "column",
-        "width": "weighted",
-        "weight": 1,
-        "elements": [
+        "tag": "button",
+        "name": button_name,
+        "text": {"tag": "plain_text", "content": text},
+        "type": button_type,
+        "width": "fill",
+        "form_action_type": "submit",
+        "behaviors": [
             {
-                "tag": "button",
-                "name": button_name,
-                "text": {"tag": "plain_text", "content": text},
-                "type": button_type,
-                "width": "fill",
-                "form_action_type": "submit",
-                "behaviors": [
-                    {
-                        "type": "callback",
-                        "value": callback_value,
-                    }
-                ],
+                "type": "callback",
+                "value": callback_value,
             }
         ],
-        "padding": "0px 0px 0px 0px",
-        "vertical_spacing": "8px",
     }
 
 
@@ -449,36 +437,28 @@ def build_pending_action_item_form_element(
                 "placeholder": {"tag": "plain_text", "content": "截止时间，例如：明天 / 2026-05-03"},
                 "default_value": "" if due_date == "待补充" else due_date,
             },
-            {
-                "tag": "column_set",
-                "flex_mode": "bisect",
-                "horizontal_spacing": "8px",
-                "horizontal_align": "left",
-                "columns": [
-                    build_form_button_column(
-                        text="确认创建",
-                        button_name=f"confirm_{item_id}",
-                        button_type="primary_filled",
-                        callback_value={
-                            **value,
-                            "action": "confirm_create_task",
-                            "owner_field": owner_field,
-                            "due_date_field": due_date_field,
-                        },
-                    ),
-                    build_form_button_column(
-                        text="拒绝创建",
-                        button_name=f"reject_{item_id}",
-                        button_type="danger",
-                        callback_value={
-                            **value,
-                            "action": "reject_create_task",
-                            "owner_field": owner_field,
-                            "due_date_field": due_date_field,
-                        },
-                    ),
-                ],
-            },
+            build_form_submit_button(
+                text="确认创建",
+                button_name=f"confirm_{item_id}",
+                button_type="primary_filled",
+                callback_value={
+                    **value,
+                    "action": "confirm_create_task",
+                    "owner_field": owner_field,
+                    "due_date_field": due_date_field,
+                },
+            ),
+            build_form_submit_button(
+                text="拒绝创建",
+                button_name=f"reject_{item_id}",
+                button_type="danger",
+                callback_value={
+                    **value,
+                    "action": "reject_create_task",
+                    "owner_field": owner_field,
+                    "due_date_field": due_date_field,
+                },
+            ),
         ],
     }
 
@@ -723,8 +703,8 @@ def render_post_meeting_quick_action_elements(artifacts: Any) -> list[dict[str, 
             review_session_id=review_session_id,
         ),
         build_quick_action_button(
-            "执行风险巡检",
-            "start_risk_scan",
+            "行动项风险预检",
+            "start_action_item_risk_preview",
             meeting_id,
             minute_token,
             review_session_id=review_session_id,

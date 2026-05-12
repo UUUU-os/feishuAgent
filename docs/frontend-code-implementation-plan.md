@@ -559,7 +559,7 @@ total_cases = 3
 
 - 把 M3 subprocess 包装下沉为直接调用 Python 函数。
 - 接入 M4 会后总结与 review_session 页面。
-- 接入 M5 风险巡检页面。
+- 接入 M5 任务风险提醒页面。
 - 为 `/api/evaluation/run` 增加执行历史。
 
 第三阶段：
@@ -568,4 +568,3 @@ total_cases = 3
 - 支持评测 case 编辑和 diff。
 - 支持 Agent trace 时间线可视化。
 - 支持演示模式，一键串联 M3 -> M4 -> M5。
-

@@ -131,7 +131,7 @@ export function DashboardPage() {
         <DataTable
           rows={data?.recent_jobs.items ?? []}
           empty="暂无任务"
-          emptyHint="可以先运行 M3 发卡、风险巡检或 worker dry-run 生成任务记录。"
+          emptyHint="可以先运行 M3 发卡、M5 任务风险提醒或 worker dry-run 生成任务记录。"
           columns={[
             { key: "job_id", header: "Job", render: (row) => <code>{row.job_id}</code> },
             { key: "queue", header: "Queue", render: (row) => row.queue_name },

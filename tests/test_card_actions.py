@@ -168,9 +168,9 @@ class CardActionRouterTest(unittest.TestCase):
         decision = WorkflowRouter().route(result.agent_input)
         self.assertEqual(decision.workflow_type, "post_meeting_followup")
 
-    def test_start_risk_scan_builds_risk_agent_input(self) -> None:
+    def test_action_item_risk_preview_builds_post_meeting_agent_input(self) -> None:
         action_input = build_card_action_input(
-            action="start_risk_scan",
+            action="start_action_item_risk_preview",
             trace_id="trace_d3_risk",
             event_id="evt_d3_risk",
             operator_open_id="ou_user",
@@ -185,13 +185,13 @@ class CardActionRouterTest(unittest.TestCase):
         self.assertEqual(result.status, "accepted")
         self.assertIsNotNone(result.agent_input)
         assert result.agent_input is not None
-        self.assertEqual(result.agent_input.event_type, "card.start_risk_scan")
-        self.assertEqual(result.agent_input.payload["workflow_type"], "risk_scan")
+        self.assertEqual(result.agent_input.event_type, "card.start_action_item_risk_preview")
+        self.assertEqual(result.agent_input.payload["workflow_type"], "post_meeting_followup")
         self.assertEqual(result.agent_input.payload["minute_token"], "minute_001")
         decision = WorkflowRouter().route(result.agent_input)
         self.assertEqual(decision.status, "ready")
-        self.assertEqual(decision.workflow_type, "risk_scan")
-        self.assertIn("tasks.list_my_tasks", decision.required_tools)
+        self.assertEqual(decision.workflow_type, "post_meeting_followup")
+        self.assertIn("im.send_card", decision.required_tools)
 
     def test_view_post_meeting_report_returns_controlled_message(self) -> None:
         action_input = build_card_action_input(

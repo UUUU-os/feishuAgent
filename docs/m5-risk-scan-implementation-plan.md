@@ -1,6 +1,6 @@
-# M5 风险巡检与提醒工作流详细改造计划
+# M5 任务风险提醒工作流详细改造计划
 
-本文档基于 `docs/tasks/m5-risk-scan.md`、`docs/tasks/m5-risk-scan-overview.md` 和当前代码实现，给出 M5 风险巡检工作流的详细落地计划。
+本文档基于 `docs/tasks/m5-risk-scan.md`、`docs/tasks/m5-risk-scan-overview.md` 和当前代码实现，给出 M5 任务风险提醒工作流的详细落地计划。
 
 当前目标不是一次性做成复杂的项目管理系统，而是先把“读取任务 -> 识别风险 -> 降噪 -> 生成卡片 -> 受控提醒”这条链路跑通，并且保持与 M4 会后任务落地工作流可并行、低冲突。
 
@@ -335,7 +335,7 @@ high
 
 ### 7.1 职责
 
-专门生成风险巡检卡片，不复用通用通知卡片。
+专门生成任务风险提醒卡片，不复用通用通知卡片。
 
 风险卡片应该聚合展示，不要一个风险一张卡，避免噪声。
 
@@ -343,7 +343,7 @@ high
 
 ```python
 def build_risk_scan_card(decision: RiskNotificationDecision) -> dict[str, Any]:
-    """构造飞书风险巡检 interactive card。"""
+    """构造飞书任务风险提醒 interactive card。"""
 ```
 
 ### 7.3 卡片内容
@@ -351,7 +351,7 @@ def build_risk_scan_card(decision: RiskNotificationDecision) -> dict[str, Any]:
 卡片标题：
 
 ```text
-MeetFlow 风险巡检提醒
+MeetFlow 任务风险提醒
 ```
 
 卡片结构：
@@ -818,7 +818,7 @@ python3 scripts/agent_demo.py --event-type risk.scan.tick
 
 ## 17. 风险与注意事项
 
-- 不要让风险巡检直接绕过 `AgentPolicy` 发消息。
+- 不要让任务风险提醒直接绕过 `AgentPolicy` 发消息。
 - 不要让 LLM 自己决定是否重复提醒，降噪必须由确定性代码或 storage 判断。
 - 不要把飞书任务 raw payload 完整写进结构化日志。
 - 不要默认扫描全部企业任务，第一版只扫描当前用户任务或指定测试任务。

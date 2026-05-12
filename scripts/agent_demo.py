@@ -522,7 +522,7 @@ class ScriptedDebugProvider(LLMProvider):
 
 
 def build_local_risk_demo_tasks() -> list[dict[str, object]]:
-    """构造 M5 风险巡检本地任务样本。"""
+    """构造 M5 任务风险提醒本地任务样本。"""
 
     now = int(time.time())
     return [

@@ -142,8 +142,8 @@ class CardActionRouter:
             return self._send_summary_to_me(action_input)
         if action == "view_pending_tasks":
             return self._view_pending_tasks(action_input)
-        if action == "start_risk_scan":
-            return self._start_risk_scan(action_input)
+        if action in {"start_action_item_risk_preview", "start_risk_scan"}:
+            return self._start_action_item_risk_preview(action_input)
         if action == "view_post_meeting_report":
             return self._view_post_meeting_report(action_input)
         if action in {"confirm_create_task", "edit_task_fields", "reject_create_task"}:
@@ -242,8 +242,12 @@ class CardActionRouter:
             metadata={"workflow_type": action_input.workflow_type or "post_meeting_followup"},
         )
 
-    def _start_risk_scan(self, action_input: CardActionInput) -> CardActionResult:
-        """D3 快捷入口：把风险巡检请求转换为受控 AgentInput。"""
+    def _start_action_item_risk_preview(self, action_input: CardActionInput) -> CardActionResult:
+        """D3 快捷入口：把会后行动项风险预检转换为受控 AgentInput。
+
+        旧卡片中的 `start_risk_scan` 继续兼容；新卡片使用
+        `start_action_item_risk_preview`，与 M5 任务风险提醒区分。
+        """
 
         idempotency_key = action_input.idempotency_key or build_card_action_idempotency_key(
             source_card=action_input.source_card or "post_meeting_summary",
@@ -252,14 +256,14 @@ class CardActionRouter:
         )
         agent_input = AgentInput(
             trigger_type="card_action",
-            event_type="card.start_risk_scan",
+            event_type="card.start_action_item_risk_preview",
             source="feishu_card",
             actor=action_input.operator_open_id,
             event_id=action_input.event_id,
             trace_id=action_input.trace_id,
             created_at=action_input.created_at or int(time.time()),
             payload={
-                "workflow_type": "risk_scan",
+                "workflow_type": "post_meeting_followup",
                 "meeting_id": action_input.meeting_id,
                 "calendar_event_id": action_input.calendar_event_id,
                 "minute_token": str((action_input.value or {}).get("minute_token") or ""),
@@ -273,10 +277,10 @@ class CardActionRouter:
         return CardActionResult(
             status="accepted",
             action=action_input.action,
-            message="已收到风险巡检请求，将进入受控 M5 风险巡检链路。",
+            message="已收到会后行动项风险预检请求，将基于本次会议行动项生成即时预检结果。",
             trace_id=action_input.trace_id,
             agent_input=agent_input,
-            metadata={"workflow_type": "risk_scan"},
+            metadata={"workflow_type": "post_meeting_followup", "risk_entry": "action_item_preview"},
         )
 
     def _view_post_meeting_report(self, action_input: CardActionInput) -> CardActionResult:

@@ -168,7 +168,7 @@ class WorkflowRunner:
     ) -> None:
         """Agent Loop 结束后的确定性业务后处理。
 
-        基类默认不做处理；M5 风险巡检会在这里从工具结果生成结构化风险产物。
+        基类默认不做处理；M5 任务风险提醒会在这里从工具结果生成结构化风险产物。
         """
 
     def validate_output(self, result: AgentRunResult) -> WorkflowValidationResult:
@@ -317,7 +317,7 @@ class PostMeetingFollowupWorkflow(WorkflowRunner):
 
 @dataclass(slots=True)
 class RiskScanWorkflow(WorkflowRunner):
-    """任务风险巡检工作流骨架。
+    """M5 任务风险提醒工作流骨架。
 
     当前只固定 M5 的确定性边界：
     - 风险规则预筛和任务状态读取后续由具体工具实现
@@ -331,19 +331,19 @@ class RiskScanWorkflow(WorkflowRunner):
         decision: AgentDecision,
         storage: MeetFlowStorage | None = None,
     ) -> None:
-        """构造风险巡检计划草案，并写入上下文。"""
+        """构造任务风险扫描计划草案，并写入上下文。"""
 
         WorkflowRunner.prepare_context(self, context=context, decision=decision, storage=storage)
         context.raw_context["risk_scan_plan"] = build_risk_scan_plan_draft(context)
         context.raw_context["risk_rule_settings"] = build_risk_rule_settings(context)
 
     def build_workflow_goal(self, workflow_goal: str) -> str:
-        """强化风险巡检工作流的低噪声要求。"""
+        """强化 M5 任务风险提醒工作流的低噪声要求。"""
 
         base_goal = WorkflowRunner.build_workflow_goal(self, workflow_goal)
         return (
             f"{base_goal}\n\n"
-            "风险巡检工作流约束：\n"
+            "M5 任务风险提醒工作流约束：\n"
             "- 先基于任务状态、截止时间、更新时间和历史提醒判断是否真的需要提醒。\n"
             "- 风险提醒必须说明风险原因、建议动作和来源，不要制造噪声。\n"
             "- 对已提醒过或证据不足的风险，应输出观察或待确认，而不是重复推送。\n"
@@ -351,27 +351,27 @@ class RiskScanWorkflow(WorkflowRunner):
         )
 
     def validate_output(self, result: AgentRunResult) -> WorkflowValidationResult:
-        """风险巡检工作流的最小确定性校验。"""
+        """M5 任务风险提醒工作流的最小确定性校验。"""
 
         base = WorkflowRunner.validate_output(self, result)
         warnings = list(base.warnings)
         errors = list(base.errors)
         risk_payload = result.payload.get("risk_scan", {}) if isinstance(result.payload, dict) else {}
         if result.status == "success" and not result.final_answer.strip():
-            errors.append("风险巡检工作流没有生成最终回答。")
+            errors.append("M5 任务风险提醒工作流没有生成最终回答。")
         if result.status == "success" and result.loop_state and not result.loop_state.tool_results:
-            warnings.append("本次风险巡检没有调用任何任务读取工具，可能缺少任务状态证据。")
+            warnings.append("本次任务风险扫描没有调用任何任务读取工具，可能缺少任务状态证据。")
         if result.status == "success" and has_successful_task_tool_result(result) and not risk_payload.get("scan_result"):
-            errors.append("风险巡检读取了任务，但没有生成确定性 risk_scan.scan_result。")
+            errors.append("M5 任务风险提醒读取了任务，但没有生成确定性 risk_scan.scan_result。")
         scan_result = risk_payload.get("scan_result") if isinstance(risk_payload, dict) else {}
         notification_decision = risk_payload.get("notification_decision") if isinstance(risk_payload, dict) else {}
         if isinstance(scan_result, dict) and int(scan_result.get("risk_count", 0) or 0) > 0 and not notification_decision:
-            errors.append("风险巡检命中风险，但缺少 notification_decision。")
+            errors.append("M5 任务风险提醒命中风险，但缺少 notification_decision。")
         if isinstance(notification_decision, dict) and notification_decision.get("should_notify") and not risk_payload.get("card_payload"):
-            errors.append("风险巡检需要提醒，但缺少 card_payload。")
+            errors.append("M5 任务风险提醒需要提醒，但缺少 card_payload。")
         for side_effect in result.side_effects:
             if side_effect.get("side_effect") == "send_message":
-                warnings.append("本次风险巡检触发了消息发送副作用，请确认降噪和幂等记录。")
+                warnings.append("本次 M5 任务风险提醒触发了消息发送副作用，请确认降噪和幂等记录。")
         return WorkflowValidationResult(ok=not errors, warnings=warnings, errors=errors)
 
     def post_process_result(
@@ -422,7 +422,7 @@ class RiskScanWorkflow(WorkflowRunner):
 def build_default_workflow_runners() -> dict[str, WorkflowRunner]:
     """构建默认工作流 Runner。
 
-    当前为会前、会后、风险巡检都提供专用骨架。
+    当前为会前、会后、M5 任务风险提醒都提供专用骨架。
     这些骨架只固定阶段和安全边界，不提前替代 M3-M5 的具体业务实现。
     """
 
@@ -489,7 +489,7 @@ def build_default_workflow_runners() -> dict[str, WorkflowRunner]:
                     "calendar.list_events",
                     "im.send_card",
                 ],
-                workflow_goal="生成低噪声风险巡检结果，避免重复提醒。",
+                workflow_goal="生成低噪声任务风险提醒结果，避免重复提醒。",
                 output_schema={
                     "type": "object",
                     "description": "RiskAlert[] 草案，后续 M5 会升级为严格结构。",
@@ -549,7 +549,7 @@ def build_post_meeting_plan_draft(context: WorkflowContext) -> dict[str, Any]:
 
 
 def build_risk_scan_plan_draft(context: WorkflowContext) -> dict[str, Any]:
-    """根据风险巡检上下文生成处理计划草案。"""
+    """根据 M5 任务风险提醒上下文生成处理计划草案。"""
 
     return {
         "task_id": context.task_id,
