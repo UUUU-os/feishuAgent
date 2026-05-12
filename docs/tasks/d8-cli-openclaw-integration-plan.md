@@ -660,3 +660,80 @@ D8 完成后应满足：
 `scripts/risk_scan_demo.py`、`scripts/agent_eval_suite.py`、`scripts/e2e_replay.py`
 和 `core/service_manager.py` 可复用。后续实现应优先复用这些受控入口，避免新增绕过
 `AgentPolicy`、幂等和 `allow_write` 的捷径。
+
+2026-05-12 完成 D8 首轮代码落地。
+
+本轮新增 `scripts/meetflow_cli.py` 和 `core/cli_facade.py`，形成 OpenClaw / CLI 统一入口；
+支持 `health`、`pre-meeting`、`post-meeting`、`task-cards`、`risk-scan`、`eval`、
+`demo-replay`、`service` 和 `openclaw-tools` 子命令。CLI 默认 dry-run，真实写入必须显式
+`--allow-write`；所有子命令输出统一 JSON，包含 `status`、`workflow_type`、`trace_id`、
+`report_path` 和 `safety_summary`。`core/console_api.py` 同步扩展 M3 请求字段，支持
+`identity`、`calendar_id`、`doc`、`minute`、`max_iterations`、`report_dir`，并允许
+`settings` provider；`health/migration` 对 storage 目录缺失做了安全兜底，不再直接抛 SQLite
+底层异常。新增 `config/openclaw_tools.example.json` 和 `docs/openclaw-meetflow-tool-guide.md`
+作为 OpenClaw 工具清单和 CLI 使用手册。新增 `tests/test_meetflow_cli.py`，补充 Console API
+测试，覆盖默认 dry-run、allow-write 幂等后缀、M3 doc/minute 透传、OpenClaw 工具清单和禁止
+任意 `--command` 参数。
+
+验证命令：
+
+```bash
+python3 -m py_compile core/cli_facade.py scripts/meetflow_cli.py core/console_api.py tests/test_meetflow_cli.py tests/test_console_api.py
+python3 -m unittest tests.test_meetflow_cli tests.test_console_api
+python3 scripts/meetflow_cli.py health
+python3 scripts/meetflow_cli.py openclaw-tools
+python3 scripts/meetflow_cli.py pre-meeting --date today --event-title "MeetFlow 测试会议" --provider scripted_debug --doc "https://example.feishu.cn/docx/demo" --minute "https://example.feishu.cn/minutes/demo" --write-report
+python3 scripts/meetflow_cli.py post-meeting --minute "dummy_minute"
+python3 scripts/meetflow_cli.py risk-scan --backend local --show-card
+python3 scripts/meetflow_cli.py eval --suite agent_trajectory --write-report
+python3 scripts/meetflow_cli.py demo-replay --all --write-report
+```
+
+结果：编译通过；`tests.test_meetflow_cli` 和 `tests.test_console_api` 共 18 条测试通过；
+CLI health、openclaw-tools、pre-meeting dry-run、post-meeting dry-run、risk-scan local、
+agent eval、demo replay 均能输出标准 JSON。真实飞书写入未执行，后续需在用户确认
+`--allow-write` 后再跑 M3/M4/M5 真实联调。
+
+2026-05-12 补充 D3 四终端真实联调快捷命令。
+
+用户确认 D3 真实按钮联调应按四个终端运行：SDK 回调、worker、重新发送 D3 会后总结卡、
+tail 观察回调日志。本轮修改 `scripts/meetflow_cli.py`，新增 `live` 命令组，固定封装
+`live sdk-callback`、`live worker`、`live d3-card`、`live watch-callbacks` 四个白名单命令；
+其中 `live d3-card` 固定走 `scripts/card_send_live.py m4` 并默认使用
+`storage/reports/m4/d3`，`live watch-callbacks` 固定 tail `storage/card_callbacks.jsonl`
+和 `storage/workflow_events.jsonl`。同步更新 `docs/openclaw-meetflow-tool-guide.md`，加入
+D3 四终端真实联调快捷命令说明；`tests/test_meetflow_cli.py` 增加 live 命令构造测试。
+
+验证命令：
+
+```bash
+python3 -m py_compile scripts/meetflow_cli.py tests/test_meetflow_cli.py
+python3 -m unittest tests.test_meetflow_cli
+python3 scripts/meetflow_cli.py live d3-card --minute obcngy8e7x2883b6f9f5x4l9 --show-card-json --dry-run
+```
+
+结果：10 条 CLI 测试通过；`live d3-card --dry-run` 能打印等价的 `card_send_live.py m4`
+下游命令。`live worker` 验证时会启动前台长进程，验证后已停止；真实联调时应在独立终端保持运行。
+
+2026-05-12 调整 OpenClaw 使用手册结构。
+
+根据真实联调使用习惯，将 `docs/openclaw-meetflow-tool-guide.md` 中的 D3 四终端真实联调快捷命令
+移动到文档最前面作为第一入口；删除后文重复的 SDK 回调、M4 专用回调和 worker 启动说明，只保留
+通用服务查看、日志和停止命令，避免同一链路出现多套口径。本次只调整文档，未修改运行代码。
+
+2026-05-12 补充 CLI 命令功能总览表。
+
+在 `docs/openclaw-meetflow-tool-guide.md` 开头新增 CLI 命令与功能表，覆盖 `health`、M3/M4/D4/M5、
+评测、离线回放、D3 四终端 `live` 命令、服务控制和 OpenClaw 工具清单，标明典型场景和写入说明。
+本次只调整文档，未修改运行代码。
+
+2026-05-12 新增面向 AI / Agent / OpenClaw 的 Skill 文档。
+
+本轮新增 `docs/skills/MEETFLOW_CLI_OPENCLAW_SKILL.md`，基于现有使用手册、`scripts/meetflow_cli.py`、
+`core/cli_facade.py`、`core/console_api.py`、`config/openclaw_tools.example.json`、`core/service_manager.py`
+和 M3/M4/M5 底层脚本，整理 AI / OpenClaw 应如何安全调用 MeetFlow CLI。文档明确区分已实现 CLI 命令
+和建议增强项，覆盖 health、pre-meeting、post-meeting、task-cards、risk-scan、eval、demo-replay、
+D3 四终端 live 命令、service 管理和 openclaw-tools。同步新增
+`docs/skills/MEETFLOW_CLI_OPENCLAW_DOC_ISSUES.md`，记录当前手册与代码不一致点：`live` 命令非 JSON、
+`live d3-card` 默认真实发卡、顶层 `suggested_fix` 尚未实现、`health` 不直接验证 OAuth token、
+`service start` 已实现但手册弱化展示。本次只修改文档，未修改核心业务代码，未提交真实配置或密钥。

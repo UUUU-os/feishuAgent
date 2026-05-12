@@ -6,7 +6,7 @@ import sqlite3
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -32,15 +32,21 @@ SENSITIVE_PATTERNS = [
 class M3SendCardRequest:
     """MeetFlow Console 触发 M3 会前发卡的请求。"""
 
+    identity: str = "user"
+    calendar_id: str = "primary"
     date: str = "tomorrow"
     event_title: str = ""
     event_id: str = ""
     llm_provider: str = "scripted_debug"
     project_id: str = "meetflow"
+    doc: list[str] = field(default_factory=list)
+    minute: list[str] = field(default_factory=list)
+    max_iterations: int = 5
     allow_write: bool = False
     write_report: bool = True
     force_index: bool = False
     idempotency_suffix: str = ""
+    report_dir: str = "storage/reports/m3"
     timeout_seconds: int = 120
 
 
@@ -128,7 +134,7 @@ class MeetFlowConsoleAPI:
         migration_error = ""
         try:
             MigrationRunner(db_path).verify()
-        except MigrationError as error:
+        except (MigrationError, OSError, sqlite3.Error) as error:
             migration_ok = False
             migration_error = safe_error_message(error)
         return {
@@ -215,11 +221,14 @@ class MeetFlowConsoleAPI:
         """返回 migration status 和 verify 结果。"""
 
         runner = MigrationRunner(self.settings.storage.db_path)
-        status = runner.status()
+        try:
+            status = runner.status()
+        except (MigrationError, OSError, sqlite3.Error) as error:
+            status = {"error": safe_error_message(error), "applied_versions": [], "pending_count": 0}
         try:
             runner.verify()
             verify = {"ok": True, "error": ""}
-        except MigrationError as error:
+        except (MigrationError, OSError, sqlite3.Error) as error:
             verify = {"ok": False, "error": safe_error_message(error)}
         return {"status": status, "verify": verify}
 
@@ -259,12 +268,18 @@ class MeetFlowConsoleAPI:
             sys.executable,
             str(self.project_root / "scripts" / "card_send_live.py"),
             "m3",
+            "--identity",
+            request.identity,
+            "--calendar-id",
+            request.calendar_id,
             "--date",
             request.date,
             "--llm-provider",
             request.llm_provider,
             "--project-id",
             request.project_id,
+            "--max-iterations",
+            str(request.max_iterations),
             "--idempotency-suffix",
             suffix,
         ]
@@ -272,10 +287,14 @@ class MeetFlowConsoleAPI:
             command.extend(["--event-title", request.event_title])
         if request.event_id:
             command.extend(["--event-id", request.event_id])
+        for doc in request.doc:
+            command.extend(["--doc", doc])
+        for minute in request.minute:
+            command.extend(["--minute", minute])
         if request.force_index:
             command.append("--force-index")
         if request.write_report:
-            command.append("--write-report")
+            command.extend(["--write-report", "--report-dir", request.report_dir])
         if not request.allow_write:
             command.append("--dry-run")
         completed = subprocess.run(
@@ -474,17 +493,28 @@ def validate_m3_request(request: M3SendCardRequest) -> None:
     """校验 M3 请求，避免前端传入不受控参数。"""
 
     request.date = clean_text_argument("date", request.date)
+    request.identity = clean_text_argument("identity", request.identity)
+    request.calendar_id = clean_text_argument("calendar_id", request.calendar_id)
     request.event_title = clean_text_argument("event_title", request.event_title)
     request.event_id = clean_text_argument("event_id", request.event_id)
     request.llm_provider = clean_text_argument("llm_provider", request.llm_provider)
     request.project_id = clean_text_argument("project_id", request.project_id)
     request.idempotency_suffix = clean_text_argument("idempotency_suffix", request.idempotency_suffix)
-    if request.llm_provider not in {"scripted_debug", "dry-run", "configured", "deepseek", "doubao"}:
+    request.report_dir = clean_text_argument("report_dir", request.report_dir)
+    request.doc = [clean_text_argument("doc", item) for item in list(request.doc or [])]
+    request.minute = [clean_text_argument("minute", item) for item in list(request.minute or [])]
+    if request.identity not in {"user", "tenant"}:
+        raise ConsoleAPIError("identity 只支持 user / tenant。")
+    if request.llm_provider not in {"scripted_debug", "dry-run", "configured", "settings", "deepseek", "doubao"}:
         raise ConsoleAPIError(f"不支持的 llm_provider：{request.llm_provider}")
     if not request.event_title and not request.event_id:
         raise ConsoleAPIError("请至少提供 event_title 或 event_id。")
     if request.date and not re.match(r"^(today|tomorrow|\d{4}-\d{2}-\d{2})$", request.date):
         raise ConsoleAPIError("date 只支持 today / tomorrow / YYYY-MM-DD。")
+    validate_int_range("max_iterations", request.max_iterations, 1, 20)
+    validate_int_range("timeout_seconds", request.timeout_seconds, 10, 900)
+    if len(request.doc) > 10 or len(request.minute) > 10:
+        raise ConsoleAPIError("doc/minute 每类最多支持 10 条。")
 
 
 def validate_m4_read_minute_request(request: M4ReadMinuteRequest) -> None:

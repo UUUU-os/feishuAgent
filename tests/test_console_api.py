@@ -103,6 +103,34 @@ class ConsoleAPITest(unittest.TestCase):
             self.assertEqual(result["parsed"]["trace_id"], "trace_console")
             self.assertEqual(result["parsed"]["status"], "success")
 
+    def test_run_m3_send_card_passes_d2_resources_and_settings_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            settings = make_settings(temp_dir)
+            api = MeetFlowConsoleAPI(settings=settings, project_root=Path(temp_dir))
+            completed = SimpleNamespace(returncode=0, stdout="status: success")
+
+            with patch("core.console_api.subprocess.run", return_value=completed) as run_mock:
+                api.run_m3_send_card(
+                    M3SendCardRequest(
+                        date="today",
+                        event_title="MeetFlow 测试会议",
+                        llm_provider="settings",
+                        doc=["https://example.feishu.cn/docx/doc1"],
+                        minute=["https://example.feishu.cn/minutes/minute1"],
+                        max_iterations=7,
+                        allow_write=False,
+                    )
+                )
+
+            command = run_mock.call_args.args[0]
+            self.assertIn("--doc", command)
+            self.assertIn("https://example.feishu.cn/docx/doc1", command)
+            self.assertIn("--minute", command)
+            self.assertIn("https://example.feishu.cn/minutes/minute1", command)
+            self.assertIn("--max-iterations", command)
+            self.assertIn("7", command)
+            self.assertIn("settings", command)
+
     def test_parse_m3_stdout_extracts_report_paths(self) -> None:
         parsed = parse_m3_stdout(
             """
