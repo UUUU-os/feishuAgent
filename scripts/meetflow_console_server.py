@@ -161,15 +161,22 @@ def build_handler(api: MeetFlowConsoleAPI, static_dir: Path) -> type[BaseHTTPReq
                     return
                 if parsed.path == "/api/m3/send-card":
                     request = M3SendCardRequest(
+                        identity=str(payload.get("identity") or "user"),
+                        calendar_id=str(payload.get("calendar_id") or "primary"),
                         date=str(payload.get("date") or "tomorrow"),
                         event_title=str(payload.get("event_title") or ""),
                         event_id=str(payload.get("event_id") or ""),
                         llm_provider=str(payload.get("llm_provider") or "scripted_debug"),
                         project_id=str(payload.get("project_id") or "meetflow"),
+                        doc=string_list_payload(payload.get("doc")),
+                        minute=string_list_payload(payload.get("minute")),
+                        max_iterations=int(payload.get("max_iterations") or 5),
                         allow_write=bool(payload.get("allow_write", False)),
                         write_report=bool(payload.get("write_report", True)),
                         force_index=bool(payload.get("force_index", False)),
                         idempotency_suffix=str(payload.get("idempotency_suffix") or ""),
+                        report_dir=str(payload.get("report_dir") or "storage/reports/m3"),
+                        timeout_seconds=int(payload.get("timeout_seconds") or 120),
                     )
                     self.write_json({"ok": True, "data": api.run_m3_send_card(request), "error": ""})
                     return
@@ -311,6 +318,18 @@ def first_query(query: dict[str, list[str]], key: str, default: str) -> str:
 
     values = query.get(key) or []
     return str(values[0]) if values else default
+
+
+def string_list_payload(value: Any) -> list[str]:
+    """把前端单行/多行输入归一化为白名单脚本参数列表。"""
+
+    if value is None:
+        return []
+    if isinstance(value, list):
+        raw_values = value
+    else:
+        raw_values = str(value).replace(",", "\n").splitlines()
+    return [str(item).strip() for item in raw_values if str(item).strip()]
 
 
 if __name__ == "__main__":

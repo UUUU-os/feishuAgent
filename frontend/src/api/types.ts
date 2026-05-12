@@ -102,15 +102,22 @@ export type DashboardData = {
 };
 
 export type M3SendCardRequest = {
+  identity: string;
+  calendar_id: string;
   date: string;
   event_title: string;
   event_id: string;
   llm_provider: string;
   project_id: string;
+  doc: string;
+  minute: string;
+  max_iterations: number;
   allow_write: boolean;
   write_report: boolean;
   force_index: boolean;
   idempotency_suffix: string;
+  report_dir: string;
+  timeout_seconds: number;
 };
 
 export type M3SendCardResult = {

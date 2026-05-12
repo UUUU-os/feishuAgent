@@ -33,6 +33,7 @@ from core.console_api import (
 )
 from core.jobs import JobQueue
 from core.migrations import MigrationRunner
+from scripts.meetflow_console_server import string_list_payload
 
 
 class ConsoleAPITest(unittest.TestCase):
@@ -130,6 +131,11 @@ class ConsoleAPITest(unittest.TestCase):
             self.assertIn("--max-iterations", command)
             self.assertIn("7", command)
             self.assertIn("settings", command)
+
+    def test_m3_frontend_doc_minute_payload_accepts_single_or_multiline_values(self) -> None:
+        self.assertEqual(string_list_payload("https://a/docx/1"), ["https://a/docx/1"])
+        self.assertEqual(string_list_payload("https://a/docx/1\nhttps://a/docx/2"), ["https://a/docx/1", "https://a/docx/2"])
+        self.assertEqual(string_list_payload(["https://a/minutes/1", ""]), ["https://a/minutes/1"])
 
     def test_parse_m3_stdout_extracts_report_paths(self) -> None:
         parsed = parse_m3_stdout(

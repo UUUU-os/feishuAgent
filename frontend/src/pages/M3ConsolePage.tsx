@@ -9,15 +9,22 @@ import { StepList } from "../components/StepList";
 import { StatusBadge } from "../components/StatusBadge";
 
 const initialForm: M3SendCardRequest = {
-  date: "tomorrow",
+  identity: "user",
+  calendar_id: "primary",
+  date: "today",
   event_title: "MeetFlow 测试会议",
   event_id: "",
-  llm_provider: "scripted_debug",
+  llm_provider: "settings",
   project_id: "meetflow",
+  doc: "https://jcneyh7qlo8i.feishu.cn/docx/YGY5dOFrMoVu5Ox7DJnc7AaSnyb",
+  minute: "https://jcneyh7qlo8i.feishu.cn/minutes/obcngy8e7x2883b6f9f5x4l9",
+  max_iterations: 5,
   allow_write: false,
   write_report: true,
   force_index: false,
-  idempotency_suffix: ""
+  idempotency_suffix: "",
+  report_dir: "storage/reports/m3",
+  timeout_seconds: 180
 };
 
 export function M3ConsolePage() {
@@ -55,7 +62,7 @@ export function M3ConsolePage() {
       <PageHeader
         eyebrow="M3 Pre-meeting"
         title="会前背景卡"
-        description="从飞书日历定位会议，触发知识检索和受控发卡。默认 dry-run，开启 allow_write 后才会真实发送飞书卡片。"
+        description="前端固定包装 scripts/card_send_live.py m3，从飞书日历定位会议，并把 doc / minute 送入会前 RAG 与 Evidence Pack。"
         meta={
           <>
             <StatusBadge status={form.allow_write ? "真实写入" : "Dry-run"} tone={form.allow_write ? "danger" : "warn"} />
@@ -80,7 +87,7 @@ export function M3ConsolePage() {
               { title: "连接飞书", description: "后端使用 user 身份读取日历", state: result ? "done" : "pending" },
               {
                 title: form.allow_write ? "真实发卡" : "Dry-run",
-                description: form.allow_write ? "会发送到测试群" : "只打印下游命令",
+                description: form.allow_write ? "执行 card_send_live.py m3 真实发卡" : "追加 --dry-run，只打印下游命令",
                 state: form.allow_write ? "danger" : "pending"
               },
               { title: "查看结果", description: "确认 trace_id、报告和 stdout", state: result ? "done" : "pending" }
@@ -88,10 +95,27 @@ export function M3ConsolePage() {
           />
           <div className="callout callout--warn">
             <AlertTriangle size={16} />
-            <span>如果提示没有会议，通常是 `--date` 指向的日期没有匹配标题的飞书日程。</span>
+            <span>此页面的 M3 入口必须等价于 `python3 scripts/card_send_live.py m3 ...`，不要改成其他会前脚本。</span>
           </div>
         </section>
         <form className="form-panel form-panel--wide" onSubmit={submit}>
+          <label>
+            身份
+            <select value={form.identity} onChange={(event) => setForm({ ...form, identity: event.target.value })}>
+              <option value="user">user：读取日历、文档和妙记</option>
+              <option value="tenant">tenant：仅用于受支持的应用身份场景</option>
+            </select>
+            <small>会透传为 `--identity`。</small>
+          </label>
+          <label>
+            Calendar ID
+            <input
+              value={form.calendar_id}
+              onChange={(event) => setForm({ ...form, calendar_id: event.target.value })}
+              placeholder="primary"
+            />
+            <small>默认 `primary`，会由后端解析真实主日历。</small>
+          </label>
           <label>
             日期窗口
             <select value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })}>
@@ -124,18 +148,47 @@ export function M3ConsolePage() {
               value={form.llm_provider}
               onChange={(event) => setForm({ ...form, llm_provider: event.target.value })}
             >
+              <option value="settings">settings：使用本地 LLM 配置</option>
               <option value="scripted_debug">scripted_debug：推荐联调</option>
               <option value="dry-run">dry-run：只验证链路</option>
-              <option value="configured">configured：使用配置 provider</option>
               <option value="doubao">doubao：豆包/火山方舟</option>
               <option value="deepseek">deepseek：真实模型</option>
             </select>
-            <small>默认 scripted_debug，避免真实模型接收飞书内容。</small>
+            <small>会透传为 `--llm-provider`。真实演示推荐 settings。</small>
           </label>
           <label>
             Project ID
             <input value={form.project_id} onChange={(event) => setForm({ ...form, project_id: event.target.value })} />
             <small>用于读取项目记忆和报告归属。</small>
+          </label>
+          <label className="form-field--wide">
+            飞书文档
+            <input
+              value={form.doc}
+              onChange={(event) => setForm({ ...form, doc: event.target.value })}
+              placeholder="https://xxx.feishu.cn/docx/..."
+            />
+            <small>会透传为 `--doc`，进入会前 RAG / Evidence Pack。</small>
+          </label>
+          <label className="form-field--wide">
+            飞书妙记
+            <input
+              value={form.minute}
+              onChange={(event) => setForm({ ...form, minute: event.target.value })}
+              placeholder="https://xxx.feishu.cn/minutes/..."
+            />
+            <small>会透传为 `--minute`，用于补充会前核心背景知识。</small>
+          </label>
+          <label>
+            Max Iterations
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={form.max_iterations}
+              onChange={(event) => setForm({ ...form, max_iterations: Number(event.target.value || 5) })}
+            />
+            <small>会透传为 `--max-iterations`。</small>
           </label>
           <label>
             Idempotency Suffix
@@ -145,6 +198,15 @@ export function M3ConsolePage() {
               placeholder={finalSuffix}
             />
             <small>重复真实发送同一会议时请使用唯一后缀。</small>
+          </label>
+          <label>
+            Report Dir
+            <input
+              value={form.report_dir}
+              onChange={(event) => setForm({ ...form, report_dir: event.target.value })}
+              placeholder="storage/reports/m3"
+            />
+            <small>写报告时透传为 `--report-dir`。</small>
           </label>
           <label className="check-row">
             <input
@@ -228,7 +290,13 @@ export function M3ConsolePage() {
       <ConfirmWriteDialog
         open={confirmOpen}
         title="确认真实发卡"
-        details={[`会议：${form.event_title || form.event_id}`, `日期：${form.date}`, `Provider：${form.llm_provider}`]}
+        details={[
+          `会议：${form.event_title || form.event_id}`,
+          `日期：${form.date}`,
+          `Provider：${form.llm_provider}`,
+          `Doc：${form.doc || "-"}`,
+          `Minute：${form.minute || "-"}`
+        ]}
         onCancel={() => setConfirmOpen(false)}
         onConfirm={() => void run()}
       />

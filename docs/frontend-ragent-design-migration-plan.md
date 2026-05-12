@@ -751,3 +751,29 @@ body {
 5. 跑 `npm run build` 和桌面/移动端截图检查。
 
 这样可以在较低风险下，让当前 MeetFlow 前端接近 Ragent Admin 的美观度，同时保持 MeetFlow 自己的“会议 Agent 控制台”定位。
+
+## 12. 2026-05-12 首轮落地记录
+
+本轮已按“CSS Token First，低风险迁移”执行第一版实现：
+
+- 修改 `frontend/src/App.tsx`：保留现有 React 状态导航，不引入 router；新增 Ragent Admin 风格的分组侧栏、sticky topbar 和安全提示。
+- 修改 `frontend/src/styles/app.css`：新增 `--mf-*` 字体、颜色、圆角、阴影 token；重构 sidebar、content、page header、card、panel、form、table、button、badge、dialog、JSON 输出和响应式布局。
+- 新增 `docs/frontend-ragent-design-usage-guide.md`：记录启动方式、页面检查清单、安全边界和排查方法。
+
+本轮未修改：
+
+- Console API 路由；
+- 飞书真实读写链路；
+- AgentPolicy、ToolRegistry、FeishuClient；
+- M3/M4/M5 业务参数和真实写入门禁。
+
+验证状态：
+
+- 当前 shell 中未找到 `node` / `npm`，因此暂未能执行 `npm run build` 或启动 Vite dev server。
+- 需要在具备 Node.js/npm 的环境中补跑：
+
+```bash
+cd /home/good/ye/workhard/feishuAgent-d3-post-meeting-card-enhancement-plan/frontend
+npm run build
+npm run dev -- --host 127.0.0.1 --port 5173
+```
