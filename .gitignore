@@ -1,0 +1,16 @@
+.env
+.venv-lark-oapi/
+__pycache__/
+*.pyc
+
+config/settings.local.json
+config/llm_providers.local.json
+storage/*.sqlite
+storage/*.db
+storage/post_meeting_pending_actions.json
+storage/runtime/
+storage/*.jsonl
+storage/knowledge/
+storage/projects/*.json
+storage/reports/
+storage/tmp/

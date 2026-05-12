@@ -1,0 +1,50 @@
+{
+  "case_id": "m5_risk_from_m4_mapping",
+  "workflow": "m5_risk_scan",
+  "description": "M5 应命中逾期风险，并通过 task_mappings 接回 M4 妙记来源证据。",
+  "input": {
+    "now": 1777968000,
+    "stale_update_days": 3,
+    "due_soon_hours": 24,
+    "tasks": [
+      {
+        "item_id": "task_eval_overdue",
+        "title": "测试报告整理：整理 meet flow 的 M4 测试报告",
+        "owner": "张三",
+        "due_date": "1777593600",
+        "status": "todo",
+        "extra": {
+          "task_id": "task_eval_overdue",
+          "updated_at": "1777600000",
+          "url": "https://example.feishu.cn/task/task_eval_overdue"
+        }
+      }
+    ],
+    "task_mappings": [
+      {
+        "item_id": "action_eval_001",
+        "task_id": "task_eval_overdue",
+        "meeting_id": "minute_eval_m4",
+        "minute_token": "minute_eval_m4",
+        "title": "测试报告整理：整理 meet flow 的 M4 测试报告",
+        "owner": "张三",
+        "due_date": "2026-05-01",
+        "status": "created",
+        "evidence_refs": [
+          {
+            "source_type": "feishu_minute",
+            "source_id": "minute_eval_m4",
+            "source_url": "https://example.feishu.cn/minutes/minute_eval_m4",
+            "snippet": "测试报告整理，于明天下午 6 点前完成 @张三"
+          }
+        ],
+        "source_url": "https://example.feishu.cn/minutes/minute_eval_m4"
+      }
+    ]
+  },
+  "expected": {
+    "min_risks": 1,
+    "risk_types": ["overdue"],
+    "evidence_source_contains": "minute_eval_m4"
+  }
+}

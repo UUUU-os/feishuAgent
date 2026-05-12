@@ -1,0 +1,120 @@
+{
+  "case_id": "m3_evidence_first_plan",
+  "description": "M3 会前简报应先读取日历，再检索知识证据，最后发送卡片。",
+  "trace": {
+    "trace_id": "trace_eval_m3_evidence",
+    "workflow_type": "pre_meeting_brief",
+    "case_id": "m3_evidence_first_plan",
+    "input_summary": {
+      "event_type": "meeting.soon"
+    },
+    "route_decision": {
+      "workflow_type": "pre_meeting_brief"
+    },
+    "context_summary": {
+      "has_calendar_event_id": true
+    },
+    "assistant_plan": [
+      {
+        "step": "读取真实日历会议详情",
+        "expected_tool": "calendar.list_events"
+      },
+      {
+        "step": "检索当前会议相关知识证据",
+        "expected_tool": "knowledge.search"
+      },
+      {
+        "step": "发送会前背景卡",
+        "expected_tool": "im.send_card"
+      }
+    ],
+    "tool_calls": [
+      {
+        "call_id": "call_calendar",
+        "tool_name": "calendar.list_events",
+        "llm_tool_name": "calendar_list_events",
+        "arguments": {
+          "calendar_id": "primary"
+        },
+        "arguments_hash": "hash_calendar",
+        "schema_valid": true,
+        "status": "success",
+        "result_summary": {
+          "count": 1
+        },
+        "started_at": 1,
+        "finished_at": 2
+      },
+      {
+        "call_id": "call_knowledge",
+        "tool_name": "knowledge.search",
+        "llm_tool_name": "knowledge_search",
+        "arguments": {
+          "query": "MeetFlow 测试会议"
+        },
+        "arguments_hash": "hash_knowledge",
+        "schema_valid": true,
+        "status": "success",
+        "result_summary": {
+          "item_count": 3
+        },
+        "started_at": 3,
+        "finished_at": 4
+      },
+      {
+        "call_id": "call_card",
+        "tool_name": "im.send_card",
+        "llm_tool_name": "im_send_card",
+        "arguments": {
+          "title": "会前背景卡"
+        },
+        "arguments_hash": "hash_card",
+        "schema_valid": true,
+        "status": "success",
+        "result_summary": {
+          "keys": ["message_id"]
+        },
+        "started_at": 5,
+        "finished_at": 6
+      }
+    ],
+    "policy_decisions": [
+      {
+        "tool_name": "im.send_card",
+        "side_effect": "send_message",
+        "status": "allow",
+        "reason": "写工具通过 AgentPolicy 检查。",
+        "required_fields": [],
+        "idempotency_key_present": true,
+        "allow_write": true
+      }
+    ],
+    "side_effects": [
+      {
+        "tool_name": "im.send_card"
+      }
+    ],
+    "final_answer_summary": "已根据日历和知识证据生成会前背景卡。",
+    "status": "success",
+    "started_at": 1,
+    "finished_at": 6
+  },
+  "expected": {
+    "must_call_tools": ["calendar.list_events", "knowledge.search", "im.send_card"],
+    "must_not_call_tools": ["tasks.create_task"],
+    "tool_order_constraints": [
+      {
+        "before": "calendar.list_events",
+        "after": "knowledge.search"
+      },
+      {
+        "before": "knowledge.search",
+        "after": "im.send_card"
+      }
+    ],
+    "min_tool_call_f1": 1.0,
+    "min_tool_order_score": 1.0,
+    "min_policy_compliance": 1.0,
+    "min_idempotency_key_rate": 1.0
+  }
+}
