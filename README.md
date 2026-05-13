@@ -41,11 +41,7 @@
 
 MeetFlow 提供两种查看方式：在线功能演示用于快速了解流程，真实 Console 截图展示本地联调后的完整工作台。
 
-在线演示地址：
-
-```text
-https://uuuu-os.github.io/feishuAgent/demo/
-```
+在线演示地址：[https://uuuu-os.github.io/feishuAgent/demo/](https://uuuu-os.github.io/feishuAgent/demo/)
 
 在线演示是一个静态功能展示页，不连接后端，不读取本地配置，也不会触发飞书写入。它适合快速浏览 Dashboard、M3 会前、M4 会后、M5 风险提醒、任务追踪和评测中心的交互结构。真实运行效果以本地 Console 为准。
 
