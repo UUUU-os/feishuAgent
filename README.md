@@ -30,7 +30,7 @@
   ·
   <a href="#-%E6%8A%80%E6%9C%AF%E4%BA%AE%E7%82%B9">技术亮点</a>
   ·
-  <a href="./docs/demo/index.html">静态演示</a>
+  <a href="https://uuuu-os.github.io/feishuAgent/demo/">在线演示</a>
 </p>
 
 > **feishuAgent** 是一个面向飞书企业会议场景的会议知识闭环 Agent：从会前背景准备、会后总结与任务生成，到任务风险提醒、RAG 知识更新、评测与运维可视化，形成一条可追踪、可回放、可安全落地的 Agent 工作链路。
@@ -43,8 +43,8 @@
 
 | 演示入口 | 说明 | 链接 |
 | --- | --- | --- |
-| 🖥️ README 静态演示页 | 纯静态 HTML，模拟核心页面与按钮交互，适合 GitHub Pages 展示 | [打开 docs/demo/index.html](./docs/demo/index.html) |
-| 🌐 GitHub Pages | 将 `docs/` 作为 Pages 发布源后，可用在线链接展示交互演示 | `https://<your-name>.github.io/<repo>/demo/` |
+| 🖥️ 在线静态演示页 | 纯静态 HTML，模拟核心页面与按钮交互，适合 GitHub Pages 展示 | [打开在线演示](https://uuuu-os.github.io/feishuAgent/demo/) |
+| 🌐 GitHub Pages | 将 `final` 分支的 `docs/` 作为 Pages 发布源后，可用在线链接展示交互演示 | `https://uuuu-os.github.io/feishuAgent/demo/` |
 | ⚡ 前端源码 | React + Vite Dashboard，本地执行 `npm install && npm run build` 后生成 `frontend/dist/` | [查看 frontend/](./frontend/) |
 | 🎬 联调 Runbook | 覆盖 Console、前端、后台服务、飞书真实联调和回放流程 | [docs/meetflow-full-live-test-runbook.md](./docs/meetflow-full-live-test-runbook.md) |
 
@@ -58,7 +58,7 @@ python3 -m http.server 4173 -d dist
 ```
 
 <p align="center">
-  <a href="./docs/demo/index.html">
+  <a href="https://uuuu-os.github.io/feishuAgent/demo/">
     <img alt="MeetFlow Dashboard Preview" src="./docs/assets/meetflow-readme-preview.svg" />
   </a>
 </p>
@@ -67,11 +67,11 @@ python3 -m http.server 4173 -d dist
 
 | 模块 | 入口 | 你可以看到什么 |
 | --- | --- | --- |
-| 🖥️ 前端 Dashboard | [frontend/](./frontend/) · [静态演示](./docs/demo/index.html) | 系统总览、M3 报告、评测分数、后台队列、任务记录 |
+| 🖥️ 前端 Dashboard | [frontend/](./frontend/) · [在线演示](https://uuuu-os.github.io/feishuAgent/demo/) | 系统总览、M3 报告、评测分数、后台队列、任务记录 |
 | 📚 项目文档 | [版本升级计划](./docs/meetflow-version-upgrade-plan.md) · [架构设计](./docs/frontend-system-design.md) · [任务记录](./docs/tasks/) | 产品定位、架构边界、任务进度和验收记录 |
 | ⚡ CLI 使用说明 | [OpenClaw 指南](./docs/openclaw-meetflow-tool-guide.md) · [完整联调 Runbook](./docs/meetflow-full-live-test-runbook.md) | 一键运行、dry-run、真实发卡、后台服务与日志命令 |
-| 🎬 示例演示 | [静态演示页](./docs/demo/index.html) | 适合比赛路演和项目展示的交互式说明页 |
-| 🧪 评测体系 | [Agent 评测方案](./docs/intelligent-agent-and-eval-upgrade-design.md) · [评测中心](./docs/demo/index.html#evaluation) | 工具调用顺序、策略执行、幂等、安全边界和报告归档 |
+| 🎬 示例演示 | [在线演示页](https://uuuu-os.github.io/feishuAgent/demo/) | 适合比赛路演和项目展示的交互式说明页 |
+| 🧪 评测体系 | [Agent 评测方案](./docs/intelligent-agent-and-eval-upgrade-design.md) · [评测中心](https://uuuu-os.github.io/feishuAgent/demo/#evaluation) | 工具调用顺序、策略执行、幂等、安全边界和报告归档 |
 | 🛠️ GitHub 仓库 | [当前仓库](.) | Star、Fork、Issue、PR 和源码调试 |
 
 ## ✨ 核心功能
@@ -90,12 +90,12 @@ python3 -m http.server 4173 -d dist
 
 | 页面 | 展示重点 | 静态演示 |
 | --- | --- | --- |
-| Dashboard | 系统健康、最近 M3 报告、Agent 评测、后台任务队列 | [查看](./docs/demo/index.html#dashboard) |
-| M3 会前卡 | 日期 / event_id 定位会议、补充文档、dry-run / 真实发卡确认 | [查看](./docs/demo/index.html#m3) |
-| M4 会后总结 | 妙记读取、总结卡、任务卡、负责人和截止时间确认 | [查看](./docs/demo/index.html#m4) |
-| M5 风险提醒 | 真实任务扫描、风险规则、提醒卡 JSON、真实发送保护 | [查看](./docs/demo/index.html#m5) |
-| 任务追踪 | Review Sessions、Task Mappings、Risk Notifications | [查看](./docs/demo/index.html#tasks) |
-| 评测中心 | 工具调用轨迹、Policy 门禁、质量分、安全分 | [查看](./docs/demo/index.html#evaluation) |
+| Dashboard | 系统健康、最近 M3 报告、Agent 评测、后台任务队列 | [查看](https://uuuu-os.github.io/feishuAgent/demo/#dashboard) |
+| M3 会前卡 | 日期 / event_id 定位会议、补充文档、dry-run / 真实发卡确认 | [查看](https://uuuu-os.github.io/feishuAgent/demo/#m3) |
+| M4 会后总结 | 妙记读取、总结卡、任务卡、负责人和截止时间确认 | [查看](https://uuuu-os.github.io/feishuAgent/demo/#m4) |
+| M5 风险提醒 | 真实任务扫描、风险规则、提醒卡 JSON、真实发送保护 | [查看](https://uuuu-os.github.io/feishuAgent/demo/#m5) |
+| 任务追踪 | Review Sessions、Task Mappings、Risk Notifications | [查看](https://uuuu-os.github.io/feishuAgent/demo/#tasks) |
+| 评测中心 | 工具调用轨迹、Policy 门禁、质量分、安全分 | [查看](https://uuuu-os.github.io/feishuAgent/demo/#evaluation) |
 
 <details>
 <summary><strong>为什么 README 里放静态演示？</strong></summary>
@@ -107,10 +107,10 @@ python3 -m http.server 4173 -d dist
 <details>
 <summary><strong>如何发布 GitHub Pages 演示？</strong></summary>
 
-仓库 Settings -> Pages 中选择 `Deploy from a branch`，发布源选择 `main` 分支的 `/docs` 目录。发布后静态演示页地址通常是：
+仓库 Settings -> Pages 中选择 `Deploy from a branch`，发布源选择 `final` 分支的 `/docs` 目录。发布后静态演示页地址是：
 
 ```text
-https://<your-github-name>.github.io/<repo-name>/demo/
+https://uuuu-os.github.io/feishuAgent/demo/
 ```
 
 演示页是纯静态 HTML，不读取本地密钥，不连接飞书，也不会触发真实写入。
