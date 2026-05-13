@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <a href="#-%E9%9D%99%E6%80%81%E5%89%8D%E7%AB%AF%E6%BC%94%E7%A4%BA">前端演示</a>
+  <a href="#产品预览">产品预览</a>
   ·
   <a href="#-%E6%A0%B8%E5%BF%83%E5%8A%9F%E8%83%BD">核心功能</a>
   ·
@@ -37,42 +37,79 @@
 
 企业级能力内置在主流程中：默认 dry-run、安全写入边界、幂等操作、trace_id 日志追溯、任务队列、RAG 索引和 CLI / Dashboard 双入口。
 
-## 🚀 静态前端演示
+## 产品预览
 
-无需后端、无需飞书连接，也可以先通过静态页面查看项目的 Dashboard、M3、M4、M5、任务追踪和评测中心交互形态。
+MeetFlow 提供两种查看方式：在线功能演示用于快速了解流程，真实 Console 截图展示本地联调后的完整工作台。
 
-| 演示入口 | 说明 | 链接 |
-| --- | --- | --- |
-| 🖥️ 在线静态演示页 | 纯静态 HTML，模拟核心页面与按钮交互，适合 GitHub Pages 展示 | [打开在线演示](https://uuuu-os.github.io/feishuAgent/demo/) |
-| 🌐 GitHub Pages | 将 `final` 分支的 `docs/` 作为 Pages 发布源后，可用在线链接展示交互演示 | `https://uuuu-os.github.io/feishuAgent/demo/` |
-| ⚡ 前端源码 | React + Vite Dashboard，本地执行 `npm install && npm run build` 后生成 `frontend/dist/` | [查看 frontend/](./frontend/) |
-| 🎬 联调 Runbook | 覆盖 Console、前端、后台服务、飞书真实联调和回放流程 | [docs/meetflow-full-live-test-runbook.md](./docs/meetflow-full-live-test-runbook.md) |
+在线演示地址：
 
-```bash
-# 本地预览静态 Dashboard，不需要启动后端
-cd frontend
-npm install
-npm run build
-python3 -m http.server 4173 -d dist
-# 浏览器访问 http://127.0.0.1:4173
+```text
+https://uuuu-os.github.io/feishuAgent/demo/
 ```
+
+在线演示是一个静态功能展示页，不连接后端，不读取本地配置，也不会触发飞书写入。它适合快速浏览 Dashboard、M3 会前、M4 会后、M5 风险提醒、任务追踪和评测中心的交互结构。真实运行效果以本地 Console 为准。
 
 <p align="center">
   <a href="https://uuuu-os.github.io/feishuAgent/demo/">
-    <img alt="MeetFlow Dashboard Preview" src="./docs/assets/meetflow-readme-preview.svg" />
+    <img alt="MeetFlow 在线功能演示预览" src="./docs/assets/meetflow-readme-preview.svg" />
   </a>
 </p>
 
-## 🧭 快速导航
+## 真实 Console 界面
 
-| 模块 | 入口 | 你可以看到什么 |
-| --- | --- | --- |
-| 🖥️ 前端 Dashboard | [frontend/](./frontend/) · [在线演示](https://uuuu-os.github.io/feishuAgent/demo/) | 系统总览、M3 报告、评测分数、后台队列、任务记录 |
-| 📚 项目文档 | [版本升级计划](./docs/meetflow-version-upgrade-plan.md) · [架构设计](./docs/frontend-system-design.md) · [任务记录](./docs/tasks/) | 产品定位、架构边界、任务进度和验收记录 |
-| ⚡ CLI 使用说明 | [OpenClaw 指南](./docs/openclaw-meetflow-tool-guide.md) · [完整联调 Runbook](./docs/meetflow-full-live-test-runbook.md) | 一键运行、dry-run、真实发卡、后台服务与日志命令 |
-| 🎬 示例演示 | [在线演示页](https://uuuu-os.github.io/feishuAgent/demo/) | 适合比赛路演和项目展示的交互式说明页 |
-| 🧪 评测体系 | [Agent 评测方案](./docs/intelligent-agent-and-eval-upgrade-design.md) · [评测中心](https://uuuu-os.github.io/feishuAgent/demo/#evaluation) | 工具调用顺序、策略执行、幂等、安全边界和报告归档 |
-| 🛠️ GitHub 仓库 | [当前仓库](.) | Star、Fork、Issue、PR 和源码调试 |
+下面是本地 Console 连接后端、任务队列、报告和飞书联调配置后的真实界面。在线 Demo 只负责说明功能路径，这组截图才对应项目实际前端。
+
+<p align="center">
+  <img alt="MeetFlow Console Dashboard" src="./docs/assets/console/dashboard.png" />
+</p>
+
+Dashboard 汇总 M3 会前背景卡、Agent 评测、后台任务队列和 migration 状态，适合演示时先确认系统是否处于可运行状态。
+
+<p align="center">
+  <img alt="MeetFlow M3 会前背景卡控制台" src="./docs/assets/console/m3-pre-meeting.png" />
+</p>
+
+M3 会前页用于选择会议、补充飞书文档和妙记，生成会前背景卡。真实发卡需要显式确认，默认策略仍然是 dry-run 优先。
+
+<p align="center">
+  <img alt="MeetFlow M4 M5 真实联调控制台" src="./docs/assets/console/live-control.png" />
+</p>
+
+真实联调页把 M4 会后总结、M5 风险提醒和后台服务控制放在同一个入口，便于排查卡片发送、任务映射和风险提醒链路。
+
+<p align="center">
+  <img alt="MeetFlow Agent 评测中心" src="./docs/assets/console/evaluation-overview.png" />
+</p>
+
+评测中心检查工具调用顺序、Policy 安全门禁、写操作约束和报告归档，帮助判断 Agent 是否可以进入真实联调。
+
+<p align="center">
+  <img alt="MeetFlow Jobs Health 页面" src="./docs/assets/console/jobs-health.png" />
+</p>
+
+Jobs / Health 页面用于查看 SQLite migration、workflow_jobs 队列和 worker dry-run，定位后台任务是否积压或失败。
+
+<details>
+<summary><strong>更多真实界面截图</strong></summary>
+
+<p align="center">
+  <img alt="MeetFlow 最近业务状态" src="./docs/assets/console/business-status.png" />
+</p>
+
+<p align="center">
+  <img alt="MeetFlow Agent 评测详情" src="./docs/assets/console/evaluation-details.png" />
+</p>
+
+</details>
+
+## 快速导航
+
+| 入口 | 说明 |
+| --- | --- |
+| [在线功能演示](https://uuuu-os.github.io/feishuAgent/demo/) | 快速查看主要页面和交互路径，仅用于功能展示 |
+| [完整联调 Runbook](./docs/meetflow-full-live-test-runbook.md) | Console、前端、后台服务、飞书真实联调和回放流程 |
+| [OpenClaw 指南](./docs/openclaw-meetflow-tool-guide.md) | CLI / OpenClaw 调用 MeetFlow 能力的命令说明 |
+| [Agent 评测方案](./docs/intelligent-agent-and-eval-upgrade-design.md) | 工具调用、Policy、安全边界和评测报告设计 |
 
 ## ✨ 核心功能
 
@@ -86,36 +123,24 @@ python3 -m http.server 4173 -d dist
 | **评测中心** | 验证 Agent 调用顺序、Policy 安全门禁、dry-run、幂等和报告产物 | `agent_trajectory` 评测套件、质量分、安全分、归档报告 |
 | **CLI 工具** | 前端所有核心能力都可用命令行复现，适合脚本化、CI 和 OpenClaw 对接 | `scripts/meetflow_cli.py`、统一参数、默认 dry-run、真实写入开关 |
 
-## 🖼️ 前端界面一览
+## 在线演示说明
 
-| 页面 | 展示重点 | 静态演示 |
-| --- | --- | --- |
-| Dashboard | 系统健康、最近 M3 报告、Agent 评测、后台任务队列 | [查看](https://uuuu-os.github.io/feishuAgent/demo/#dashboard) |
-| M3 会前卡 | 日期 / event_id 定位会议、补充文档、dry-run / 真实发卡确认 | [查看](https://uuuu-os.github.io/feishuAgent/demo/#m3) |
-| M4 会后总结 | 妙记读取、总结卡、任务卡、负责人和截止时间确认 | [查看](https://uuuu-os.github.io/feishuAgent/demo/#m4) |
-| M5 风险提醒 | 真实任务扫描、风险规则、提醒卡 JSON、真实发送保护 | [查看](https://uuuu-os.github.io/feishuAgent/demo/#m5) |
-| 任务追踪 | Review Sessions、Task Mappings、Risk Notifications | [查看](https://uuuu-os.github.io/feishuAgent/demo/#tasks) |
-| 评测中心 | 工具调用轨迹、Policy 门禁、质量分、安全分 | [查看](https://uuuu-os.github.io/feishuAgent/demo/#evaluation) |
+公开链接中的演示页用于快速了解功能流转，不代表真实后端状态。真实 Console 需要本地配置飞书应用、OAuth、测试群、LLM provider、SQLite migration 和后台 worker 后运行。
 
-<details>
-<summary><strong>为什么 README 里放静态演示？</strong></summary>
+GitHub Pages 发布方式：
 
-真实联调依赖本地 `settings.local.json`、飞书 OAuth、测试群、飞书权限、RAG 依赖和后台 worker。开源展示时，访问者通常只想先看项目“长什么样、能做什么”。因此仓库提供一个无需后端的静态展示页，用来解释 Dashboard 信息架构和核心按钮语义；真实运行再按下方命令启动本地服务。
+1. Repository Settings -> Pages
+2. Source 选择 `Deploy from a branch`
+3. Branch 选择 `final`
+4. Folder 选择 `/docs`
 
-</details>
-
-<details>
-<summary><strong>如何发布 GitHub Pages 演示？</strong></summary>
-
-仓库 Settings -> Pages 中选择 `Deploy from a branch`，发布源选择 `final` 分支的 `/docs` 目录。发布后静态演示页地址是：
+发布后访问：
 
 ```text
 https://uuuu-os.github.io/feishuAgent/demo/
 ```
 
-演示页是纯静态 HTML，不读取本地密钥，不连接飞书，也不会触发真实写入。
-
-</details>
+该页面不会读取本地密钥，不连接飞书，也不会触发真实写入。
 
 ## 🏗️ 架构概览
 
