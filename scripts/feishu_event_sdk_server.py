@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     """解析飞书 SDK 长连接参数。"""
 
     parser = argparse.ArgumentParser(
-        description="MeetFlow 飞书官方 SDK WebSocket 回调服务，统一承接 M3/M4 卡片动作。"
+        description="MeetFlow 飞书官方 SDK WebSocket 回调服务，统一承接 M3/M4 卡片动作和群 @ 消息。"
     )
     parser.add_argument("--log-level", default="", help="SDK 日志级别：debug/info/warn/error；不传使用配置。")
     parser.add_argument("--dry-run", action="store_true", help="只打印卡片回调并返回 toast，不执行业务写入。")
@@ -54,6 +54,7 @@ def main() -> int:
     args = parse_args()
     try:
         import lark_oapi as lark
+        from lark_oapi.api.im.v1.model.p2_im_message_receive_v1 import P2ImMessageReceiveV1
         from lark_oapi.event.callback.model.p2_card_action_trigger import (
             P2CardActionTrigger,
             P2CardActionTriggerResponse,
@@ -61,6 +62,15 @@ def main() -> int:
     except ImportError:
         print("缺少飞书 Python SDK：lark-oapi")
         print("请先运行：python3 scripts/setup_lark_oapi_venv.py")
+        return 2
+    except TypeError as error:
+        if "Descriptors cannot be created directly" not in str(error):
+            raise
+        print("当前 Python 环境里的 lark-oapi/protobuf 版本不兼容，无法启动飞书 SDK 长连接。")
+        print("本项目约定用隔离环境运行 SDK 服务，请改用：")
+        print(".venv-lark-oapi/bin/python scripts/feishu_event_sdk_server.py --allow-write")
+        print("如果隔离环境不存在或损坏，请先运行：")
+        print("python3 scripts/setup_lark_oapi_venv.py --recreate")
         return 2
 
     settings = load_settings()
@@ -74,6 +84,7 @@ def main() -> int:
         storage=storage,
         feishu_client=client,
         policy=AgentPolicy(),
+        allow_write=args.allow_write,
     )
     job_queue = JobQueue(settings.storage) if args.enqueue_agent else None
     logger = get_logger("meetflow.feishu_event_sdk_server")
@@ -112,9 +123,26 @@ def main() -> int:
             thread.start()
         return P2CardActionTriggerResponse(result.body)
 
+    def do_im_message_receive(data: P2ImMessageReceiveV1) -> None:
+        """处理 im.message.receive_v1 群消息事件，并复用主动对话入口。"""
+
+        payload = callback_payload_from_sdk_object(lark, data)
+        logger.info("收到 SDK im.message.receive_v1 keys=%s dry_run=%s", sorted(payload.keys()), args.dry_run)
+        if args.dry_run:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+            return None
+        result = dispatcher.dispatch_sdk_message_event(payload)
+        logger.info(
+            "SDK 消息事件处理完成 status=%s body=%s",
+            result.status,
+            json.dumps(result.body, ensure_ascii=False),
+        )
+        return None
+
     event_handler = (
         lark.EventDispatcherHandler.builder("", "")
         .register_p2_card_action_trigger(do_card_action_trigger)
+        .register_p2_im_message_receive_v1(do_im_message_receive)
         .build()
     )
 
@@ -123,7 +151,7 @@ def main() -> int:
     if log_level is not None:
         kwargs["log_level"] = log_level
     ws_client = lark.ws.Client(settings.feishu.app_id, settings.feishu.app_secret, **kwargs)
-    print("MeetFlow 飞书 SDK 长连接回调服务已启动，等待 card.action.trigger。")
+    print("MeetFlow 飞书 SDK 长连接回调服务已启动，等待 card.action.trigger / im.message.receive_v1。")
     print("请确保飞书开放平台 > 事件与回调 > 回调配置 已选择“使用长连接接收回调”。")
     ws_client.start()
     return 0

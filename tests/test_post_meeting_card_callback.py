@@ -165,6 +165,27 @@ class DirectoryFallbackClient(FeishuClient):
         raise AssertionError(f"unexpected path: {path}")
 
 
+class FakeFailingContactRegistry(FakeRegistry):
+    """模拟通讯录搜索失败，但任务创建工具本身没有执行。"""
+
+    def execute(self, tool_call):  # noqa: ANN001 - 与项目现有 ToolRegistry 接口保持一致
+        if tool_call.tool_name == "contact_search_user":
+            return AgentToolResult(
+                call_id=tool_call.call_id,
+                tool_name="contact.search_user",
+                status="error",
+                content="工具 contact_search_user 执行失败",
+                error_message=(
+                    "飞书接口 HTTP 错误 method=POST "
+                    "url=https://open.feishu.cn/open-apis/authen/v2/oauth/token "
+                    "detail=http_status=400 code=20064"
+                ),
+            )
+        if tool_call.tool_name == "tasks_create_task":
+            raise AssertionError("通讯录解析失败时不应继续创建任务")
+        return super().execute(tool_call)
+
+
 class PostMeetingCardCallbackTest(unittest.TestCase):
     """覆盖 M4 按钮卡的修改 / 创建 / 拒绝主路径。"""
 
@@ -830,6 +851,51 @@ class PostMeetingCardCallbackTest(unittest.TestCase):
         self.assertEqual(mapping["owner"], "李健文")
         self.assertEqual(mapping["due_date"], "2026-05-13")
         self.assertEqual(load_pending_action_records(self.settings)["action_test_001"]["status"], "created")
+
+    def test_owner_resolution_failure_reports_auth_error_instead_of_missing_owner(self) -> None:
+        """负责人已填写但通讯录 token 失效时，应提示授权问题而不是误报缺负责人。"""
+
+        client = FakeFeishuClient()
+        payload = {
+            "event": {
+                "context": {"open_message_id": "om_test_auth_failed"},
+                "action": {
+                    "value": {
+                        "action": "confirm_create_task",
+                        "item_id": "action_test_001",
+                        "title": "整理答辩材料",
+                        "owner_field": "owner_override__action_test_001",
+                        "due_date_field": "due_date_override__action_test_001",
+                        "meeting_id": "meeting_test_001",
+                        "minute_token": "minute_test_001",
+                        "project_id": "meetflow",
+                    },
+                    "form_value": {
+                        "pending_form_action_test_001": {
+                            "owner_override__action_test_001": "李健文",
+                            "due_date_override__action_test_001": "2026-05-13",
+                        }
+                    },
+                },
+            }
+        }
+
+        with patch("adapters.create_feishu_tool_registry", return_value=FakeFailingContactRegistry()):
+            result = handle_post_meeting_card_callback(
+                payload=payload,
+                settings=self.settings,
+                client=client,
+                storage=self.storage,
+                policy=AgentPolicy(),
+            )
+
+        self.assertEqual(result.status, "error")
+        self.assertIn("OAuth token 已失效", result.message)
+        self.assertNotIn("缺少负责人", result.message)
+        records = load_pending_action_records(self.settings)
+        self.assertEqual(records["action_test_001"]["status"], "pending")
+        self.assertEqual(records["action_test_001"]["value"]["owner"], "李健文")
+        self.assertEqual(records["action_test_001"]["value"]["due_date"], "2026-05-13")
 
     def test_confirm_button_creates_task_and_marks_created(self) -> None:
         client = FakeFeishuClient()

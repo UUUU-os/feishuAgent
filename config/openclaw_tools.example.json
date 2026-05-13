@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "entrypoint": "python3 scripts/meetflow_cli.py",
+  "entrypoint": "meetflow",
   "safety": {
     "default_dry_run": true,
     "requires_allow_write_for_side_effects": true,
@@ -12,7 +12,7 @@
     {
       "name": "meetflow_health",
       "description": "检查 MeetFlow 本地配置、存储、migration 和服务状态。",
-      "command": "python3 scripts/meetflow_cli.py health",
+      "command": "meetflow workflow +health",
       "input_schema": {
         "type": "object",
         "properties": {}
@@ -21,7 +21,7 @@
     {
       "name": "meetflow_pre_meeting",
       "description": "生成 M3 会前背景知识卡，默认 dry-run，真实发卡必须 allow_write。",
-      "command": "python3 scripts/meetflow_cli.py pre-meeting",
+      "command": "meetflow workflow +pre-meeting",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -41,7 +41,7 @@
     {
       "name": "meetflow_post_meeting",
       "description": "读取飞书妙记并生成 M4 会后总结卡和待确认任务卡，默认 dry-run。",
-      "command": "python3 scripts/meetflow_cli.py post-meeting",
+      "command": "meetflow workflow +post-meeting",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -55,7 +55,7 @@
     {
       "name": "meetflow_task_cards",
       "description": "基于妙记生成 D4 按人分组任务卡视角摘要，复用 M4 受控链路。",
-      "command": "python3 scripts/meetflow_cli.py task-cards",
+      "command": "meetflow workflow +task-cards",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -68,7 +68,7 @@
     {
       "name": "meetflow_risk_scan",
       "description": "执行 M5 风险巡检，local 后端用于 dry-run 演示，feishu 后端读取真实任务。",
-      "command": "python3 scripts/meetflow_cli.py risk-scan",
+      "command": "meetflow workflow +risk-scan",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -82,7 +82,7 @@
     {
       "name": "meetflow_eval",
       "description": "运行 Agent 轨迹评测并输出评分和报告路径。",
-      "command": "python3 scripts/meetflow_cli.py eval",
+      "command": "meetflow workflow +eval",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -96,7 +96,7 @@
     {
       "name": "meetflow_demo_replay",
       "description": "运行离线 E2E 回放，用于无飞书网络时的演示兜底。",
-      "command": "python3 scripts/meetflow_cli.py demo-replay",
+      "command": "meetflow workflow +demo-replay",
       "input_schema": {
         "type": "object",
         "properties": {

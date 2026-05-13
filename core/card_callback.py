@@ -58,6 +58,19 @@ class CardCallbackResult:
         return response
 
 
+@dataclass(slots=True)
+class OwnerResolutionResult:
+    """卡片确认时负责人解析结果。
+
+    区分“通讯录没有匹配用户”和“通讯录工具本身失败”很重要：前者可以继续
+    交给 Policy 按缺负责人处理，后者通常是 OAuth/token/权限问题，应该把
+    真实原因反馈给用户，避免误导为用户没填写负责人。
+    """
+
+    open_ids: list[str] = field(default_factory=list)
+    error_message: str = ""
+
+
 def handle_post_meeting_card_callback(
     payload: dict[str, Any],
     settings: Settings,
@@ -747,11 +760,43 @@ def confirm_create_task_from_card(
     if owner_open_id:
         assignee_ids = [owner_open_id]
     else:
-        assignee_ids = resolve_owner_open_ids_for_callback(
+        owner_resolution = resolve_owner_open_ids_for_callback(
             registry,
             action_item.owner,
             operator_open_id=extract_callback_operator_open_id(payload),
         )
+        if owner_resolution.error_message:
+            reason = owner_resolution.error_message
+            response_card = build_card_from_callback_value(
+                action_item_to_callback_value(action_item, context=context, action_value=merged_action_value),
+                mode="edit",
+                status_message=reason[:180],
+                status_kind="error",
+            )
+            mark_pending_action_status(
+                settings,
+                action_item.item_id,
+                status="pending",
+                result={"status": "error", "message": reason, "owner": action_item.owner},
+            )
+            append_card_callback_log(
+                settings,
+                payload=payload,
+                action_value=action_value,
+                status="owner_resolution_failed",
+                result={"reason": reason, "owner": action_item.owner},
+            )
+            updated_card = apply_callback_card_update(
+                client=client,
+                settings=settings,
+                payload=payload,
+                action_value=action_value,
+                card=response_card,
+            )
+            if updated_card:
+                response_card = updated_card
+            return CardCallbackResult(status="error", message=reason[:180], response_card=response_card)
+        assignee_ids = owner_resolution.open_ids
     arguments = build_task_create_arguments(
         action_item=action_item,
         context=context,
@@ -1302,23 +1347,26 @@ def workflow_context_from_callback_value(action_value: dict[str, Any]) -> Workfl
     )
 
 
-def resolve_owner_open_ids_for_callback(registry: Any, owner: str, operator_open_id: str = "") -> list[str]:
+def resolve_owner_open_ids_for_callback(registry: Any, owner: str, operator_open_id: str = "") -> OwnerResolutionResult:
     """把负责人文本解析为 open_id。
 
     卡片回调里用户点击按钮时，飞书 payload 会带操作人的 open_id。负责人填写
     “我/本人/自己”时直接使用这个值，比再走 OAuth 当前用户接口更稳定，也避免
-    refresh_token 失效导致明明字段完整却回到待确认。
+    refresh_token 失效导致明明字段完整却回到待确认。普通姓名仍走通讯录解析；
+    如果通讯录工具本身失败，要返回错误信息并阻断创建，避免误报缺负责人。
     """
 
     owner_text = owner.strip()
     if not owner_text or is_group_owner_candidate(owner_text):
-        return []
+        return OwnerResolutionResult()
     if owner_text in {"我", "本人", "自己"}:
         if operator_open_id.strip():
-            return [operator_open_id.strip()]
+            return OwnerResolutionResult(open_ids=[operator_open_id.strip()])
         result = registry.execute(AgentToolCall(call_id="callback_resolve_current_user", tool_name="contact_get_current_user", arguments={}))
+        if not result.is_success():
+            return OwnerResolutionResult(error_message=build_owner_resolution_error_message(owner_text, result))
         open_id = str(result.data.get("open_id") or result.data.get("user_id") or "")
-        return [open_id] if open_id else []
+        return OwnerResolutionResult(open_ids=[open_id] if open_id else [])
 
     result = registry.execute(
         AgentToolCall(
@@ -1327,6 +1375,8 @@ def resolve_owner_open_ids_for_callback(registry: Any, owner: str, operator_open
             arguments={"query": owner_text, "page_size": 5, "identity": "tenant"},
         )
     )
+    if not result.is_success():
+        return OwnerResolutionResult(error_message=build_owner_resolution_error_message(owner_text, result))
     items = result.data.get("items") or result.data.get("users") or []
     if isinstance(items, list):
         for item in items:
@@ -1334,8 +1384,20 @@ def resolve_owner_open_ids_for_callback(registry: Any, owner: str, operator_open
                 continue
             open_id = str(item.get("open_id") or item.get("user_id") or item.get("id") or "")
             if open_id:
-                return [open_id]
-    return []
+                return OwnerResolutionResult(open_ids=[open_id])
+    return OwnerResolutionResult()
+
+
+def build_owner_resolution_error_message(owner: str, result: Any) -> str:
+    """构造负责人解析失败提示，保留飞书排障信息但不泄露 token。"""
+
+    detail = str(getattr(result, "error_message", "") or getattr(result, "content", "") or "未知错误").strip()
+    if "20064" in detail or "refresh token" in detail.lower() or "oauth/token" in detail:
+        return (
+            f"负责人“{owner}”已填写，但当前用户 OAuth token 已失效或 refresh_token 不可用，"
+            "无法通过飞书通讯录解析 open_id。请重新执行用户授权后再点击确认创建。"
+        )
+    return f"负责人“{owner}”已填写，但飞书通讯录解析失败：{detail}"
 
 
 def extract_callback_operator_open_id(payload: dict[str, Any]) -> str:

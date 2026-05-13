@@ -444,7 +444,7 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
 
 - 优先级：`P1`
 - 目标：为后续监听飞书文档、表格、知识库变化预留索引刷新入口
-- 当前实现状态：已完成本地队列与刷新入口
+- 当前实现状态：已完成本地队列、刷新入口、飞书文档事件订阅状态记录和后台刷新状态更新契约
 - M3 实现边界：
   - 记录资源 `updated_at`、`checksum`、`last_indexed_at`、`index_status`
   - 支持按资源 token 手动触发重新索引
@@ -453,6 +453,11 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - `core/knowledge.py`
   - `core/__init__.py`
   - `scripts/knowledge_refresh_demo.py`
+  - `scripts/pre_meeting_live_test.py`
+  - `scripts/rag_add_document_live.py`
+  - `scripts/live_environment_watch.py`
+  - `scripts/meetflow_daemon.py`
+  - `scripts/meetflow_worker.py`
 - 已实现的核心能力：
   - 新增 `IndexJob` 模型，记录 `job_id`、资源 ID、资源类型、刷新原因、状态、失败原因、chunk 数和 token 数
   - `KnowledgeIndexStore.initialize()` 新增 `index_jobs` SQLite 表和 `status/resource_id` 索引
@@ -460,16 +465,19 @@ RAGFlow 阅读笔记中的可借鉴设计已转化为 M3 后续任务：
   - 新增 `refresh_resource()`，执行单个资源重索引，并把任务状态更新为 `running/succeeded/skipped/failed`
   - 新增 `enqueue_recent_document_refresh_jobs()`，为最近索引过的资源生成 `scheduled` 刷新任务
   - 新增 `list_index_jobs()` 和 `get_index_job()`，便于调试和后续 worker 查看任务状态
+  - 新增 `knowledge_event_subscriptions` 表，记录已加入 RAG 的飞书文档订阅状态、file_token、file_type 和失败原因
+  - 新增 `save_event_subscription()`、`get_event_subscription()`、`list_event_subscriptions()` 和 `update_index_job_status()`，支撑长连接事件命中订阅文档后写入/更新 RAG 刷新任务
+  - `scripts/pre_meeting_live_test.py::ensure_rag_event_subscription()` 会在文档索引后调用 `FeishuClient.subscribe_drive_file()`，订阅失败时只记录失败状态，不阻断会前主链路
   - `ensure_knowledge_chunk_schema()` 改为幂等迁移，兼容旧库已经部分添加字段时重复初始化
   - `scripts/knowledge_refresh_demo.py` 使用 `NoopVectorIndex` 演示本地刷新链路，避免 demo 依赖外部 embedding 服务或下载模型
 - 当前实现边界：
-  - 当前已实现队列、手动刷新和定时候选任务生成；后台 worker 消费循环和飞书事件订阅接入仍是后续增强
-  - 当前刷新入口依赖调用方传入已拉取的 `Resource/RetrievedResource`；真实 worker 后续需要负责按资源 token 调飞书接口拉取最新内容
+  - 当前已实现队列、手动刷新、定时候选任务生成、事件订阅状态落盘、daemon/worker 更新 job 状态的底层契约
+  - 真实飞书长连接仍依赖 `lark-cli event +subscribe` 或 SDK 回调服务运行；如果长连接未启动，系统继续依赖定时扫描兜底
 - 当前验证方式：
   - 已通过 `python3 scripts/knowledge_refresh_demo.py` 验证：手动 job 从 `pending` 更新为 `succeeded`，并记录 chunk 数、token 数；定时校验可生成 `scheduled` 的 `pending` job
+  - 2026-05-13 回归验证：`python3 -m py_compile core/knowledge.py scripts/pre_meeting_live_test.py scripts/rag_add_document_live.py scripts/live_environment_watch.py scripts/meetflow_daemon.py scripts/meetflow_worker.py tests/test_knowledge_tools.py` 通过
+  - 2026-05-13 回归验证：`python3 -m unittest tests.test_knowledge_tools` 通过，覆盖订阅状态按 resource_id/file_token 查询、重复订阅跳过和事件刷新 job 状态更新
 - 后续增强方向：
-  - 接入飞书事件订阅，把文档/表格/知识库变更事件写入 `index_jobs`
-  - 后台 worker 消费任务并更新 chunk 与检索索引
   - 对权限变化、删除、移动等事件做索引失效处理
   - 记录索引进度、chunk 数、token 数、失败原因和最近处理时间，避免会前工作流误用未完成或已失效索引
 - 设计澄清：

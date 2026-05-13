@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from core.agent_loop import MeetFlowAgentLoop
+from core.agent_loop import MeetFlowAgentLoop, build_runtime_context_message
 from core.llm import GenerationSettings, LLMProvider, LLMResponse
 from core.models import AgentMessage, AgentToolCall, Event, WorkflowContext
 from core.policy import AgentPolicy
@@ -117,6 +117,20 @@ class MeetFlowAgentLoopAllowWriteTest(unittest.TestCase):
         self.assertEqual(second_result.payload["agent_trace"]["tool_calls"][0]["tool_name"], "im.send_card")
         self.assertEqual(second_result.payload["agent_trace"]["policy_decisions"][0]["status"], "allow")
         self.assertEqual(second_result.payload["intelligence_signals"]["called_tools"], ["im.send_card"])
+
+    def test_runtime_context_includes_pre_meeting_card_payload_for_d2_auto_send(self) -> None:
+        self.context.raw_context["pre_meeting_card_payload"] = {
+            "title": "MeetFlow 测试会议 会前背景知识卡",
+            "summary": "新版 D2 卡片摘要",
+            "facts": [{"label": "核心背景知识", "value": "- 示例"}],
+            "card": {"elements": [{"tag": "markdown", "content": "核心背景知识"}]},
+        }
+
+        message = build_runtime_context_message(self.context, "发送 D2 会前卡")
+
+        self.assertIn("pre_meeting_card_payload", message)
+        self.assertIn("MeetFlow 测试会议 会前背景知识卡", message)
+        self.assertIn("核心背景知识", message)
 
 
 if __name__ == "__main__":

@@ -120,7 +120,13 @@ def main() -> int:
             minutes=args.minute,
             identity=identity,
         )
-        index_summaries = index_supporting_resources(knowledge_store, resources, force=args.force_index)
+        index_summaries = index_supporting_resources(
+            knowledge_store,
+            resources,
+            force=args.force_index,
+            client=client,
+            identity=identity,
+        )
     except FeishuAuthError as error:
         logger.error("飞书鉴权失败：%s", error)
         print(
@@ -304,16 +310,25 @@ def index_supporting_resources(
     knowledge_store: KnowledgeIndexStore,
     resources: list[Resource],
     force: bool = False,
+    client: FeishuClient | None = None,
+    identity: str = "user",
 ) -> list[dict[str, Any]]:
     """按当前 embedding 指纹索引本次测试资源。
 
     默认复用 updated_at、checksum 和 embedding 指纹均未变化的已有索引，避免真实联调时
     反复下载 embedding 模型或重写向量库；需要验证清洗/切分变更时可传 `--force-index`。
+    对可订阅的飞书文档，索引后同步注册云文档变化事件，保证后续改动能唤醒 RAG 刷新。
     """
 
     summaries: list[dict[str, Any]] = []
     for resource in resources:
         result = knowledge_store.index_resource(resource, force=force)
+        subscription = ensure_rag_event_subscription(
+            knowledge_store=knowledge_store,
+            client=client,
+            resource=resource,
+            identity=identity,
+        )
         summaries.append(
             {
                 "resource_id": resource.resource_id,
@@ -323,9 +338,67 @@ def index_supporting_resources(
                 "skipped": result.skipped,
                 "chunk_count": result.document.chunk_count,
                 "knowledge_namespace": result.document.metadata.get("knowledge_namespace", ""),
+                "event_subscription": subscription,
             }
         )
     return summaries
+
+
+def ensure_rag_event_subscription(
+    *,
+    knowledge_store: KnowledgeIndexStore,
+    client: FeishuClient | None,
+    resource: Resource,
+    identity: str,
+) -> dict[str, Any]:
+    """首次把飞书文档纳入 RAG 后，建立云文档变化事件订阅。
+
+    订阅失败不阻断 M3/M4 主链路：权限、文件类型或开放平台事件配置不完整时，
+    仍把失败状态落库，观察台和后台扫描可以继续用定时刷新兜底。
+    """
+
+    if client is None:
+        return {"status": "skipped", "reason": "missing_client"}
+    if not is_subscribable_knowledge_resource(resource):
+        return {"status": "skipped", "reason": "unsupported_resource_type"}
+    existing = knowledge_store.get_event_subscription(resource.resource_id)
+    if existing and existing.get("status") == "succeeded":
+        return {"status": "succeeded", "reason": "already_subscribed", "file_token": existing.get("file_token", "")}
+
+    file_token = str(resource.source_meta.get("document_id") or resource.resource_id or "").strip()
+    file_type = client.detect_drive_file_type(resource.source_url, default=resource.source_meta.get("file_type", "docx"))
+    try:
+        client.subscribe_drive_file(file_token=file_token, file_type=file_type, identity=identity)  # type: ignore[arg-type]
+    except FeishuAPIError as error:
+        knowledge_store.save_event_subscription(
+            resource_id=resource.resource_id,
+            resource_type=resource.resource_type,
+            source_url=resource.source_url,
+            file_token=file_token,
+            file_type=file_type,
+            status="failed",
+            last_error=str(error),
+        )
+        return {"status": "failed", "file_token": file_token, "file_type": file_type, "error": str(error)}
+
+    knowledge_store.save_event_subscription(
+        resource_id=resource.resource_id,
+        resource_type=resource.resource_type,
+        source_url=resource.source_url,
+        file_token=file_token,
+        file_type=file_type,
+        status="succeeded",
+    )
+    return {"status": "succeeded", "file_token": file_token, "file_type": file_type}
+
+
+def is_subscribable_knowledge_resource(resource: Resource) -> bool:
+    """判断资源是否支持注册飞书云文档变化事件。"""
+
+    normalized = str(resource.resource_type or "").lower()
+    if normalized not in {"feishu_document", "doc", "docx", "document", "wiki", "sheet", "bitable"}:
+        return False
+    return bool(resource.resource_id)
 
 
 def build_trigger_event(event: CalendarEvent, project_id: str, resources: list[Resource]) -> dict[str, Any]:

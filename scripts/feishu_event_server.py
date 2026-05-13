@@ -210,6 +210,7 @@ def main() -> int:
             storage=storage,
             feishu_client=client,
             policy=AgentPolicy(),
+            allow_write=args.allow_write,
         ),
         paths=paths,
         execute_agent=args.execute_agent,

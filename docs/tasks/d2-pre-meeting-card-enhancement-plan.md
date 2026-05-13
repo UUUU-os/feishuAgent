@@ -526,3 +526,66 @@ python3 -m unittest tests.test_pre_meeting_d2_evidence_pack tests.test_pre_meeti
 `team-work-division.md`、`tasks.md` 和本 D2 文档；当前目录不是有效 Git 仓库，
 无法记录实际分支名或 `git diff`；未重新执行真实飞书发卡，下一步应使用
 `scripts/card_send_live.py m3 ... --allow-write/--write-report` 重新发送会前卡片并确认飞书端首屏结构。
+
+2026-05-13 修复自动监听触发 M3 时回退旧版会前卡片的问题。
+
+真实观察台 `scripts/live_environment_watch.py --enable-m3 --allow-card-send` 触发的卡片仍显示
+`scripted_debug 已完成真实会议读取、知识检索和受控发卡`，且会议时间为“待确认”。根因不是
+D2 卡片模板丢失，而是 `AgentLoop` 传给 LLM 的运行时上下文没有包含
+`pre_meeting_card_payload`，`ScriptedDebugProvider` 只能自行构造一张简化调试卡，绕过了
+`PreMeetingBriefWorkflow.prepare_context()` 已生成的 D2 完整卡片。
+
+本轮修改：
+
+- `core/agent_loop.py::build_runtime_context_message()` 将确定性阶段生成的
+  `pre_meeting_card_payload` 放入运行时上下文。
+- `scripts/agent_demo.py::build_debug_card_arguments()` 优先使用运行时上下文中的
+  D2 `card_payload.card`、`title`、`summary`、`facts` 发送完整卡片；仅缺少该 payload 时才退回调试卡。
+- `cards/pre_meeting.py::build_pre_meeting_card_title()` 改为大小写不敏感判断 `MeetFlow` 前缀，
+  避免 `MeetFLow 需求评审会` 被渲染成 `MeetFlow MeetFLow 需求评审会...`。
+- `tests/test_pre_meeting_d2_evidence_pack.py` 和 `tests/test_agent_loop_allow_write.py`
+  增加回归用例，锁定自动触发链路能拿到并发送 D2 卡片 payload。
+
+验证命令：
+
+```bash
+python3 -m py_compile core/agent_loop.py scripts/agent_demo.py cards/pre_meeting.py tests/test_pre_meeting_d2_evidence_pack.py tests/test_agent_loop_allow_write.py
+python3 -m unittest tests.test_pre_meeting_d2_evidence_pack tests.test_agent_loop_allow_write
+git diff --check -- core/agent_loop.py scripts/agent_demo.py cards/pre_meeting.py tests/test_pre_meeting_d2_evidence_pack.py tests/test_agent_loop_allow_write.py
+```
+
+结果：编译检查通过，相关单测 4 条通过。尚未重新真实发卡；下一步用观察台原命令重新触发
+M3，确认飞书群中首屏为 D2 的“会议时间（权威）/核心背景知识/原始链接”结构。
+
+2026-05-13 移除 D2 会前背景卡按钮区。
+
+用户复查真实飞书卡片时发现 D2 会前背景卡仍带有“刷新背景 / 生成待办草案 / 查看历史 / 发给我”
+按钮。根因是 `cards/pre_meeting.py::build_pre_meeting_card()` 在 D2 首屏结构之后仍无条件追加
+`build_pre_meeting_card_actions()`。这属于早期交互卡设计遗留；当前 D2 展示口径要求纯内容卡，
+只包含标题、会议时间、核心背景知识、原始链接和可选证据引用。
+
+本轮修改 `cards/pre_meeting.py`，D2 会前背景卡不再渲染 action 按钮；保留
+`build_pre_meeting_card_actions()` 和回调处理代码，避免影响旧卡片或后续其它入口。同步更新
+`tests/test_pre_meeting_d2_evidence_pack.py`，断言 D2 卡片 JSON 中不再包含按钮文案。
+
+2026-05-13 对齐自动监听 M3 触发命令与 D2 真实演示命令。
+
+用户复查发现 `scripts/live_environment_watch.py --enable-m3 --allow-card-send` 虽然会调用
+`scripts/card_send_live.py m3`，但只传了自动扫描得到的 `--event-id`，没有传 D2 文档推荐的
+`--llm-provider settings` 和 `--write-report`，因此会落回 `card_send_live.py` 的默认
+`scripted_debug`，表现为“看起来没有调用真实 Agent / 卡片格式不对”。
+
+本轮修改：
+
+- `scripts/live_environment_watch.py` 新增 `--m3-llm-provider`，默认 `settings`；默认开启 M3
+  `--write-report`，可用 `--no-m3-write-report` 关闭。
+- `scripts/meetflow_daemon.py::build_m3_card_send_command()` 统一构造自动 M3 发卡命令：
+  使用扫描到的精确 `--event-id`，并传入 `--llm-provider <m3_llm_provider>` 和可选
+  `--write-report`。
+- daemon enqueue 模式也把 `llm_provider` 与 `write_report` 写入 job payload，worker 再由
+  `scripts/meetflow_worker.py::build_pre_meeting_command()` 透传给 `card_send_live.py m3`。
+- 新增 `tests/test_m3_auto_trigger_command.py`，锁定观察台默认使用 D2 settings provider、
+  自动命令包含 `--event-id`、`--llm-provider settings` 和 `--write-report`。
+
+说明：自动监听脚本不使用 `--date today --event-title ...`，因为它已经从日历扫描拿到了
+精确 `event_id`；其它关键参数与 D2 手工命令保持一致。

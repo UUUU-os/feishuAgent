@@ -459,6 +459,11 @@ def build_runtime_context_message(context: WorkflowContext, workflow_goal: str) 
         "memory_snapshot": context.memory_snapshot,
         "event": context.event.to_dict() if context.event else None,
     }
+    pre_meeting_card_payload = context.raw_context.get("pre_meeting_card_payload")
+    if isinstance(pre_meeting_card_payload, dict):
+        # D2 会前卡片由确定性阶段生成，传给 LLM/调试模型时只作为受控发送参数，
+        # 避免自动触发链路退回到通用 im.send_card 最小卡片。
+        compact_context["pre_meeting_card_payload"] = pre_meeting_card_payload
     return (
         f"工作流目标：{workflow_goal or '请根据上下文完成当前工作流目标。'}\n\n"
         "运行时上下文 JSON：\n"

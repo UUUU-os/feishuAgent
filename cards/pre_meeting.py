@@ -45,13 +45,6 @@ def build_pre_meeting_card(brief: Any) -> dict[str, Any]:
                 },
             ]
         )
-    elements.extend(
-        [
-            {"tag": "hr"},
-            build_pre_meeting_card_actions(brief),
-        ]
-    )
-
     return {
         "config": {
             "wide_screen_mode": True,
@@ -71,7 +64,7 @@ def build_pre_meeting_card_title(brief: Any) -> str:
     """生成用户在飞书消息列表里能直接识别的会前背景知识卡标题。"""
 
     topic = safe_text(getattr(brief, "topic", "")) or "测试会议"
-    if topic.startswith("MeetFlow"):
+    if topic.lower().startswith("meetflow"):
         return f"{topic} 会前背景知识卡"
     return f"MeetFlow {topic} 会前背景知识卡"
 

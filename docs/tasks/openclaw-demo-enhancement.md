@@ -138,28 +138,28 @@ OpenClaw
 推荐 CLI 命令形态：
 
 ```bash
-/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_cli.py health
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_cli.py workflow +health
 
-/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_cli.py pre-meeting \
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_cli.py workflow +pre-meeting \
   --date today \
   --event-title "项目需求评审会" \
   --provider scripted_debug \
   --dry-run
 
-/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_cli.py post-meeting \
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_cli.py workflow +post-meeting \
   --minute "<飞书妙记链接或 token>" \
   --provider scripted_debug \
   --dry-run
 
-/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_cli.py risk-scan \
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_cli.py workflow +risk-scan \
   --backend local \
   --dry-run
 
-/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_cli.py eval \
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_cli.py workflow +eval \
   --suite agent_trajectory \
   --write-report
 
-/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_cli.py demo-replay \
+/home/tanyd/anaconda3/envs/meetflow/bin/python scripts/meetflow_cli.py workflow +demo-replay \
   --scenario project_review \
   --dry-run
 ```
@@ -466,6 +466,9 @@ Agent 能力要从“调用单个 LLM 总结”升级为“多步骤工作流 Ag
 ---
 
 ## 10. D7：评测体系优化任务
+
+首轮落地记录与评测结果见
+[D7：RAG 与 Agent 效果评测落地记录](d7-rag-effectiveness-evaluation.md)。
 
 ### 10.1 当前目标
 

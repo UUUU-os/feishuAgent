@@ -146,18 +146,19 @@ def _build_post_meeting_send_summary_card_tool(
     return AgentTool(
         internal_name="post_meeting.send_summary_card",
         description=(
-            "发送 M4 会后总结卡。待确认任务卡默认由会后总结卡的“查看任务卡”按钮触发发送；"
+            "发送 M4 会后总结卡。该工具固定发送 summary_card 到测试群，并使用机器人身份；"
+            "待确认任务卡只能由会后总结卡的“查看任务卡”按钮触发发送。"
             "写操作必须携带 idempotency_key 并经过 AgentPolicy。"
         ),
         parameters={
             "type": "object",
             "properties": {
                 "artifacts": {"type": "object", "description": "M4 artifacts。"},
-                "card_type": {"type": "string", "description": "summary_card 或 pending_card。"},
+                "card_type": {"type": "string", "description": "兼容旧参数；本工具始终发送 summary_card。"},
                 "receive_id": {"type": "string"},
                 "receive_id_type": {"type": "string"},
                 "idempotency_key": {"type": "string"},
-                "identity": {"type": "string", "description": "user 或 tenant。"},
+                "identity": {"type": "string", "description": "兼容旧参数；本工具始终使用 tenant/机器人身份。"},
             },
             "required": ["artifacts"],
         },
@@ -285,11 +286,17 @@ def send_post_meeting_card_tool_result(
 ) -> dict[str, Any]:
     """工具实现：发送 M4 卡片；本地模式返回 dry-run 结构。"""
 
+    artifacts = ensure_complete_post_meeting_artifacts(artifacts, client=client)
     artifacts = resolve_task_owner_candidates_for_artifacts(artifacts, client=client)
     card_payloads = artifacts.get("card_payloads") if isinstance(artifacts, dict) else {}
     if not isinstance(card_payloads, dict):
         card_payloads = {}
-    selected_card_type = card_type if card_type in {"summary_card", "pending_card"} else "summary_card"
+    # 这个工具名和 Agent 暴露语义都是“发送会后总结卡”。真实 D4 任务卡
+    # 需要用户点击总结卡上的“查看任务卡”后由回调发送，不能让模型在主
+    # 链路里直接选择 pending_card，否则会出现空任务卡、用户身份私聊等
+    # 演示不可控行为。
+    requested_card_type = card_type if card_type in {"summary_card", "pending_card"} else "summary_card"
+    selected_card_type = "summary_card"
     card = card_payloads.get(selected_card_type)
     if not isinstance(card, dict):
         rebuilt = build_post_meeting_artifacts_from_input(post_meeting_input_from_artifacts(artifacts))
@@ -297,12 +304,13 @@ def send_post_meeting_card_tool_result(
     if not isinstance(card, dict) or not card:
         raise ValueError(f"未找到可发送的 M4 卡片 payload：{selected_card_type}")
 
-    final_receive_id = receive_id or default_chat_id
+    final_receive_id = receive_id if receive_id_type == "chat_id" and str(receive_id).startswith("oc_") else default_chat_id
     if client is None:
         return {
             "sent": False,
             "dry_run": True,
             "card_type": selected_card_type,
+            "requested_card_type": requested_card_type,
             "receive_id": final_receive_id,
             "idempotency_key": idempotency_key,
             "card_title": card.get("header", {}).get("title", {}).get("content", ""),
@@ -312,13 +320,14 @@ def send_post_meeting_card_tool_result(
     result = client.send_card_message(
         receive_id=final_receive_id,
         card=card,
-        receive_id_type=receive_id_type or "chat_id",
+        receive_id_type="chat_id",
         idempotency_key=idempotency_key,
-        identity=normalize_identity(identity),
+        identity="tenant",
     )
     return {
         "sent": True,
         "card_type": selected_card_type,
+        "requested_card_type": requested_card_type,
         "receive_id": final_receive_id,
         "idempotency_key": idempotency_key,
         "result": result,
@@ -334,6 +343,7 @@ def save_pending_actions_tool_result(
 ) -> dict[str, Any]:
     """工具实现：保存待确认 Action Item 的本地恢复上下文。"""
 
+    artifacts = ensure_complete_post_meeting_artifacts(artifacts, client=client)
     artifacts = resolve_task_owner_candidates_for_artifacts(artifacts, client=client)
     if storage is None:
         return {
@@ -355,6 +365,87 @@ def save_pending_actions_tool_result(
         "item_ids": [value.get("item_id", "") for value in values],
         "idempotency_key": idempotency_key,
     }
+
+
+def ensure_complete_post_meeting_artifacts(
+    artifacts: dict[str, Any],
+    client: FeishuClient | None,
+) -> dict[str, Any]:
+    """确保发卡/保存前拿到完整 M4 artifacts。
+
+    真实 LLM 在多轮工具调用后，可能只把 workflow_input 或空的
+    action_items/pending_action_items 传给写工具。写工具不能直接相信这个
+    “空壳 artifacts”，否则会发出 0 结论/0 行动项的空会后卡。这里在发现
+    artifacts 缺少结构化产物但仍有 minute_token 时，回源读取妙记并重新构建
+    D3/D4 artifacts，保证自动监听和手动直发使用同一套确定性抽取逻辑。
+    """
+
+    if not isinstance(artifacts, dict):
+        return artifacts
+    if artifacts_has_post_meeting_content(artifacts):
+        return artifacts
+    minute_token = extract_minute_token_from_artifacts(artifacts)
+    if not minute_token or client is None:
+        return artifacts
+    try:
+        resource = client.fetch_minute_resource(minute=minute_token, include_artifacts=True, identity="user")
+    except Exception:
+        return artifacts
+    workflow_input = artifacts.get("workflow_input") if isinstance(artifacts.get("workflow_input"), dict) else {}
+    rebuilt = build_post_meeting_artifacts_from_input(
+        post_meeting_input_from_arguments(
+            {
+                "minute_resource": resource.to_dict(),
+                "minute": minute_token,
+                "meeting_id": workflow_input.get("meeting_id") or minute_token,
+                "calendar_event_id": workflow_input.get("calendar_event_id") or "",
+                "project_id": workflow_input.get("project_id") or "meetflow",
+                "topic": workflow_input.get("topic") or resource.title,
+                "source_url": workflow_input.get("source_url") or resource.source_url,
+            }
+        )
+    )
+    rebuilt.extra.update(dict(artifacts.get("extra") or {}))
+    merge_d3_review_fields(rebuilt)
+    rebuilt.card_payloads["summary_card"] = build_post_meeting_summary_card(rebuilt)
+    rebuilt.card_payloads["pending_card"] = build_pending_action_items_card(rebuilt)
+    return rebuilt.to_dict()
+
+
+def artifacts_has_post_meeting_content(artifacts: dict[str, Any]) -> bool:
+    """判断 artifacts 是否已经包含可用于会后卡片的结构化内容。"""
+
+    for key in ("action_items", "pending_action_items", "decisions", "risks", "evidence_pack"):
+        value = artifacts.get(key)
+        if isinstance(value, list) and value:
+            return True
+        if isinstance(value, dict) and value.get("items"):
+            return True
+    workflow_input = artifacts.get("workflow_input")
+    return isinstance(workflow_input, dict) and bool(str(workflow_input.get("raw_text") or "").strip())
+
+
+def extract_minute_token_from_artifacts(artifacts: dict[str, Any]) -> str:
+    """从不完整 artifacts 中尽力提取妙记 token。"""
+
+    workflow_input = artifacts.get("workflow_input") if isinstance(artifacts.get("workflow_input"), dict) else {}
+    candidates = [
+        workflow_input.get("minute_token"),
+        workflow_input.get("source_id"),
+        workflow_input.get("source_url"),
+        artifacts.get("minute_token"),
+        artifacts.get("source_id"),
+        artifacts.get("source_url"),
+    ]
+    for candidate in candidates:
+        text = str(candidate or "").strip()
+        if not text:
+            continue
+        if "/minutes/" in text:
+            return text.rsplit("/minutes/", 1)[-1].split("?", 1)[0].split("#", 1)[0].strip("/")
+        if text.startswith("obcn"):
+            return text
+    return ""
 
 
 def resolve_task_owner_candidates_for_artifacts(
@@ -646,10 +737,12 @@ def rebuild_post_meeting_artifacts_object(artifacts: dict[str, Any]) -> Any:
     rebuilt.extra.update(dict(artifacts.get("extra") or {}))
     action_items = artifacts.get("action_items")
     pending_items = artifacts.get("pending_action_items")
-    if isinstance(action_items, list):
+    if isinstance(action_items, list) and action_items:
         rebuilt.action_items = [action_item_from_dict(item) for item in action_items if isinstance(item, dict)]
-    if isinstance(pending_items, list):
+    if isinstance(pending_items, list) and pending_items:
         rebuilt.pending_action_items = [action_item_from_dict(item) for item in pending_items if isinstance(item, dict)]
+    elif isinstance(action_items, list) and action_items:
+        rebuilt.pending_action_items = [item for item in rebuilt.action_items if item.needs_confirm]
     merge_d3_review_fields(rebuilt)
     rebuilt.card_payloads["summary_card"] = build_post_meeting_summary_card(rebuilt)
     rebuilt.card_payloads["pending_card"] = build_pending_action_items_card(rebuilt)

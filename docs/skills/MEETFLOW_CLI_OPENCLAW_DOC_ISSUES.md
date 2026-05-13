@@ -12,7 +12,7 @@
 ## 2. `live d3-card` 默认不是 dry-run
 
 - 不一致位置：`docs/openclaw-meetflow-tool-guide.md` 开头写有“所有命令默认是 dry-run”。
-- 代码真实情况：`scripts/meetflow_cli.py live d3-card` 不加 `--dry-run` 时，会调用 `scripts/card_send_live.py m4` 且不附加 `--dry-run`；`card_send_live.py m4` 会包装真实发卡链路。
+- 代码真实情况：推荐命令为 `scripts/meetflow_cli.py live +d3-card`；旧入口 `live d3-card` 仍兼容。不加 `--dry-run` 时，会调用 `scripts/card_send_live.py m4` 且不附加 `--dry-run`；`card_send_live.py m4` 会包装真实发卡链路。
 - 文档当前说法：同一文档 D3 章节又说明“如果只想打印下游命令，不发送卡片，需要加 `--dry-run`”，这与开头总述存在冲突。
 - 建议修复方式：把总述改为“常规业务命令默认 dry-run；`live d3-card` 是真实联调快捷命令，不加 `--dry-run` 会发送卡片”。
 

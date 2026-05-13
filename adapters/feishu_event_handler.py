@@ -32,6 +32,11 @@ class FeishuEventHandler:
             return {"challenge": str(payload.get("challenge", "") or "")}
         return None
 
+    def validate_token(self, payload: dict[str, Any]) -> None:
+        """校验普通事件回调 token，供非卡片事件入口复用。"""
+
+        self._validate_token(payload)
+
     def parse_card_action(self, payload: dict[str, Any]) -> CardActionInput:
         """从 `card.action.trigger` payload 中解析内部动作输入。"""
 

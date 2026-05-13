@@ -48,6 +48,7 @@ def parse_args() -> argparse.Namespace:
         help="默认 scripted_debug；真实模型请传 settings，或传与 settings.local.json 中 llm.provider 匹配的 provider 名。",
     )
     parser.add_argument("--max-iterations", type=int, default=6, help="Agent Loop 最大轮数。")
+    parser.add_argument("--idempotency-suffix", default="", help="追加到写操作幂等键的后缀；自动监听复测同一妙记时应传入唯一值。")
     parser.add_argument("--enable-idempotency", action="store_true", help="启用写操作幂等去重。")
     parser.add_argument("--skip-agent", action="store_true", help="跳过发卡阶段，只打印待确认 registry 和 watcher 命令。")
     parser.add_argument("--listen-websocket", action="store_true", help="发卡后启动 WebSocket 确认监听器。")
@@ -102,6 +103,8 @@ def run_agent_stage(args: argparse.Namespace) -> int:
         str(args.max_iterations),
         "--allow-write",
     ]
+    if args.idempotency_suffix:
+        command.extend(["--idempotency-suffix", args.idempotency_suffix])
     for tool_name in M4_AGENT_TOOLS:
         # 会后验收要验证 M4 专用卡片链路，显式暴露 post_meeting 工具，
         # 避免真实模型退回通用 im.send_card 简化卡片而丢失按钮。

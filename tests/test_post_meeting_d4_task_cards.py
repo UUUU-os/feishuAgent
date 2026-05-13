@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from cards.post_meeting import build_pending_action_item_button_card
+from core.models import Resource
 from core.post_meeting import (
     PostMeetingInput,
     build_post_meeting_artifacts_from_input,
     build_task_duplicate_hints,
     extract_owner_candidate,
 )
-from core.post_meeting_tools import resolve_task_owner_candidates_for_artifacts
+from core.post_meeting_tools import (
+    rebuild_post_meeting_artifacts_object,
+    resolve_task_owner_candidates_for_artifacts,
+    save_pending_actions_tool_result,
+    send_post_meeting_card_tool_result,
+)
 
 
 class PostMeetingD4TaskCardsTest(unittest.TestCase):
@@ -90,6 +98,94 @@ class PostMeetingD4TaskCardsTest(unittest.TestCase):
         self.assertIn("owner_open_id_override", payload)
         self.assertIn("李四", payload)
 
+    def test_rebuild_keeps_extracted_tasks_when_llm_passes_empty_lists(self) -> None:
+        artifacts = build_post_meeting_artifacts_from_input(build_d4_input()).to_dict()
+        artifacts["action_items"] = []
+        artifacts["pending_action_items"] = []
+
+        rebuilt = rebuild_post_meeting_artifacts_object(artifacts)
+
+        self.assertGreaterEqual(len(rebuilt.action_items), 1)
+        self.assertGreaterEqual(len(rebuilt.pending_action_items), 1)
+
+    def test_send_summary_tool_forces_bot_summary_card_to_default_group(self) -> None:
+        artifacts = build_post_meeting_artifacts_from_input(build_d4_input()).to_dict()
+        client = FakeSendCardClient()
+
+        result = send_post_meeting_card_tool_result(
+            client=client,
+            default_chat_id="oc_default_group",
+            artifacts=artifacts,
+            card_type="pending_card",
+            receive_id="ou_self",
+            receive_id_type="open_id",
+            idempotency_key="m4_test",
+            identity="user",
+        )
+
+        self.assertTrue(result["sent"])
+        self.assertEqual(result["card_type"], "summary_card")
+        self.assertEqual(result["requested_card_type"], "pending_card")
+        self.assertEqual(result["receive_id"], "oc_default_group")
+        self.assertEqual(client.calls[0]["identity"], "tenant")
+        self.assertEqual(client.calls[0]["receive_id_type"], "chat_id")
+        self.assertEqual(client.calls[0]["receive_id"], "oc_default_group")
+        self.assertIn("MeetFlow 会后复盘", json.dumps(client.calls[0]["card"], ensure_ascii=False))
+
+    def test_send_summary_tool_refetches_minute_when_artifacts_are_incomplete(self) -> None:
+        client = FakeSendCardClient()
+        incomplete_artifacts = {
+            "workflow_input": {
+                "minute_token": "minute_d4",
+                "project_id": "meetflow",
+                "topic": "D4 妙记任务卡片样例",
+                "source_url": "https://example.feishu.cn/minutes/minute_d4",
+            },
+            "action_items": [],
+            "pending_action_items": [],
+            "card_payloads": {},
+        }
+
+        send_post_meeting_card_tool_result(
+            client=client,
+            default_chat_id="oc_default_group",
+            artifacts=incomplete_artifacts,
+            card_type="summary_card",
+            receive_id="",
+            receive_id_type="chat_id",
+            idempotency_key="m4_refetch",
+            identity="tenant",
+        )
+
+        payload = json.dumps(client.calls[0]["card"], ensure_ascii=False)
+        self.assertIn("行动项 3 条", payload)
+        self.assertIn("OpenClaw 演示脚本走查", payload)
+
+    def test_save_pending_actions_refetches_minute_when_artifacts_are_incomplete(self) -> None:
+        client = FakeSendCardClient()
+        incomplete_artifacts = {
+            "workflow_input": {
+                "minute_token": "minute_d4",
+                "project_id": "meetflow",
+                "topic": "D4 妙记任务卡片样例",
+                "source_url": "https://example.feishu.cn/minutes/minute_d4",
+            },
+            "action_items": [],
+            "pending_action_items": [],
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage = FakeStorage(Path(tmpdir) / "meetflow.sqlite")
+            result = save_pending_actions_tool_result(
+                storage=storage,
+                client=client,
+                artifacts=incomplete_artifacts,
+                source={"chat_id": "oc_default_group"},
+                idempotency_key="m4_save_refetch",
+            )
+
+        self.assertTrue(result["saved"])
+        self.assertGreaterEqual(result["count"], 1)
+
 
 def build_d4_input() -> PostMeetingInput:
     """构造覆盖多人任务、缺字段和证据来源的 D4 脱敏妙记。"""
@@ -128,6 +224,55 @@ class FakeFeishuClient:
                 ]
             }
         return {"items": []}
+
+
+class FakeSendCardClient:
+    """记录发卡参数，用于确认 D4 Agent 主链路不会被模型改成用户私聊任务卡。"""
+
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def search_users(self, query: str, page_size: int = 5, identity: str = "user") -> dict:
+        return {"items": []}
+
+    def fetch_minute_resource(self, minute: str, include_artifacts: bool = True, identity: str = "user") -> Resource:
+        workflow_input = build_d4_input()
+        return Resource(
+            resource_id=minute,
+            resource_type="minute",
+            title=workflow_input.topic,
+            content=workflow_input.raw_text,
+            source_url=workflow_input.source_url,
+            source_meta={},
+            updated_at="",
+        )
+
+    def send_card_message(
+        self,
+        *,
+        receive_id: str,
+        card: dict,
+        receive_id_type: str,
+        idempotency_key: str,
+        identity: str,
+    ) -> dict:
+        self.calls.append(
+            {
+                "receive_id": receive_id,
+                "card": card,
+                "receive_id_type": receive_id_type,
+                "idempotency_key": idempotency_key,
+                "identity": identity,
+            }
+        )
+        return {"message_id": "om_test", "chat_id": receive_id}
+
+
+class FakeStorage:
+    """提供 save_pending_actions_tool_result 需要的最小存储对象。"""
+
+    def __init__(self, db_path: Path) -> None:
+        self.db_path = db_path
 
 
 if __name__ == "__main__":

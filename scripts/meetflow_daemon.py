@@ -37,8 +37,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--poll-seconds", type=int, default=60, help="日历扫描兜底间隔。")
     parser.add_argument("--lookahead-hours", type=int, default=24, help="向后扫描日程的小时数。")
     parser.add_argument("--m3-minutes-before", type=int, default=30, help="会议开始前多少分钟发送 M3 卡片。")
+    parser.add_argument(
+        "--m3-llm-provider",
+        default="scripted_debug",
+        help="M3 自动发卡使用的 LLM provider；D2 真实演示建议传 settings。",
+    )
+    parser.add_argument("--m3-write-report", action="store_true", help="M3 自动发卡时写入运行报告。")
     parser.add_argument("--m4-lookback-hours", type=int, default=12, help="向前扫描已结束会议的小时数。")
     parser.add_argument("--m4-delay-minutes", type=int, default=5, help="会议结束后至少等待多少分钟再查妙记。")
+    parser.add_argument(
+        "--m4-llm-provider",
+        default="scripted_debug",
+        help="M4 自动发卡使用的 LLM provider；D4 真实演示建议传 settings。",
+    )
+    parser.add_argument("--m4-max-iterations", type=int, default=6, help="M4 Agent Loop 最大轮数。D4 演示建议 8。")
     parser.add_argument("--rag-refresh-seconds", type=int, default=600, help="知识文档刷新兜底间隔。")
     parser.add_argument("--rag-limit", type=int, default=20, help="每轮最多检查最近多少篇已索引文档。")
     parser.add_argument("--enable-m3", action="store_true", help="启用 M3 会前自动发卡。")
@@ -260,8 +272,9 @@ def trigger_m3_due_events(
                 "calendar_id": args.calendar_id,
                 "event_id": event.event_id,
                 "project_id": "meetflow",
-                "llm_provider": "scripted_debug",
+                "llm_provider": args.m3_llm_provider,
                 "idempotency_suffix": f"daemon-{event.event_id}-{args.m3_minutes_before}",
+                "write_report": bool(args.m3_write_report),
             }
             if args.dry_run:
                 logger.info("dry-run: 将入队 M3 发卡任务 event_id=%s summary=%s", event.event_id, event.summary)
@@ -277,21 +290,36 @@ def trigger_m3_due_events(
                 logger.info("已入队 M3 发卡任务 job_id=%s event_id=%s", job.job_id, event.event_id)
             state.mark(key, {"summary": event.summary, "start_time": event.start_time, "queued": True})
             continue
-        command = [
-            sys.executable,
-            str(PROJECT_ROOT / "scripts" / "card_send_live.py"),
-            "m3",
-            "--identity",
-            args.identity,
-            "--calendar-id",
-            args.calendar_id,
-            "--event-id",
-            event.event_id,
-            "--idempotency-suffix",
-            f"daemon-{int(time.time())}",
-        ]
+        command = build_m3_card_send_command(event, args=args)
         run_command(command, dry_run=args.dry_run, logger=logger, action="m3")
         state.mark(key, {"summary": event.summary, "start_time": event.start_time})
+
+
+def build_m3_card_send_command(event: CalendarEvent, *, args: argparse.Namespace) -> list[str]:
+    """构造 D2/M3 自动发卡命令。
+
+    自动监听场景使用日历扫描得到的精确 event_id；其它参数与 D2 手工联调
+    入口保持一致，尤其是 `--llm-provider settings` 和 `--write-report`。
+    """
+
+    command = [
+        sys.executable,
+        str(PROJECT_ROOT / "scripts" / "card_send_live.py"),
+        "m3",
+        "--identity",
+        args.identity,
+        "--calendar-id",
+        args.calendar_id,
+        "--event-id",
+        event.event_id,
+        "--llm-provider",
+        args.m3_llm_provider,
+        "--idempotency-suffix",
+        f"daemon-{int(time.time())}",
+    ]
+    if args.m3_write_report:
+        command.append("--write-report")
+    return command
 
 
 def trigger_m4_finished_events(
@@ -323,8 +351,10 @@ def trigger_m4_finished_events(
         if args.enqueue and job_queue is not None:
             payload = {
                 "identity": "user",
-                "minute": minute_token,
+                "minute_token": minute_token,
                 "chat_id": chat_id,
+                "llm_provider": args.m4_llm_provider,
+                "max_iterations": args.m4_max_iterations,
             }
             if args.dry_run:
                 logger.info("dry-run: 将入队 M4 发卡任务 event_id=%s minute_token=%s", event.event_id, minute_token)
@@ -340,19 +370,30 @@ def trigger_m4_finished_events(
                 logger.info("已入队 M4 发卡任务 job_id=%s event_id=%s", job.job_id, event.event_id)
             state.mark(key, {"summary": event.summary, "minute_token": minute_token, "queued": True})
             continue
-        command = [
-            sys.executable,
-            str(PROJECT_ROOT / "scripts" / "card_send_live.py"),
-            "m4",
-            "--identity",
-            "user",
-            "--minute",
-            minute_token,
-            "--chat-id",
-            chat_id,
-        ]
+        command = build_m4_agent_command(minute_token, args=args)
         run_command(command, dry_run=args.dry_run, logger=logger, action="m4")
         state.mark(key, {"summary": event.summary, "minute_token": minute_token})
+
+
+def build_m4_agent_command(minute_token: str, *, args: argparse.Namespace) -> list[str]:
+    """构造 D4/M4 自动发卡命令。
+
+    D4 优化后的链路必须走 Agent 化脚本：minute.ready -> Agent Loop ->
+    post_meeting 专用工具 -> 会后总结卡 -> 点击后发送聚合任务卡。
+    """
+
+    return [
+        sys.executable,
+        str(PROJECT_ROOT / "scripts" / "post_meeting_agent_live_test.py"),
+        "--minute-token",
+        minute_token,
+        "--llm-provider",
+        args.m4_llm_provider,
+        "--max-iterations",
+        str(args.m4_max_iterations),
+        "--idempotency-suffix",
+        f"daemon-{int(time.time())}",
+    ]
 
 
 def query_minute_token_by_calendar_event_id(event_id: str, logger: Any) -> str:

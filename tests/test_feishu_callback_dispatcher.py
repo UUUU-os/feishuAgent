@@ -60,6 +60,69 @@ class FeishuCallbackDispatcherTest(unittest.TestCase):
         self.assertIsNotNone(result.agent_input)
         self.assertEqual(result.agent_input.event_type, "card.refresh_pre_meeting")
 
+    def test_http_message_receive_routes_to_dialogue_handler(self) -> None:
+        dispatcher = self.build_dispatcher()
+        payload = {
+            "header": {"event_type": "im.message.receive_v1", "event_id": "evt_msg", "token": "test-token"},
+            "event": {
+                "sender": {"sender_id": {"open_id": "ou_sender"}},
+                "message": {
+                    "message_id": "om_msg",
+                    "chat_id": "oc_group",
+                    "chat_type": "group",
+                    "message_type": "text",
+                    "content": "{\"text\":\"@_user_1 总结 D7 RAG\"}",
+                    "mentions": [{"key": "@_user_1", "name": "MeetFlow"}],
+                },
+            },
+        }
+        with patch("core.feishu_callback_dispatcher.handle_message_dialogue_event") as mocked:
+            mocked.return_value = SimpleNamespace(
+                status="answered",
+                sent=True,
+                topic="D7 RAG",
+                reason="",
+                trace_id="trace_msg",
+                reply_text="MeetFlow RAG 总结：D7 RAG",
+            )
+            result = dispatcher.dispatch_http_callback(payload)
+
+        self.assertEqual(result.status, "answered")
+        self.assertEqual(result.body["topic"], "D7 RAG")
+        self.assertTrue(result.body["sent"])
+        mocked.assert_called_once()
+
+    def test_sdk_message_receive_routes_to_dialogue_handler(self) -> None:
+        dispatcher = self.build_dispatcher()
+        payload = {
+            "header": {"event_type": "im.message.receive_v1", "event_id": "evt_sdk_msg"},
+            "event": {
+                "sender": {"sender_id": {"open_id": "ou_sender"}},
+                "message": {
+                    "message_id": "om_sdk_msg",
+                    "chat_id": "oc_group",
+                    "chat_type": "group",
+                    "message_type": "text",
+                    "content": "{\"text\":\"@_user_1 总结 D7 RAG\"}",
+                    "mentions": [{"key": "@_user_1", "name": "MeetFlow"}],
+                },
+            },
+        }
+        with patch("core.feishu_callback_dispatcher.handle_message_dialogue_event") as mocked:
+            mocked.return_value = SimpleNamespace(
+                status="answered",
+                sent=True,
+                topic="D7 RAG",
+                reason="",
+                trace_id="trace_sdk_msg",
+                reply_text="MeetFlow RAG 总结：D7 RAG",
+            )
+            result = dispatcher.dispatch_sdk_message_event(payload)
+
+        self.assertEqual(result.status, "answered")
+        self.assertEqual(result.body["topic"], "D7 RAG")
+        mocked.assert_called_once()
+
     def test_sdk_post_meeting_confirm_routes_to_m4_handler(self) -> None:
         dispatcher = self.build_dispatcher()
         payload = {

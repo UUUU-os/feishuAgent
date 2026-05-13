@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import select
+import signal
 import shutil
 import subprocess
 import sys
@@ -63,8 +64,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--poll-seconds", type=int, default=60, help="没有事件时的兜底扫描间隔。")
     parser.add_argument("--lookahead-hours", type=int, default=24, help="向后扫描日程的小时数。")
     parser.add_argument("--m3-minutes-before", type=int, default=30, help="会议开始前多少分钟触发 M3。")
+    parser.add_argument(
+        "--m3-llm-provider",
+        default="settings",
+        help="M3 自动发卡使用的 LLM provider；默认 settings，与 D2 真实演示命令一致。",
+    )
+    parser.add_argument(
+        "--no-m3-write-report",
+        action="store_true",
+        help="默认会为 M3 自动发卡写运行报告；传此参数可关闭。",
+    )
     parser.add_argument("--m4-lookback-hours", type=int, default=12, help="向前扫描已结束会议的小时数。")
     parser.add_argument("--m4-delay-minutes", type=int, default=5, help="会议结束后至少等待多少分钟再查妙记。")
+    parser.add_argument(
+        "--m4-llm-provider",
+        default="settings",
+        help="M4 自动发卡使用的 LLM provider；默认 settings，与 D4 Agent 化真实演示命令一致。",
+    )
+    parser.add_argument("--m4-max-iterations", type=int, default=8, help="M4 Agent Loop 最大轮数，默认 8。")
     parser.add_argument("--rag-limit", type=int, default=20, help="每轮最多处理多少条 RAG 索引任务。")
     parser.add_argument("--event-types", default=",".join(DEFAULT_EVENT_TYPES), help="传给 lark-cli 的事件类型列表。")
     parser.add_argument("--python-bin", default="", help="RAG/MeetFlow 主进程使用的 Python；不传时自动寻找包含 chromadb 和 sentence_transformers 的解释器。")
@@ -115,7 +132,11 @@ def main() -> int:
     ensure_calendar_event_subscription(args, client)
     print_subscription_snapshot(knowledge_store)
 
-    process = start_lark_event_subscriber(args.event_types, args.lark_cli_bin, force=args.force_subscribe)
+    process: subprocess.Popen[str] | None = start_lark_event_subscriber(
+        args.event_types,
+        args.lark_cli_bin,
+        force=args.force_subscribe,
+    )
     card_args = build_daemon_args(args, dry_run=not args.allow_card_send)
     rag_args = build_daemon_args(args, dry_run=args.dry_run_rag)
     next_scan_at = 0.0
@@ -127,33 +148,41 @@ def main() -> int:
                 print_step("完成", f"达到观察时长 {args.duration_seconds}s，准备退出。")
                 return 0
 
-            for stream_name, line in read_process_lines(process, timeout=0.5):
-                if stream_name == "stderr":
-                    print_lark_cli_line(line)
-                    continue
-                event = parse_event_line(line)
-                if not event:
-                    continue
-                event_count += 1
-                handle_event(
-                    event=event,
-                    event_count=event_count,
-                    args=args,
-                    card_args=card_args,
-                    rag_args=rag_args,
-                    client=client,
-                    knowledge_store=knowledge_store,
-                    state=state,
-                    timezone=timezone,
-                    chat_id=chat_id,
-                    watch_started_at=watch_started_at,
-                )
-                next_scan_at = time.time() + max(10, int(args.poll_seconds or 60))
+            if process is not None:
+                for stream_name, line in read_process_lines(process, timeout=0.5):
+                    if stream_name == "stderr":
+                        print_lark_cli_line(line)
+                        continue
+                    event = parse_event_line(line)
+                    if not event:
+                        continue
+                    event_count += 1
+                    handle_event(
+                        event=event,
+                        event_count=event_count,
+                        args=args,
+                        card_args=card_args,
+                        rag_args=rag_args,
+                        client=client,
+                        knowledge_store=knowledge_store,
+                        state=state,
+                        timezone=timezone,
+                        chat_id=chat_id,
+                        watch_started_at=watch_started_at,
+                    )
+                    next_scan_at = time.time() + max(10, int(args.poll_seconds or 60))
 
-            if process.poll() is not None:
-                print_remaining_process_output(process)
-                print_step("异常", f"lark-cli 长连接进程已退出 returncode={process.returncode}")
-                return int(process.returncode or 1)
+                if process.poll() is not None:
+                    returncode = process.returncode
+                    print_remaining_process_output(process)
+                    stop_process(process)
+                    process = None
+                    print_step(
+                        "长连接降级",
+                        f"lark-cli 长连接进程已退出 returncode={returncode}；观察台将继续使用兜底扫描。",
+                    )
+            else:
+                time.sleep(0.5)
 
             if time.time() >= next_scan_at:
                 run_fallback_scan(
@@ -172,7 +201,8 @@ def main() -> int:
         print_step("退出", "收到 Ctrl+C，正在关闭长连接。")
         return 0
     finally:
-        stop_process(process)
+        if process is not None:
+            stop_process(process)
 
 
 def print_banner(args: argparse.Namespace) -> None:
@@ -468,6 +498,7 @@ def start_lark_event_subscriber(event_types: str, lark_cli_bin: str, *, force: b
         stderr=subprocess.PIPE,
         text=True,
         bufsize=1,
+        start_new_session=True,
     )
 
 
@@ -712,10 +743,18 @@ def build_daemon_args(args: argparse.Namespace, *, dry_run: bool) -> SimpleNames
         poll_seconds=args.poll_seconds,
         lookahead_hours=args.lookahead_hours,
         m3_minutes_before=args.m3_minutes_before,
+        m3_llm_provider=args.m3_llm_provider,
+        m3_write_report=not args.no_m3_write_report,
         m4_lookback_hours=args.m4_lookback_hours,
         m4_delay_minutes=args.m4_delay_minutes,
+        m4_llm_provider=args.m4_llm_provider,
+        m4_max_iterations=args.m4_max_iterations,
         rag_limit=args.rag_limit,
         dry_run=dry_run,
+        enqueue=False,
+        job_queue="workflow",
+        rag_job_queue="rag_refresh",
+        job_priority=100,
     )
 
 
@@ -766,13 +805,18 @@ def print_step(label: str, message: str) -> None:
 def stop_process(process: subprocess.Popen[str]) -> None:
     """关闭长连接子进程。"""
 
-    if process.poll() is not None:
-        return
-    process.terminate()
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
     try:
         process.wait(timeout=5)
     except subprocess.TimeoutExpired:
-        process.kill()
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
+        process.wait(timeout=2)
 
 
 class ConsoleLogger:

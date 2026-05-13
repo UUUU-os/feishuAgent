@@ -8,6 +8,8 @@ from config.loader import EmbeddingSettings, KnowledgeSearchSettings, RerankerSe
 from core.knowledge import KnowledgeIndexStore, register_knowledge_tools
 from core.models import AgentToolCall, Resource
 from core.tools import ToolRegistry
+from scripts.meetflow_worker import summarize_refresh_result
+from scripts.pre_meeting_live_test import ensure_rag_event_subscription
 
 
 class DummyVectorIndex:
@@ -28,6 +30,20 @@ class FailingVectorIndex:
 
     def search(self, query, query_terms, resource_types, top_k):  # noqa: ANN001 - 测试桩保持接口兼容。
         return {"ok": False, "error": "ChromaDB 不可用，无法执行向量检索。"}
+
+
+class DummySubscriptionClient:
+    """记录订阅调用，避免单测触达真实飞书。"""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, str]] = []
+
+    def detect_drive_file_type(self, document: str, default: str = "docx") -> str:
+        return "wiki" if "/wiki/" in document else default
+
+    def subscribe_drive_file(self, file_token: str, file_type: str, identity: str = "user") -> dict[str, object]:
+        self.calls.append({"file_token": file_token, "file_type": file_type, "identity": identity})
+        return {"data": {"ok": True}}
 
 
 class KnowledgeToolsTest(unittest.TestCase):
@@ -172,6 +188,83 @@ class KnowledgeToolsTest(unittest.TestCase):
             self.assertTrue(search_result.hits)
             self.assertEqual(search_result.hits[0].source_url, "https://example.feishu.cn/docx/d2")
             self.assertIn("BM25", search_result.reason)
+
+    def test_event_subscription_status_and_public_job_update_support_listener_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            storage_settings = StorageSettings(
+                db_path=str(Path(tmp_dir) / "meetflow.sqlite"),
+                project_memory_dir=str(Path(tmp_dir) / "projects"),
+                audit_log_path=str(Path(tmp_dir) / "audit.jsonl"),
+            )
+            store = KnowledgeIndexStore(settings=storage_settings)
+            store.vector_index = DummyVectorIndex()
+            store.initialize()
+
+            resource = Resource(
+                resource_id="wiki_node_demo",
+                resource_type="wiki",
+                title="MeetFlow 监听测试文档",
+                content="日程变化和文档变化应触发工作流并刷新 RAG。",
+                source_url="https://example.feishu.cn/wiki/wiki_node_demo",
+                source_meta={"document_id": "doc_file_token", "file_type": "wiki"},
+                updated_at="2026-05-13T10:00:00",
+            )
+            client = DummySubscriptionClient()
+
+            subscription = ensure_rag_event_subscription(
+                knowledge_store=store,
+                client=client,  # type: ignore[arg-type]
+                resource=resource,
+                identity="user",
+            )
+
+            self.assertEqual(subscription["status"], "succeeded")
+            self.assertEqual(client.calls, [{"file_token": "doc_file_token", "file_type": "wiki", "identity": "user"}])
+            saved_by_resource = store.get_event_subscription("wiki_node_demo")
+            saved_by_file_token = store.get_event_subscription("doc_file_token")
+            self.assertIsNotNone(saved_by_resource)
+            self.assertEqual(saved_by_file_token, saved_by_resource)
+            self.assertEqual(store.list_event_subscriptions()[0]["status"], "succeeded")
+
+            repeated = ensure_rag_event_subscription(
+                knowledge_store=store,
+                client=client,  # type: ignore[arg-type]
+                resource=resource,
+                identity="user",
+            )
+            self.assertEqual(repeated["reason"], "already_subscribed")
+            self.assertEqual(len(client.calls), 1)
+
+            job = store.enqueue_index_job(
+                resource_id="doc_file_token",
+                resource_type="wiki",
+                reason="event",
+                source_url=resource.source_url,
+            )
+            store.update_index_job_status(job.job_id, status="succeeded", chunk_count=3, content_tokens=42)
+            updated = store.get_index_job(job.job_id)
+            self.assertIsNotNone(updated)
+            self.assertEqual(updated["status"], "succeeded")
+            self.assertEqual(updated["chunk_count"], 3)
+            self.assertEqual(updated["content_tokens"], 42)
+
+    def test_worker_refresh_result_summary_supports_current_dict_shape(self) -> None:
+        result, skipped, chunk_count, content_tokens = summarize_refresh_result(
+            {
+                "job": {"status": "succeeded"},
+                "index_result": {
+                    "status": "indexed",
+                    "skipped": False,
+                    "document": {"chunk_count": 2},
+                    "chunks": [{"content_tokens": 10}, {"content_tokens": 15}],
+                },
+            }
+        )
+
+        self.assertEqual(result["status"], "indexed")
+        self.assertFalse(skipped)
+        self.assertEqual(chunk_count, 2)
+        self.assertEqual(content_tokens, 25)
 
 
 if __name__ == "__main__":

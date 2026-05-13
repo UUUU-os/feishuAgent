@@ -216,6 +216,27 @@ AgentInput
 - `tests/test_post_meeting_card_callback.py` 已补充断言，防止 `任务 ID / 负责人 / 截止时间`
   等字段之间再次出现 `\n\n` 空行。
 
+### 3.9 自动监听 M4 发卡链路收敛
+
+2026-05-13 真实自动监听联调发现：`live_environment_watch.py --enable-m4` 找到妙记后已成功进入
+D4 Agent 链路，但真实模型在调用 `post_meeting.send_summary_card` 时传入了 `card_type=pending_card`
+和 `identity=user`，导致用户收到“自己发送的空待确认任务卡”，而不是机器人发到测试群的会后总结卡。
+同时模型传入的 artifacts 可能包含空 `action_items/pending_action_items`，覆盖了本地从妙记重新抽取出的
+待确认任务。
+
+本轮收敛规则：
+
+- `core/post_meeting_tools.py::send_post_meeting_card_tool_result()` 固定发送 `summary_card`，固定使用
+  `tenant` 机器人身份，目标只接受群 `chat_id`，否则回退到 `feishu.default_chat_id`。
+- 待确认任务卡不再由 Agent 主链路直接发送，只能由会后总结卡“查看任务卡”按钮回调发送。
+- `rebuild_post_meeting_artifacts_object()` 不再让模型传入的空任务列表覆盖本地抽取结果；只有非空任务列表
+  才覆盖重建结果，避免 D4 任务卡数量被错误归零。
+- 后续复测继续发现：真实模型可能只把 `workflow_input` 空壳传给 `post_meeting.send_summary_card`，
+  导致会后总结卡退化成 0 结论、0 行动项、0 风险。本轮在
+  `ensure_complete_post_meeting_artifacts()` 中增加回源兜底：写工具发现 artifacts 不完整但含
+  `minute_token/source_url` 时，会重新读取妙记并重建完整 D3/D4 artifacts，再执行保存和发卡。
+- 新增 `tests.test_post_meeting_d4_task_cards` 回归用例，锁定“强制机器人总结卡”和“空列表不抹掉任务”。
+
 ## 4. 涉及文件
 
 | 文件 | 改动 |
@@ -299,6 +320,55 @@ python3 scripts/post_meeting_agent_live_test.py \
 
 - 会后总结卡：包含“查看任务卡 / 行动项风险预检 / 查看完整报告”等入口；M5 任务风险提醒是独立入口，用于扫描真实任务状态。
 - 点击“查看任务卡”后发送待确认任务卡：同一会议的所有待确认任务聚合在一条消息中；每条任务包含任务标题、负责人、截止时间、优先级、缺失字段、Agent 建议、来源证据和按钮。
+
+### 6.1 自动监听触发链路
+
+2026-05-13 检查自动监听脚本时发现，`scripts/live_environment_watch.py --enable-m4`
+原先通过 `scripts/meetflow_daemon.py` 调用的是旧入口：
+
+```text
+scripts/card_send_live.py m4
+  -> scripts/post_meeting_live_test.py
+```
+
+这条链路没有使用 D4 文档推荐的 Agent 化入口，可能导致会后总结卡或任务卡仍走旧格式。
+本轮已改为：
+
+```text
+scripts/live_environment_watch.py --enable-m4
+  -> scripts/meetflow_daemon.py::build_m4_agent_command()
+  -> scripts/post_meeting_agent_live_test.py
+       --minute-token <minute_token>
+       --llm-provider settings
+       --max-iterations 8
+```
+
+同步更新：
+
+- `scripts/live_environment_watch.py` 新增 `--m4-llm-provider`，默认 `settings`。
+- `scripts/live_environment_watch.py` 新增 `--m4-max-iterations`，默认 `8`。
+- `scripts/meetflow_daemon.py` 直接构造 D4 Agent 化命令，不再通过 `card_send_live.py m4`。
+- `scripts/meetflow_worker.py::build_post_meeting_command()` 的后台队列路径也改为
+  `post_meeting_agent_live_test.py`，避免 enqueue 模式回退旧链路。
+- `tests/test_m3_auto_trigger_command.py` 覆盖自动 M4 命令必须包含
+  `post_meeting_agent_live_test.py`、`--llm-provider settings` 和 `--max-iterations 8`。
+
+自动监听真实测试命令：
+
+```bash
+python3 scripts/live_environment_watch.py \
+  --identity user \
+  --calendar-id primary \
+  --enable-m4 \
+  --m4-lookback-hours 2 \
+  --m4-delay-minutes 1 \
+  --poll-seconds 15 \
+  --allow-card-send \
+  --duration-seconds 900
+```
+
+如果只想看会不会触发，不真实发卡，去掉 `--allow-card-send`。如果需要临时退回调试模型，
+显式传 `--m4-llm-provider scripted_debug`。
 - 按钮：`确认创建`、`拒绝创建`。负责人或截止时间可在输入框内补充后直接点击确认创建，不再提供单独的“修改信息”按钮。
 
 终端或 `--show-full` 输出中应看到工具链调用：
@@ -341,3 +411,48 @@ post_meeting.save_pending_actions
 - 当前行动项抽取仍以规则为主，复杂口语、多负责人协作和隐含截止时间可能需要 LLM 辅助增强。
 - 去重提示首版只比较同轮妙记任务标题，尚未跨 `task_mappings` 和项目记忆做历史相似任务提示。
 - 真实飞书任务创建依赖卡片回调、用户 token、任务权限和测试群配置，需要真实环境继续灰度验证。
+
+## 9. 回调负责人解析失败提示修复
+
+2026-05-12 真实联调发现：用户已在任务卡片填写负责人和截止时间，但确认创建时
+`contact.search_user` 在刷新飞书 user token 阶段失败，返回 `code=20064`。旧逻辑会把通讯录
+工具失败当作“未解析到 open_id”，继续进入 `tasks.create_task`，最后由 `AgentPolicy` 报
+“缺少负责人”，容易误导为表单字段未提交。
+
+本轮修改 `core/card_callback.py`：
+
+- 新增 `OwnerResolutionResult`，区分“通讯录没有匹配用户”和“通讯录工具失败”。
+- `resolve_owner_open_ids_for_callback()` 在 `contact.get_current_user` / `contact.search_user`
+  返回 error 时保留错误原因。
+- `confirm_create_task_from_card()` 遇到负责人解析工具失败时不再继续创建任务，而是保持
+  pending 状态，并在 toast / 卡片状态中提示重新执行用户 OAuth 授权。
+
+验证命令：
+
+```bash
+python3 -m py_compile core/card_callback.py tests/test_post_meeting_card_callback.py
+python3 -m unittest tests.test_post_meeting_card_callback
+```
+
+## 10. 自动监听长连接降级修复
+
+2026-05-13 M4 真实监听复测发现：会后总结卡已通过兜底扫描成功发送，但
+`lark-cli event +subscribe` 长连接退出后，`scripts/live_environment_watch.py` 会直接返回
+非 0 状态，导致用户误以为 M4 发卡失败；同时如果 `lark-cli` wrapper 已退出但子进程仍在，
+旧清理逻辑可能留下孤儿订阅进程，影响下一次启动。
+
+本轮修改 `scripts/live_environment_watch.py`：
+
+- 长连接退出后不再终止观察台，改为打印“长连接降级”，继续按 `--poll-seconds` 执行日程和 RAG 兜底扫描。
+- `stop_process()` 即使 wrapper 已退出，也会尝试按进程组清理残留子进程，减少 `another event +subscribe instance is already running`。
+- 自动监听反复复测同一妙记时，M4 子命令会传 `--idempotency-suffix daemon-<timestamp>`，避免飞书消息接口因相同 uuid 去重而返回成功但不新增卡片。
+- `minutes.fetch_resource` Agent 工具固定使用 `user` 身份读取妙记，避免真实模型误传 `identity=tenant` 后触发应用身份缺少 `minutes:*` scope。
+
+验证命令：
+
+```bash
+python3 -m py_compile scripts/live_environment_watch.py
+python3 -m py_compile scripts/agent_demo.py scripts/post_meeting_agent_live_test.py scripts/meetflow_daemon.py
+python3 -m unittest tests.test_m3_auto_trigger_command
+python3 -m unittest tests.test_feishu_tools
+```

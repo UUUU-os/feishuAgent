@@ -1,0 +1,1337 @@
+{
+  "suite_id": "d7_rag_effectiveness",
+  "generated_at": 1778652534,
+  "data_profile": {
+    "corpus_chunks": 30,
+    "retrieval_cases": 40,
+    "workflow_cases": 3,
+    "agent_trace_cases": 3
+  },
+  "retrieval": {
+    "top_k": 3,
+    "case_count": 40,
+    "metrics": {
+      "hit@3": 1.0,
+      "mrr": 0.9458,
+      "context_recall": 0.8792,
+      "context_precision": 0.3583
+    },
+    "score": 0.7958,
+    "cases": [
+      {
+        "case_id": "rag_001_pre_scope",
+        "question": "明天项目评审会的 MeetFlow 项目范围和核心闭环是什么？",
+        "expected_chunk_ids": [
+          "doc_prd_scope"
+        ],
+        "top_chunk_ids": [
+          "doc_prd_scope",
+          "minute_prev_decisions",
+          "minute_current_transcript"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_002_arch_policy_boundary",
+        "question": "MeetFlow Agent 的 ToolRegistry 和 AgentPolicy 边界是什么？",
+        "expected_chunk_ids": [
+          "doc_arch_agent_loop"
+        ],
+        "top_chunk_ids": [
+          "doc_arch_agent_loop",
+          "doc_prd_scope",
+          "task_faq_owner"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_003_d2_card_sections",
+        "question": "D2 会前卡片应该包含哪些内容模块？",
+        "expected_chunk_ids": [
+          "doc_d2_pre_meeting"
+        ],
+        "top_chunk_ids": [
+          "doc_d2_pre_meeting",
+          "trace_pre_meeting",
+          "minute_prev_decisions"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_004_d3_summary_sections",
+        "question": "D3 会后总结卡需要展示哪些结构化内容？",
+        "expected_chunk_ids": [
+          "doc_d3_post_meeting"
+        ],
+        "top_chunk_ids": [
+          "doc_d3_post_meeting",
+          "minute_prev_decisions",
+          "minute_openclaw_demo"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_005_d4_task_card_owner",
+        "question": "D4 任务卡如何处理负责人无法解析 open_id 的情况？",
+        "expected_chunk_ids": [
+          "doc_d4_task_card"
+        ],
+        "top_chunk_ids": [
+          "doc_d4_task_card",
+          "task_callback_owner",
+          "risk_owner_missing"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_006_d5_risk_card",
+        "question": "D5 任务风险提醒卡需要解释哪些风险信息？",
+        "expected_chunk_ids": [
+          "doc_d5_risk_scan"
+        ],
+        "top_chunk_ids": [
+          "doc_d5_risk_scan",
+          "risk_duplicate_task",
+          "minute_openclaw_demo"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_007_d6_agent_capability",
+        "question": "D6 如何证明 MeetFlow 不是固定脚本？",
+        "expected_chunk_ids": [
+          "doc_d6_agent_capability"
+        ],
+        "top_chunk_ids": [
+          "doc_d6_agent_capability",
+          "guide_demo_script",
+          "guide_rag_dataset"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_008_d7_eval_dimensions",
+        "question": "D7 评测体系要覆盖哪些维度？",
+        "expected_chunk_ids": [
+          "doc_d7_eval_plan"
+        ],
+        "top_chunk_ids": [
+          "doc_d7_eval_plan",
+          "task_eval_dataset",
+          "minute_rag_review"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_009_d8_cli_dry_run",
+        "question": "D8 OpenClaw CLI 默认写入策略是什么？",
+        "expected_chunk_ids": [
+          "doc_d8_cli_openclaw"
+        ],
+        "top_chunk_ids": [
+          "doc_d8_cli_openclaw",
+          "doc_prd_scope",
+          "task_eval_dataset"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_010_prev_decisions",
+        "question": "上次项目评审会对会前和会后卡片做了什么决定？",
+        "expected_chunk_ids": [
+          "minute_prev_decisions"
+        ],
+        "top_chunk_ids": [
+          "minute_prev_decisions",
+          "minute_current_transcript",
+          "doc_d2_pre_meeting"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_011_current_actions",
+        "question": "本次项目评审妙记里三个人分别要做什么？",
+        "expected_chunk_ids": [
+          "minute_current_transcript"
+        ],
+        "top_chunk_ids": [
+          "minute_current_transcript",
+          "minute_prev_decisions",
+          "doc_d4_task_card"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_012_eval_metrics",
+        "question": "RAG 评测讨论中确认了哪些检索层和生成层指标？",
+        "expected_chunk_ids": [
+          "minute_rag_review"
+        ],
+        "top_chunk_ids": [
+          "minute_rag_review",
+          "guide_eval_report",
+          "doc_d7_eval_plan"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_013_openclaw_rehearsal",
+        "question": "OpenClaw 演示排练要求按什么顺序展示？",
+        "expected_chunk_ids": [
+          "minute_openclaw_demo"
+        ],
+        "top_chunk_ids": [
+          "minute_openclaw_demo",
+          "guide_demo_script",
+          "guide_eval_report"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_014_cli_task_owner",
+        "question": "叶抒锐负责的 OpenClaw CLI 任务截止时间是什么？",
+        "expected_chunk_ids": [
+          "task_cli_owner"
+        ],
+        "top_chunk_ids": [
+          "task_cli_owner",
+          "task_callback_owner",
+          "doc_d4_task_card"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_015_callback_task_owner",
+        "question": "李健文负责的卡片回调问题是什么，截止时间是什么？",
+        "expected_chunk_ids": [
+          "task_callback_owner"
+        ],
+        "top_chunk_ids": [
+          "task_callback_owner",
+          "risk_owner_missing",
+          "doc_d3_post_meeting"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_016_faq_task_owner",
+        "question": "王宁负责的答辩 FAQ 需要覆盖哪些问题？",
+        "expected_chunk_ids": [
+          "task_faq_owner"
+        ],
+        "top_chunk_ids": [
+          "task_faq_owner",
+          "minute_current_transcript",
+          "task_callback_owner"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_017_eval_dataset_task",
+        "question": "D7 评测数据集扩充任务要求覆盖哪些方向？",
+        "expected_chunk_ids": [
+          "task_eval_dataset"
+        ],
+        "top_chunk_ids": [
+          "task_eval_dataset",
+          "doc_d7_eval_plan",
+          "minute_openclaw_demo"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_018_oauth_code_20064",
+        "question": "contact.search_user 返回 code=20064 时应该怎么处理？",
+        "expected_chunk_ids": [
+          "risk_auth_callback"
+        ],
+        "top_chunk_ids": [
+          "risk_auth_callback",
+          "risk_owner_missing",
+          "trace_policy_write"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_019_demo_safety_policy",
+        "question": "演示时真实写操作和敏感信息有哪些安全要求？",
+        "expected_chunk_ids": [
+          "risk_demo_stability"
+        ],
+        "top_chunk_ids": [
+          "risk_demo_stability",
+          "minute_openclaw_demo",
+          "trace_policy_write"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_020_rag_noise_precision",
+        "question": "为什么 Context Precision 会下降，后续怎么优化？",
+        "expected_chunk_ids": [
+          "risk_rag_noise"
+        ],
+        "top_chunk_ids": [
+          "doc_d3_post_meeting",
+          "risk_rag_noise",
+          "doc_d7_eval_plan"
+        ],
+        "hit@3": 1.0,
+        "mrr": 0.5,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_021_owner_missing_policy",
+        "question": "行动项缺少负责人或截止时间时 AgentPolicy 应该返回什么？",
+        "expected_chunk_ids": [
+          "risk_owner_missing"
+        ],
+        "top_chunk_ids": [
+          "risk_owner_missing",
+          "task_callback_owner",
+          "doc_d3_post_meeting"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_022_duplicate_task_idempotency",
+        "question": "重复点击确认创建按钮时如何避免重复创建任务？",
+        "expected_chunk_ids": [
+          "risk_duplicate_task"
+        ],
+        "top_chunk_ids": [
+          "risk_duplicate_task",
+          "risk_demo_stability",
+          "doc_d4_task_card"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_023_pre_trace_tools",
+        "question": "会前准备 Trace 应调用哪些工具，不能调用哪些写工具？",
+        "expected_chunk_ids": [
+          "trace_pre_meeting"
+        ],
+        "top_chunk_ids": [
+          "trace_pre_meeting",
+          "minute_openclaw_demo",
+          "doc_d6_agent_capability"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_024_post_trace_tools",
+        "question": "会后复盘 Trace 应包含哪些工具和幂等要求？",
+        "expected_chunk_ids": [
+          "trace_post_meeting"
+        ],
+        "top_chunk_ids": [
+          "trace_post_meeting",
+          "doc_d3_post_meeting",
+          "trace_pre_meeting"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_025_write_safety_trace",
+        "question": "未开启 allow_write 时 tasks.create_task 应该如何被处理？",
+        "expected_chunk_ids": [
+          "trace_policy_write"
+        ],
+        "top_chunk_ids": [
+          "trace_policy_write",
+          "risk_owner_missing",
+          "risk_auth_callback"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_026_eval_report_display",
+        "question": "答辩展示评测报告时应该优先展示哪些结果？",
+        "expected_chunk_ids": [
+          "guide_eval_report"
+        ],
+        "top_chunk_ids": [
+          "guide_eval_report",
+          "minute_prev_decisions",
+          "minute_openclaw_demo"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_027_demo_script_order",
+        "question": "正式演示脚本建议按什么业务顺序展示？",
+        "expected_chunk_ids": [
+          "guide_demo_script"
+        ],
+        "top_chunk_ids": [
+          "guide_demo_script",
+          "minute_openclaw_demo",
+          "risk_demo_stability"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_028_sample_definition",
+        "question": "一条 RAG 测试样本是不是一个文档？它包含什么？",
+        "expected_chunk_ids": [
+          "guide_rag_dataset"
+        ],
+        "top_chunk_ids": [
+          "guide_rag_dataset",
+          "minute_current_transcript",
+          "minute_rag_review"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_029_pre_history_and_tasks",
+        "question": "会前准备同时需要召回历史结论和遗留任务时应看哪些证据？",
+        "expected_chunk_ids": [
+          "minute_prev_decisions",
+          "task_callback_owner",
+          "task_cli_owner"
+        ],
+        "top_chunk_ids": [
+          "doc_d2_pre_meeting",
+          "minute_prev_decisions",
+          "task_callback_owner"
+        ],
+        "hit@3": 1.0,
+        "mrr": 0.5,
+        "context_recall": 0.6667,
+        "context_precision": 0.6667
+      },
+      {
+        "case_id": "rag_030_auth_risk_with_task",
+        "question": "负责人解析授权风险和李健文任务之间有什么关系？",
+        "expected_chunk_ids": [
+          "risk_auth_callback",
+          "task_callback_owner"
+        ],
+        "top_chunk_ids": [
+          "task_callback_owner",
+          "risk_owner_missing",
+          "doc_d5_risk_scan"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 0.5,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_031_demo_fallback_and_safety",
+        "question": "真实飞书失败时演示如何兜底且保持安全？",
+        "expected_chunk_ids": [
+          "minute_openclaw_demo",
+          "risk_demo_stability"
+        ],
+        "top_chunk_ids": [
+          "minute_openclaw_demo",
+          "doc_prd_scope",
+          "task_faq_owner"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 0.5,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_032_eval_result_honesty",
+        "question": "D7 报告为什么要说明 Top-K 噪声和小样本风险？",
+        "expected_chunk_ids": [
+          "minute_rag_review",
+          "risk_rag_noise"
+        ],
+        "top_chunk_ids": [
+          "minute_rag_review",
+          "guide_eval_report",
+          "risk_rag_noise"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.6667
+      },
+      {
+        "case_id": "rag_033_post_actions_and_faq",
+        "question": "本次会议中 CLI、授权修复和 FAQ 三个行动项分别是谁负责？",
+        "expected_chunk_ids": [
+          "minute_current_transcript",
+          "task_faq_owner"
+        ],
+        "top_chunk_ids": [
+          "minute_current_transcript",
+          "minute_prev_decisions",
+          "doc_d3_post_meeting"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 0.5,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_034_policy_me_resolution",
+        "question": "用户说负责人是我时，负责人解析应该优先使用什么？",
+        "expected_chunk_ids": [
+          "risk_owner_missing",
+          "trace_policy_write"
+        ],
+        "top_chunk_ids": [
+          "risk_owner_missing",
+          "task_callback_owner",
+          "doc_d4_task_card"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 0.5,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_035_risk_card_sources",
+        "question": "任务风险提醒为什么必须展示来源证据和建议动作？",
+        "expected_chunk_ids": [
+          "doc_d5_risk_scan",
+          "risk_demo_stability"
+        ],
+        "top_chunk_ids": [
+          "doc_d5_risk_scan",
+          "guide_demo_script",
+          "minute_prev_decisions"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 0.5,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_036_openclaw_eval_command",
+        "question": "OpenClaw 可以通过 CLI 调用哪些 MeetFlow 能力？",
+        "expected_chunk_ids": [
+          "doc_d8_cli_openclaw",
+          "guide_demo_script"
+        ],
+        "top_chunk_ids": [
+          "doc_d6_agent_capability",
+          "doc_d8_cli_openclaw",
+          "minute_openclaw_demo"
+        ],
+        "hit@3": 1.0,
+        "mrr": 0.5,
+        "context_recall": 0.5,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_037_rag_to_pre_card",
+        "question": "RAG 对会前卡片的直接价值体现在哪里？",
+        "expected_chunk_ids": [
+          "doc_d2_pre_meeting",
+          "minute_prev_decisions"
+        ],
+        "top_chunk_ids": [
+          "doc_d2_pre_meeting",
+          "minute_prev_decisions",
+          "doc_d7_eval_plan"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 1.0,
+        "context_precision": 0.6667
+      },
+      {
+        "case_id": "rag_038_rag_to_post_card",
+        "question": "RAG 对会后总结和任务落地的直接价值体现在哪里？",
+        "expected_chunk_ids": [
+          "doc_d3_post_meeting",
+          "minute_current_transcript"
+        ],
+        "top_chunk_ids": [
+          "doc_d3_post_meeting",
+          "minute_openclaw_demo",
+          "guide_demo_script"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 0.5,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_039_trace_eval_safety",
+        "question": "工具轨迹评测如何证明写操作受控？",
+        "expected_chunk_ids": [
+          "doc_d7_eval_plan",
+          "trace_policy_write"
+        ],
+        "top_chunk_ids": [
+          "task_eval_dataset",
+          "doc_arch_agent_loop",
+          "doc_d7_eval_plan"
+        ],
+        "hit@3": 1.0,
+        "mrr": 0.3333,
+        "context_recall": 0.5,
+        "context_precision": 0.3333
+      },
+      {
+        "case_id": "rag_040_dataset_design",
+        "question": "为什么 D7 要把样本扩充到 40 条，并写入 docs/evaluation？",
+        "expected_chunk_ids": [
+          "guide_eval_report",
+          "task_eval_dataset"
+        ],
+        "top_chunk_ids": [
+          "task_eval_dataset",
+          "minute_current_transcript",
+          "guide_rag_dataset"
+        ],
+        "hit@3": 1.0,
+        "mrr": 1.0,
+        "context_recall": 0.5,
+        "context_precision": 0.3333
+      }
+    ]
+  },
+  "answer_quality": {
+    "with_rag": {
+      "score": 1.0,
+      "metrics": {
+        "faithfulness": 1.0,
+        "answer_relevancy": 1.0,
+        "evidence_coverage": 1.0
+      },
+      "cases": [
+        {
+          "case_id": "rag_001_pre_scope",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_002_arch_policy_boundary",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_003_d2_card_sections",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_004_d3_summary_sections",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_005_d4_task_card_owner",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_006_d5_risk_card",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_007_d6_agent_capability",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_008_d7_eval_dimensions",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_009_d8_cli_dry_run",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_010_prev_decisions",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_011_current_actions",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 3
+        },
+        {
+          "case_id": "rag_012_eval_metrics",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_013_openclaw_rehearsal",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_014_cli_task_owner",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_015_callback_task_owner",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_016_faq_task_owner",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_017_eval_dataset_task",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_018_oauth_code_20064",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_019_demo_safety_policy",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_020_rag_noise_precision",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_021_owner_missing_policy",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_022_duplicate_task_idempotency",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_023_pre_trace_tools",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_024_post_trace_tools",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_025_write_safety_trace",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_026_eval_report_display",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_027_demo_script_order",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_028_sample_definition",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_029_pre_history_and_tasks",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_030_auth_risk_with_task",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_031_demo_fallback_and_safety",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_032_eval_result_honesty",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_033_post_actions_and_faq",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_034_policy_me_resolution",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_035_risk_card_sources",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_036_openclaw_eval_command",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_037_rag_to_pre_card",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_038_rag_to_post_card",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_039_trace_eval_safety",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        },
+        {
+          "case_id": "rag_040_dataset_design",
+          "faithfulness": 1.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 1.0,
+          "fact_count": 2
+        }
+      ]
+    },
+    "without_rag": {
+      "score": 0.1736,
+      "metrics": {
+        "faithfulness": 0.0,
+        "answer_relevancy": 0.5208,
+        "evidence_coverage": 0.0
+      },
+      "cases": [
+        {
+          "case_id": "rag_001_pre_scope",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_002_arch_policy_boundary",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_003_d2_card_sections",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_004_d3_summary_sections",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_005_d4_task_card_owner",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_006_d5_risk_card",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_007_d6_agent_capability",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_008_d7_eval_dimensions",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_009_d8_cli_dry_run",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_010_prev_decisions",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_011_current_actions",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.3333,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_012_eval_metrics",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_013_openclaw_rehearsal",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_014_cli_task_owner",
+          "faithfulness": 0.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_015_callback_task_owner",
+          "faithfulness": 0.0,
+          "answer_relevancy": 1.0,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_016_faq_task_owner",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_017_eval_dataset_task",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_018_oauth_code_20064",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_019_demo_safety_policy",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_020_rag_noise_precision",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_021_owner_missing_policy",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_022_duplicate_task_idempotency",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_023_pre_trace_tools",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_024_post_trace_tools",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_025_write_safety_trace",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_026_eval_report_display",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_027_demo_script_order",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_028_sample_definition",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_029_pre_history_and_tasks",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_030_auth_risk_with_task",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_031_demo_fallback_and_safety",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_032_eval_result_honesty",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_033_post_actions_and_faq",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_034_policy_me_resolution",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_035_risk_card_sources",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_036_openclaw_eval_command",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_037_rag_to_pre_card",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_038_rag_to_post_card",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_039_trace_eval_safety",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        },
+        {
+          "case_id": "rag_040_dataset_design",
+          "faithfulness": 0.0,
+          "answer_relevancy": 0.5,
+          "evidence_coverage": 0.0,
+          "fact_count": 1
+        }
+      ]
+    },
+    "improvement": {
+      "score_delta": 0.8264,
+      "evidence_coverage_delta": 1.0,
+      "faithfulness_delta": 1.0
+    }
+  },
+  "workflow_quality": {
+    "score": 1.0,
+    "pre_meeting": {
+      "score": 1.0,
+      "with_rag": {
+        "score": 1.0,
+        "section_completeness": 1.0,
+        "section_evidence_rate": 1.0,
+        "actual_sections": [
+          "background",
+          "evidence_pack",
+          "leftover_actions",
+          "previous_decisions",
+          "risks",
+          "suggested_topics"
+        ]
+      },
+      "without_rag": {
+        "score": 0.1667,
+        "section_completeness": 0.3333,
+        "section_evidence_rate": 0.0,
+        "actual_sections": [
+          "background",
+          "suggested_topics"
+        ]
+      }
+    },
+    "post_meeting": {
+      "score": 1.0,
+      "section_score": 1.0,
+      "action_item_recall": 1.0,
+      "field_completeness": 1.0,
+      "evidence_rate": 1.0,
+      "actual_action_count": 3
+    },
+    "risk_scan": {
+      "score": 1.0,
+      "recall": 1.0,
+      "precision": 1.0,
+      "evidence_rate": 1.0
+    }
+  },
+  "agent_quality": {
+    "score": 1.0,
+    "trace_score": 1.0,
+    "stability_score": 1.0,
+    "safety_score": 1.0,
+    "trace_cases": [
+      {
+        "case_id": "d7_pre_meeting_trace",
+        "tool_call_f1": 1.0,
+        "forbidden_tools_absent": 1.0,
+        "policy_score": 1.0,
+        "score": 1.0
+      },
+      {
+        "case_id": "d7_post_meeting_trace",
+        "tool_call_f1": 1.0,
+        "forbidden_tools_absent": 1.0,
+        "policy_score": 1.0,
+        "score": 1.0
+      },
+      {
+        "case_id": "d7_write_safety_trace",
+        "tool_call_f1": 1.0,
+        "forbidden_tools_absent": 1.0,
+        "policy_score": 1.0,
+        "score": 1.0
+      }
+    ]
+  },
+  "overall_score": 0.9489,
+  "conclusion": "D7 离线评测显示 MeetFlow 在 40 条业务风格脱敏样本上达到可演示水位：RAG 检索能稳定召回关键证据，生成结果证据覆盖明显优于非 RAG 基线，Agent 工具轨迹和安全策略可解释。",
+  "source_article": "https://xiaolinnote.com/ai/rag/18_evaluation.html"
+}

@@ -91,20 +91,25 @@ def _build_minutes_fetch_resource_tool(client: FeishuClient) -> AgentTool:
 
     return AgentTool(
         internal_name="minutes.fetch_resource",
-        description="读取飞书妙记基础信息和 AI 产物，并转换为统一 Resource。",
+        description=(
+            "读取飞书妙记基础信息和 AI 产物，并转换为统一 Resource。"
+            "妙记属于用户资源，Agent 工具固定使用 user 身份读取。"
+        ),
         parameters={
             "type": "object",
             "properties": {
                 "minute": {"type": "string", "description": "飞书妙记 URL 或 minute token。"},
                 "include_artifacts": {"type": "boolean", "description": "是否尝试读取 summary/todos/chapters。"},
-                "identity": {"type": "string", "description": "飞书身份，可选 user 或 tenant。"},
             },
             "required": ["minute"],
         },
         handler=lambda minute, include_artifacts=True, identity="user", **_: client.fetch_minute_resource(
             minute=minute,
             include_artifacts=include_artifacts,
-            identity=_normalize_identity(identity),
+            # 妙记读取在当前产品链路中依赖用户授权。真实模型偶尔会误传
+            # tenant，导致飞书返回应用身份缺少 minutes scope；这里强制
+            # 固定为 user，保持 M4 自动监听稳定。
+            identity="user",
         ),
         read_only=True,
     )

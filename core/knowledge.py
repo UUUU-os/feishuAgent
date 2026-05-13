@@ -550,6 +550,25 @@ class KnowledgeIndexStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_index_jobs_status ON index_jobs(status)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_index_jobs_resource_id ON index_jobs(resource_id)")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS knowledge_event_subscriptions (
+                    resource_id TEXT PRIMARY KEY,
+                    resource_type TEXT NOT NULL,
+                    source_url TEXT NOT NULL,
+                    file_token TEXT NOT NULL,
+                    file_type TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    last_error TEXT NOT NULL,
+                    subscribed_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_knowledge_event_subscriptions_status "
+                "ON knowledge_event_subscriptions(status)"
+            )
             conn.commit()
         self.logger.info("知识索引存储初始化完成 db_path=%s", self.db_path)
 
@@ -964,6 +983,108 @@ class KnowledgeIndexStore:
             conn.row_factory = sqlite3.Row
             row = conn.execute("SELECT * FROM index_jobs WHERE job_id = ?", (job_id,)).fetchone()
         return index_job_row_to_dict(row) if row else None
+
+    def save_event_subscription(
+        self,
+        *,
+        resource_id: str,
+        resource_type: str,
+        source_url: str,
+        file_token: str,
+        file_type: str,
+        status: str,
+        last_error: str = "",
+    ) -> None:
+        """记录 RAG 文档事件订阅状态。
+
+        手动把飞书文档加入知识库后，需要把订阅关系落到本地。后续长连接
+        只收到 file_token 时，可以根据这张表还原原始资源链接并刷新 RAG。
+        """
+
+        self.initialize()
+        now = int(time.time())
+        with sqlite3.connect(self.db_path) as conn:
+            existing = conn.execute(
+                "SELECT subscribed_at FROM knowledge_event_subscriptions WHERE resource_id = ?",
+                (resource_id,),
+            ).fetchone()
+            subscribed_at = int(existing[0]) if existing else now
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO knowledge_event_subscriptions (
+                    resource_id, resource_type, source_url, file_token, file_type,
+                    status, last_error, subscribed_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    resource_id,
+                    normalize_source_type(resource_type),
+                    source_url,
+                    file_token,
+                    file_type,
+                    status,
+                    last_error,
+                    subscribed_at,
+                    now,
+                ),
+            )
+            conn.commit()
+
+    def get_event_subscription(self, resource_id: str) -> dict[str, Any] | None:
+        """读取单篇知识资源的事件订阅状态。
+
+        飞书 wiki/docx 链接在业务侧和事件侧可能暴露不同 token，因此同时按
+        resource_id 与 file_token 查询，保证文档变化事件能命中首次接入记录。
+        """
+
+        self.initialize()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                """
+                SELECT *
+                FROM knowledge_event_subscriptions
+                WHERE resource_id = ? OR file_token = ?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """,
+                (resource_id, resource_id),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_event_subscriptions(self, status: str = "", limit: int = 50) -> list[dict[str, Any]]:
+        """列出 RAG 文档事件订阅状态，供观察台和排查命令展示。"""
+
+        self.initialize()
+        sql = "SELECT * FROM knowledge_event_subscriptions"
+        params: list[Any] = []
+        if status:
+            sql += " WHERE status = ?"
+            params.append(status)
+        sql += " ORDER BY updated_at DESC LIMIT ?"
+        params.append(max(1, int(limit or 50)))
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_index_job_status(
+        self,
+        job_id: str,
+        status: str,
+        chunk_count: int = 0,
+        content_tokens: int = 0,
+        last_error: str = "",
+    ) -> None:
+        """公开更新索引刷新任务状态，供 worker/daemon 处理事件队列。"""
+
+        self._update_index_job_status(
+            job_id=job_id,
+            status=status,
+            chunk_count=chunk_count,
+            content_tokens=content_tokens,
+            last_error=last_error,
+        )
 
     def _save_index_job(self, job: IndexJob) -> None:
         """保存索引任务。"""

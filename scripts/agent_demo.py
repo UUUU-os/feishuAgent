@@ -83,6 +83,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-iterations", type=int, default=4, help="Agent Loop 最大轮数。")
     parser.add_argument("--allow-write", action="store_true", help="允许写工具经过 Policy 后执行。")
     parser.add_argument("--enable-idempotency", action="store_true", help="启用幂等去重。")
+    parser.add_argument("--idempotency-suffix", default="", help="追加到写操作幂等键的后缀，真实复测时用于避免飞书消息 uuid 去重。")
     parser.add_argument("--plan-only", action="store_true", help="只打印 AgentInput / AgentDecision / WorkflowContext，不运行 Loop。")
     parser.add_argument("--show-full", action="store_true", help="打印完整 AgentRunResult。")
     return parser.parse_args()
@@ -149,7 +150,7 @@ def build_payload(args: argparse.Namespace, timezone: str) -> dict[str, object]:
         "start_time": start_time,
         "end_time": end_time,
         "project_id": args.project_id,
-        "idempotency_key": f"{args.calendar_id}:{start_time}:{end_time}",
+        "idempotency_key": build_demo_idempotency_key(args.calendar_id, start_time, end_time, args.idempotency_suffix),
     }
     optional_values = {
         "meeting_id": args.meeting_id,
@@ -164,6 +165,14 @@ def build_payload(args: argparse.Namespace, timezone: str) -> dict[str, object]:
         if value:
             payload[key] = value
     return payload
+
+
+def build_demo_idempotency_key(calendar_id: str, start_time: str, end_time: str, suffix: str = "") -> str:
+    """构造调试入口幂等键；后缀用于真实复测时生成新的飞书消息 uuid。"""
+
+    base_key = f"{calendar_id}:{start_time}:{end_time}"
+    normalized_suffix = str(suffix or "").strip()
+    return f"{base_key}:{normalized_suffix}" if normalized_suffix else base_key
 
 
 def default_tools_for_event(event_type: str) -> list[str]:
@@ -604,6 +613,17 @@ def build_debug_card_arguments(user_content: str, context_payload: dict[str, str
         or event_payload.get("event_id")
         or meeting_id
     )
+    card_payload = runtime_context.get("pre_meeting_card_payload")
+    if isinstance(card_payload, dict) and isinstance(card_payload.get("card"), dict):
+        facts = card_payload.get("facts") if isinstance(card_payload.get("facts"), list) else []
+        return {
+            "title": str(card_payload.get("title") or f"会前背景知识卡片：{meeting_title}"),
+            "summary": str(card_payload.get("summary") or "D2 会前智能准备卡已由确定性阶段生成。"),
+            "facts": facts,
+            "card": card_payload["card"],
+            "idempotency_key": str(card_payload.get("idempotency_key") or context_payload.get("idempotency_key") or ""),
+            "identity": "tenant",
+        }
     related_resources = runtime_context.get("related_resources")
     facts: list[object] = []
     if isinstance(related_resources, list):
@@ -667,6 +687,12 @@ def build_debug_pre_meeting_card(
         meeting_id=meeting_id,
         calendar_event_id=calendar_event_id,
         summary="scripted_debug 已完成真实会议读取、知识检索和受控发卡。",
+        meeting_basic_info={
+            "start_time": event_payload.get("start_time", ""),
+            "end_time": event_payload.get("end_time", ""),
+            "timezone": event_payload.get("timezone", "Asia/Shanghai"),
+            "source_url": event_payload.get("app_link", ""),
+        },
         confidence=0.8,
         needs_confirmation=False,
         last_decisions=[],

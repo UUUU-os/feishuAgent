@@ -47,7 +47,7 @@ OpenClaw / CLI
 
 | 文件 | 类型 | 改造内容 |
 |---|---|---|
-| `scripts/meetflow_cli.py` | 新增 | 统一 CLI 入口，提供 `health`、`pre-meeting`、`post-meeting`、`task-cards`、`risk-scan`、`eval`、`demo-replay`、`service`、`openclaw-tools` 子命令 |
+| `scripts/meetflow_cli.py` | 新增 | 统一 CLI 入口，提供飞书 CLI 风格的 `workflow +health/+pre-meeting/+post-meeting/+task-cards/+risk-scan/+eval/+demo-replay`、`service +list/+start/+stop/+logs`、`live +sdk-callback/+worker/+d3-card/+watch-callbacks`、`openclaw +tools` 命令；旧顶层命令保留兼容 |
 | `core/cli_facade.py` | 建议新增 | CLI 专用 facade，封装标准 JSON 输出、trace_id、safety_summary、OpenClaw 工具响应，不让脚本层散落解析逻辑 |
 | `core/console_api.py` | 小幅改造 | 复用已有 `MeetFlowConsoleAPI`；补齐 M3 `--doc/--minute` 参数透传；必要时抽出公共脱敏与命令解析工具 |
 | `tests/test_meetflow_cli.py` | 新增 | 覆盖默认 dry-run、allow-write 门禁、禁止任意命令、JSON 输出、OpenClaw 工具清单 |
@@ -61,16 +61,23 @@ OpenClaw / CLI
 ### 4.1 总体命令
 
 ```bash
-python3 scripts/meetflow_cli.py health
-python3 scripts/meetflow_cli.py pre-meeting --date today --event-title "MeetFlow 测试会议"
-python3 scripts/meetflow_cli.py post-meeting --minute "<飞书妙记链接>"
-python3 scripts/meetflow_cli.py task-cards --minute "<飞书妙记链接>"
-python3 scripts/meetflow_cli.py risk-scan --backend local
-python3 scripts/meetflow_cli.py eval --suite agent_trajectory
-python3 scripts/meetflow_cli.py demo-replay --case m3_pre_meeting_basic
-python3 scripts/meetflow_cli.py service list
-python3 scripts/meetflow_cli.py openclaw-tools
+export PATH="$PWD/bin:$PATH"
+meetflow workflow +health
+meetflow workflow +pre-meeting --date today --event-title "MeetFlow 测试会议"
+meetflow workflow +post-meeting --minute "<飞书妙记链接>"
+meetflow workflow +task-cards --minute "<飞书妙记链接>"
+meetflow workflow +risk-scan --backend local
+meetflow workflow +eval --suite agent_trajectory
+meetflow workflow +demo-replay --case m3_pre_meeting_basic
+meetflow service +list
+meetflow openclaw +tools
 ```
+
+命令风格参考飞书 CLI 的“资源模块 + `+action` 快捷动作”约定。为了避免临近提交破坏已有联调脚本，
+`health`、`pre-meeting`、`post-meeting`、`task-cards`、`risk-scan`、`eval`、
+`demo-replay`、`service list/start/stop/logs`、`live sdk-callback/worker/d3-card/watch-callbacks`
+等旧入口继续可用，但新文档、Skill 和 OpenClaw 工具清单统一推荐使用上面的分组格式。
+仓库内实际包装器为 `bin/meetflow`；把 `$PWD/bin` 加入 PATH 后即可使用裸 `meetflow` 命令。
 
 ### 4.2 `health`
 
@@ -127,7 +134,7 @@ python3 scripts/meetflow_cli.py openclaw-tools
 建议参数：
 
 ```bash
-python3 scripts/meetflow_cli.py pre-meeting \
+meetflow workflow +pre-meeting \
   --date today \
   --event-title "MeetFlow 测试会议" \
   --provider settings \
@@ -140,7 +147,7 @@ python3 scripts/meetflow_cli.py pre-meeting \
 真实发送时：
 
 ```bash
-python3 scripts/meetflow_cli.py pre-meeting \
+meetflow workflow +pre-meeting \
   --date today \
   --event-title "MeetFlow 测试会议" \
   --provider settings \
@@ -168,7 +175,7 @@ python3 scripts/meetflow_cli.py pre-meeting \
 建议参数：
 
 ```bash
-python3 scripts/meetflow_cli.py post-meeting \
+meetflow workflow +post-meeting \
   --minute "<飞书妙记链接>" \
   --provider scripted_debug \
   --write-report
@@ -177,7 +184,7 @@ python3 scripts/meetflow_cli.py post-meeting \
 真实发送：
 
 ```bash
-python3 scripts/meetflow_cli.py post-meeting \
+meetflow workflow +post-meeting \
   --minute "<飞书妙记链接>" \
   --chat-id "<测试群 chat_id>" \
   --allow-write \
@@ -203,7 +210,7 @@ python3 scripts/meetflow_cli.py post-meeting \
 命令形态：
 
 ```bash
-python3 scripts/meetflow_cli.py task-cards \
+meetflow workflow +task-cards \
   --minute "<飞书妙记链接>" \
   --dry-run
 ```
@@ -223,7 +230,7 @@ python3 scripts/meetflow_cli.py task-cards \
 建议参数：
 
 ```bash
-python3 scripts/meetflow_cli.py risk-scan \
+meetflow workflow +risk-scan \
   --backend local \
   --show-card
 ```
@@ -231,7 +238,7 @@ python3 scripts/meetflow_cli.py risk-scan \
 真实飞书任务读取和发送：
 
 ```bash
-python3 scripts/meetflow_cli.py risk-scan \
+meetflow workflow +risk-scan \
   --backend feishu \
   --chat-id "<测试群 chat_id>" \
   --allow-write \
@@ -256,7 +263,7 @@ python3 scripts/meetflow_cli.py risk-scan \
 建议参数：
 
 ```bash
-python3 scripts/meetflow_cli.py eval \
+meetflow workflow +eval \
   --suite agent_trajectory \
   --provider scripted_debug \
   --fail-under 0.95 \
@@ -284,7 +291,7 @@ python3 scripts/meetflow_cli.py eval \
 建议参数：
 
 ```bash
-python3 scripts/meetflow_cli.py demo-replay \
+meetflow workflow +demo-replay \
   --all \
   --fail-under 1.0 \
   --write-report
@@ -305,11 +312,11 @@ python3 scripts/meetflow_cli.py demo-replay \
 命令形态：
 
 ```bash
-python3 scripts/meetflow_cli.py service list
-python3 scripts/meetflow_cli.py service start worker
-python3 scripts/meetflow_cli.py service start sdk_callback --profile enqueue
-python3 scripts/meetflow_cli.py service logs worker --tail 100
-python3 scripts/meetflow_cli.py service stop worker
+meetflow service +list
+meetflow service +start worker
+meetflow service +start sdk_callback --profile enqueue
+meetflow service +logs worker --tail 100
+meetflow service +stop worker
 ```
 
 安全规则：
@@ -324,7 +331,7 @@ python3 scripts/meetflow_cli.py service stop worker
 首版可直接读取 `config/openclaw_tools.example.json` 并输出；如果文件不存在，则由代码内置生成。
 
 ```bash
-python3 scripts/meetflow_cli.py openclaw-tools
+meetflow openclaw +tools
 ```
 
 ## 5. 标准 JSON 输出协议
@@ -415,11 +422,11 @@ core/cli_facade.py
 验收：
 
 ```bash
-python3 scripts/meetflow_cli.py health
-python3 scripts/meetflow_cli.py pre-meeting --date today --event-title "MeetFlow 测试会议"
-python3 scripts/meetflow_cli.py post-meeting --minute "dummy_minute"
-python3 scripts/meetflow_cli.py risk-scan --backend local
-python3 scripts/meetflow_cli.py eval --suite agent_trajectory --write-report
+meetflow workflow +health
+meetflow workflow +pre-meeting --date today --event-title "MeetFlow 测试会议"
+meetflow workflow +post-meeting --minute "dummy_minute"
+meetflow workflow +risk-scan --backend local
+meetflow workflow +eval --suite agent_trajectory --write-report
 ```
 
 ### 阶段 2：OpenClaw 工具说明和配置
@@ -429,7 +436,7 @@ python3 scripts/meetflow_cli.py eval --suite agent_trajectory --write-report
 - `docs/openclaw-meetflow-tool-guide.md`
 - `config/openclaw_tools.example.json`
 - `docs/openclaw-demo-commands.md`
-- `scripts/meetflow_cli.py openclaw-tools`
+- `scripts/meetflow_cli.py openclaw +tools`
 
 工具建议：
 
@@ -547,7 +554,7 @@ run_console_command()
     {
       "name": "meetflow_pre_meeting",
       "description": "生成 MeetFlow 会前背景知识卡，默认 dry-run，真实发卡必须 allow_write。",
-      "command": "python3 scripts/meetflow_cli.py pre-meeting",
+      "command": "meetflow workflow +pre-meeting",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -589,13 +596,13 @@ python3 -m unittest tests.test_meetflow_cli tests.test_console_api
 ### 9.3 CLI dry-run 验收
 
 ```bash
-python3 scripts/meetflow_cli.py health
-python3 scripts/meetflow_cli.py pre-meeting --date today --event-title "MeetFlow 测试会议" --provider scripted_debug
-python3 scripts/meetflow_cli.py post-meeting --minute "dummy_minute"
-python3 scripts/meetflow_cli.py risk-scan --backend local --show-card
-python3 scripts/meetflow_cli.py eval --suite agent_trajectory --write-report
-python3 scripts/meetflow_cli.py demo-replay --all --write-report
-python3 scripts/meetflow_cli.py openclaw-tools
+meetflow workflow +health
+meetflow workflow +pre-meeting --date today --event-title "MeetFlow 测试会议" --provider scripted_debug
+meetflow workflow +post-meeting --minute "dummy_minute"
+meetflow workflow +risk-scan --backend local --show-card
+meetflow workflow +eval --suite agent_trajectory --write-report
+meetflow workflow +demo-replay --all --write-report
+meetflow openclaw +tools
 ```
 
 ### 9.4 真实写入验收
@@ -603,7 +610,7 @@ python3 scripts/meetflow_cli.py openclaw-tools
 真实写入只在用户明确确认后执行：
 
 ```bash
-python3 scripts/meetflow_cli.py pre-meeting \
+meetflow workflow +pre-meeting \
   --date today \
   --event-title "MeetFlow 测试会议" \
   --provider settings \
@@ -680,13 +687,13 @@ D8 完成后应满足：
 ```bash
 python3 -m py_compile core/cli_facade.py scripts/meetflow_cli.py core/console_api.py tests/test_meetflow_cli.py tests/test_console_api.py
 python3 -m unittest tests.test_meetflow_cli tests.test_console_api
-python3 scripts/meetflow_cli.py health
-python3 scripts/meetflow_cli.py openclaw-tools
-python3 scripts/meetflow_cli.py pre-meeting --date today --event-title "MeetFlow 测试会议" --provider scripted_debug --doc "https://example.feishu.cn/docx/demo" --minute "https://example.feishu.cn/minutes/demo" --write-report
-python3 scripts/meetflow_cli.py post-meeting --minute "dummy_minute"
-python3 scripts/meetflow_cli.py risk-scan --backend local --show-card
-python3 scripts/meetflow_cli.py eval --suite agent_trajectory --write-report
-python3 scripts/meetflow_cli.py demo-replay --all --write-report
+meetflow workflow +health
+meetflow openclaw +tools
+meetflow workflow +pre-meeting --date today --event-title "MeetFlow 测试会议" --provider scripted_debug --doc "https://example.feishu.cn/docx/demo" --minute "https://example.feishu.cn/minutes/demo" --write-report
+meetflow workflow +post-meeting --minute "dummy_minute"
+meetflow workflow +risk-scan --backend local --show-card
+meetflow workflow +eval --suite agent_trajectory --write-report
+meetflow workflow +demo-replay --all --write-report
 ```
 
 结果：编译通过；`tests.test_meetflow_cli` 和 `tests.test_console_api` 共 18 条测试通过；
@@ -709,7 +716,7 @@ D3 四终端真实联调快捷命令说明；`tests/test_meetflow_cli.py` 增加
 ```bash
 python3 -m py_compile scripts/meetflow_cli.py tests/test_meetflow_cli.py
 python3 -m unittest tests.test_meetflow_cli
-python3 scripts/meetflow_cli.py live d3-card --minute obcngy8e7x2883b6f9f5x4l9 --show-card-json --dry-run
+meetflow live +d3-card --minute obcngy8e7x2883b6f9f5x4l9 --show-card-json --dry-run
 ```
 
 结果：10 条 CLI 测试通过；`live d3-card --dry-run` 能打印等价的 `card_send_live.py m4`
@@ -737,3 +744,56 @@ D3 四终端 live 命令、service 管理和 openclaw-tools。同步新增
 `docs/skills/MEETFLOW_CLI_OPENCLAW_DOC_ISSUES.md`，记录当前手册与代码不一致点：`live` 命令非 JSON、
 `live d3-card` 默认真实发卡、顶层 `suggested_fix` 尚未实现、`health` 不直接验证 OAuth token、
 `service start` 已实现但手册弱化展示。本次只修改文档，未修改核心业务代码，未提交真实配置或密钥。
+
+2026-05-13 调整为飞书 CLI 风格命令并标准化 Skill。
+
+本轮在不移除旧入口的前提下，将 D8 推荐命令调整为“模块 + `+action`”格式：
+`workflow +health/+pre-meeting/+post-meeting/+task-cards/+risk-scan/+eval/+demo-replay`、
+`openclaw +tools`、`service +list/+start/+stop/+logs`、`live +sdk-callback/+worker/+d3-card/+watch-callbacks`。
+`scripts/meetflow_cli.py` 只新增解析层别名，底层仍复用既有 `MeetFlowCLI` facade 和白名单脚本；
+旧版顶层命令继续兼容，避免破坏临近提交前已有演示脚本。
+
+同步更新 `config/openclaw_tools.example.json`、`docs/openclaw-meetflow-tool-guide.md`、
+`docs/tasks/openclaw-demo-enhancement.md` 和本 D8 文档中的推荐命令。`docs/skills/MEETFLOW_CLI_OPENCLAW_SKILL.md`
+补充标准 Skill front matter、触发条件、前置约束、命令导航、常用流程和失败处理口径，并统一要求
+Agent 优先使用新的 `+action` 命令格式。
+
+验证命令：
+
+```bash
+python3 -m py_compile scripts/meetflow_cli.py tests/test_meetflow_cli.py
+python3 -m unittest tests.test_meetflow_cli
+python3 -m json.tool config/openclaw_tools.example.json
+meetflow workflow +health
+meetflow openclaw +tools
+```
+
+结果：CLI 编译通过；`tests.test_meetflow_cli` 15 条测试通过；OpenClaw 工具清单 JSON 有效；
+`workflow +health` 和 `openclaw +tools` 均可输出标准 JSON。未执行任何真实飞书写入。
+
+2026-05-13 新增 `meetflow` 包装命令入口。
+
+本轮新增 `bin/meetflow`，作为 `scripts/meetflow_cli.py` 的极薄包装器，只负责定位仓库根目录并把参数
+原样转发给现有 Python CLI，不改变任何业务逻辑、Policy 或白名单脚本。将仓库 `bin` 目录加入 PATH 后，
+推荐命令可写成 `meetflow workflow +health`、`meetflow workflow +pre-meeting ...`、
+`meetflow openclaw +tools`，观感与飞书 CLI 的模块化命令更一致。旧入口 `python3 scripts/meetflow_cli.py ...`
+仍可继续用于兼容和排障。
+
+同步更新 `config/openclaw_tools.example.json`、`docs/openclaw-meetflow-tool-guide.md`、
+`docs/skills/MEETFLOW_CLI_OPENCLAW_SKILL.md`、`docs/tasks/openclaw-demo-enhancement.md`、
+`tasks.md` 中的推荐命令入口，改为 `meetflow ...`。
+
+验证命令：
+
+```bash
+python3 -m py_compile scripts/meetflow_cli.py tests/test_meetflow_cli.py
+python3 -m unittest tests.test_meetflow_cli
+python3 -m json.tool config/openclaw_tools.example.json
+bin/meetflow workflow +health
+PATH="$PWD/bin:$PATH" meetflow openclaw +tools
+bin/meetflow live +d3-card --minute dummy_minute --dry-run
+git diff --check
+```
+
+结果：包装入口可执行，`tests.test_meetflow_cli` 通过；新 `meetflow` 形式和原 Python CLI 逻辑一致；
+`live +d3-card --dry-run` 只打印下游命令，未执行真实飞书写入。

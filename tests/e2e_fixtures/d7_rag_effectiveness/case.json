@@ -1,0 +1,1932 @@
+{
+  "suite_id": "d7_rag_effectiveness",
+  "description": "D7 MeetFlow RAG 与 Agent 效果评测脱敏样本。覆盖 40 条会前、会后、风险、OpenClaw、评测和安全策略业务问题。",
+  "corpus": [
+    {
+      "chunk_id": "doc_prd_scope",
+      "source_type": "doc",
+      "title": "MeetFlow PRD - 项目范围",
+      "source_url": "https://example.com/doc/doc_prd_scope",
+      "text": "MeetFlow 面向飞书会议协作，核心闭环是会前准备、会后妙记复盘、行动项落地和任务风险提醒。当前项目评审会重点确认 OpenClaw CLI 入口、飞书卡片回调、安全策略和演示兜底路径。"
+    },
+    {
+      "chunk_id": "doc_arch_agent_loop",
+      "source_type": "doc",
+      "title": "架构说明 - Agent Loop 与工具边界",
+      "source_url": "https://example.com/doc/doc_arch_agent_loop",
+      "text": "AgentInput 进入 WorkflowRouter 后由 WorkflowContextBuilder 收集上下文，MeetFlowAgentLoop 负责多轮推理，ToolRegistry 负责工具 schema 与执行，所有写操作必须经过 AgentPolicy。"
+    },
+    {
+      "chunk_id": "doc_d2_pre_meeting",
+      "source_type": "doc",
+      "title": "D2 会前卡片增强方案",
+      "source_url": "https://example.com/doc/doc_d2_pre_meeting",
+      "text": "会前卡片应展示会议背景、上次结论、遗留行动项、历史风险、建议议题、会前 Checklist 和 Evidence Pack。RAG 需要召回历史会议、项目文档和未完成任务。"
+    },
+    {
+      "chunk_id": "doc_d3_post_meeting",
+      "source_type": "doc",
+      "title": "D3 会后总结卡优化方案",
+      "source_url": "https://example.com/doc/doc_d3_post_meeting",
+      "text": "会后总结卡应包含会议摘要、关键结论、开放问题、行动项、风险提示、争议点、后续建议和完整报告入口。行动项必须保留负责人、截止时间和证据片段。"
+    },
+    {
+      "chunk_id": "doc_d4_task_card",
+      "source_type": "doc",
+      "title": "D4 妙记任务卡方案",
+      "source_url": "https://example.com/doc/doc_d4_task_card",
+      "text": "D4 从妙记中识别每个人的任务，生成按负责人分组的待确认任务卡。负责人无法解析为 open_id 时显示待补充，确认创建时必须再次经过 AgentPolicy。"
+    },
+    {
+      "chunk_id": "doc_d5_risk_scan",
+      "source_type": "doc",
+      "title": "D5 任务风险提醒方案",
+      "source_url": "https://example.com/doc/doc_d5_risk_scan",
+      "text": "任务风险提醒扫描逾期、临期、长期未更新、缺负责人和重复出现的问题。风险卡需要展示风险等级、来源证据、原因解释和建议动作。"
+    },
+    {
+      "chunk_id": "doc_d6_agent_capability",
+      "source_type": "doc",
+      "title": "D6 Agent 能力扩充方案",
+      "source_url": "https://example.com/doc/doc_d6_agent_capability",
+      "text": "D6 强调 Context、Tool、Policy、Trace 四个能力，用这些轨迹证明 MeetFlow 不是固定脚本。Agent 应先检索证据，再生成结论，再通过工具或卡片输出，并在失败时给出可解释兜底。"
+    },
+    {
+      "chunk_id": "doc_d7_eval_plan",
+      "source_type": "doc",
+      "title": "D7 评测体系优化方案",
+      "source_url": "https://example.com/doc/doc_d7_eval_plan",
+      "text": "D7 评测要证明 Agent 真的有效，覆盖会前卡片质量、会后总结完整性、行动项识别准确率、任务字段完整率、风险识别准确性、Evidence Coverage、工具选择准确率和安全策略命中率。"
+    },
+    {
+      "chunk_id": "doc_d8_cli_openclaw",
+      "source_type": "doc",
+      "title": "D8 OpenClaw CLI 接入方案",
+      "source_url": "https://example.com/doc/doc_d8_cli_openclaw",
+      "text": "D8 要提供受控 CLI 入口，OpenClaw 可调用 health、pre-meeting、post-meeting、risk-scan、eval 和 demo-replay。CLI 默认 dry-run，真实写操作必须显式 allow-write。"
+    },
+    {
+      "chunk_id": "minute_prev_decisions",
+      "source_type": "minute",
+      "title": "上次项目评审会结论",
+      "source_url": "https://example.com/minute/minute_prev_decisions",
+      "text": "上次会议决定：会前卡片必须展示历史会议背景、遗留行动项和风险证据；会后卡片必须展示摘要、关键结论、开放问题、行动项和 Evidence Pack。团队同意 D7 评测报告必须能说明 RAG 效果。"
+    },
+    {
+      "chunk_id": "minute_current_transcript",
+      "source_type": "minute",
+      "title": "本次项目评审妙记",
+      "source_url": "https://example.com/minute/minute_current_transcript",
+      "text": "本次会议结论：D7 评测扩充到 40 条真实业务样本；会前和会后都必须引用证据。行动项：叶抒锐在 2026-05-14 前补齐 CLI 文档；李健文在 2026-05-13 前修复负责人解析授权错误；王宁在 2026-05-15 前整理答辩 FAQ。开放问题：真实飞书按钮回调还需要最后一次联调。"
+    },
+    {
+      "chunk_id": "minute_rag_review",
+      "source_type": "minute",
+      "title": "RAG 评测讨论纪要",
+      "source_url": "https://example.com/minute/minute_rag_review",
+      "text": "RAG 评测讨论确认：检索层使用 Hit@3、MRR、Context Recall 和 Context Precision；生成层使用 Faithfulness、Answer Relevancy 和 Evidence Coverage；报告要诚实说明 Top-K 噪声和小样本风险。"
+    },
+    {
+      "chunk_id": "minute_openclaw_demo",
+      "source_type": "minute",
+      "title": "OpenClaw 演示排练纪要",
+      "source_url": "https://example.com/minute/minute_openclaw_demo",
+      "text": "演示排练要求：先用 OpenClaw 调用 CLI 触发会前准备，再展示会后总结、任务卡、任务风险提醒和评测报告。若真实飞书失败，使用离线报告和脱敏 fixture 兜底。"
+    },
+    {
+      "chunk_id": "task_cli_owner",
+      "source_type": "task",
+      "title": "遗留任务 - CLI 文档",
+      "source_url": "https://example.com/task/task_cli_owner",
+      "text": "遗留行动项：叶抒锐负责补齐 OpenClaw CLI 工具说明和参数示例，截止时间 2026-05-14，当前状态进行中。该任务影响 D8 接入演示。"
+    },
+    {
+      "chunk_id": "task_callback_owner",
+      "source_type": "task",
+      "title": "遗留任务 - 卡片回调",
+      "source_url": "https://example.com/task/task_callback_owner",
+      "text": "遗留行动项：李健文负责修复会后任务卡确认创建时负责人 open_id 解析失败的问题，截止时间 2026-05-13，风险是用户 OAuth token 失效会误报缺少负责人。"
+    },
+    {
+      "chunk_id": "task_faq_owner",
+      "source_type": "task",
+      "title": "遗留任务 - 答辩 FAQ",
+      "source_url": "https://example.com/task/task_faq_owner",
+      "text": "遗留行动项：王宁负责整理答辩 FAQ，截止时间 2026-05-15，重点回答 RAG 效果、Agent 安全边界、飞书权限和演示兜底方案。"
+    },
+    {
+      "chunk_id": "task_eval_dataset",
+      "source_type": "task",
+      "title": "遗留任务 - 评测数据集",
+      "source_url": "https://example.com/task/task_eval_dataset",
+      "text": "遗留行动项：评测负责人需要把 D7 样本扩充到 40 条，覆盖会前、会后、风险、CLI、安全策略和工具轨迹，并把结果写入 docs/evaluation。"
+    },
+    {
+      "chunk_id": "risk_auth_callback",
+      "source_type": "risk",
+      "title": "风险记录 - OAuth 与回调",
+      "source_url": "https://example.com/risk/risk_auth_callback",
+      "text": "风险记录：真实飞书回调依赖用户 OAuth token 和 refresh_token。若 contact.search_user 在 authen/v2/oauth/token 返回 code=20064，应提示重新授权，不应继续调用 tasks.create_task。"
+    },
+    {
+      "chunk_id": "risk_demo_stability",
+      "source_type": "risk",
+      "title": "风险记录 - 演示稳定性",
+      "source_url": "https://example.com/risk/risk_demo_stability",
+      "text": "演示稳定性检查要求：CLI 默认 dry-run；真实写操作必须显式 allow-write；任务创建必须经过 AgentPolicy；重复点击卡片按钮不得重复创建任务；评测报告不得包含 token、secret、refresh_token 或 API key。"
+    },
+    {
+      "chunk_id": "risk_rag_noise",
+      "source_type": "risk",
+      "title": "风险记录 - RAG 检索噪声",
+      "source_url": "https://example.com/risk/risk_rag_noise",
+      "text": "风险记录：如果 Top-K 检索结果包含无关 chunk，Context Precision 会下降。后续可用 reranker、关键词过滤、父子 chunk 展开和 token budget 控制来降低噪声。"
+    },
+    {
+      "chunk_id": "risk_owner_missing",
+      "source_type": "risk",
+      "title": "风险记录 - 任务负责人缺失",
+      "source_url": "https://example.com/risk/risk_owner_missing",
+      "text": "风险记录：行动项缺少负责人或截止时间时，AgentPolicy 应返回 needs_confirmation。用户说“我”时，应优先使用卡片操作人的 open_id 或 contact.get_current_user 解析。"
+    },
+    {
+      "chunk_id": "risk_duplicate_task",
+      "source_type": "risk",
+      "title": "风险记录 - 重复创建任务",
+      "source_url": "https://example.com/risk/risk_duplicate_task",
+      "text": "风险记录：重复点击确认创建按钮时，pending registry 和幂等键必须阻止重复创建任务。卡片状态应更新为已创建或已处理。"
+    },
+    {
+      "chunk_id": "trace_pre_meeting",
+      "source_type": "trace",
+      "title": "Agent Trace - 会前准备",
+      "source_url": "https://example.com/trace/trace_pre_meeting",
+      "text": "会前 Trace 应包含 calendar.list_events、knowledge.search、knowledge.fetch_chunk。会前只读流程不得调用 tasks.create_task 或 im.send_card 这类写工具。"
+    },
+    {
+      "chunk_id": "trace_post_meeting",
+      "source_type": "trace",
+      "title": "Agent Trace - 会后复盘",
+      "source_url": "https://example.com/trace/trace_post_meeting",
+      "text": "会后 Trace 应包含 minutes.get_transcript、knowledge.search、post_meeting.save_pending_actions。保存 pending action 需要幂等键，真实创建任务要等用户确认。"
+    },
+    {
+      "chunk_id": "trace_policy_write",
+      "source_type": "trace",
+      "title": "Agent Trace - 写操作安全",
+      "source_url": "https://example.com/trace/trace_policy_write",
+      "text": "写操作 Trace 应记录 contact.search_user、tasks.create_task 和 AgentPolicy 决策。未开启 allow_write 时，tasks.create_task 应被 blocked 或 needs_confirmation。"
+    },
+    {
+      "chunk_id": "guide_eval_report",
+      "source_type": "guide",
+      "title": "评测报告展示指南",
+      "source_url": "https://example.com/guide/guide_eval_report",
+      "text": "答辩展示评测报告时，应先说明测试数据，再说明指标，再说明结果和风险。推荐展示 overall_score、Hit@3、MRR、Evidence Coverage、非 RAG 基线和安全分。"
+    },
+    {
+      "chunk_id": "guide_demo_script",
+      "source_type": "guide",
+      "title": "演示脚本指南",
+      "source_url": "https://example.com/guide/guide_demo_script",
+      "text": "正式演示脚本建议按会前准备、会后总结、任务确认、任务风险提醒、评测报告、OpenClaw CLI 调用顺序展示。每一步都要说明证据来源和安全边界。"
+    },
+    {
+      "chunk_id": "guide_rag_dataset",
+      "source_type": "guide",
+      "title": "RAG 测试样本设计指南",
+      "source_url": "https://example.com/guide/guide_rag_dataset",
+      "text": "一条测试样本不是一个文档，而是一次带标准答案的评测任务，包含问题、可用语料、期望召回 chunk、期望事实和评分规则。一个样本可以用到多个文档或 chunk。"
+    },
+    {
+      "chunk_id": "noise_finance_policy",
+      "source_type": "doc",
+      "title": "无关资料 - 报销制度",
+      "source_url": "https://example.com/doc/noise_finance_policy",
+      "text": "差旅报销需要提交发票、行程单和部门负责人审批。本资料与 MeetFlow 会议智能工作流无关。"
+    },
+    {
+      "chunk_id": "noise_office_wifi",
+      "source_type": "doc",
+      "title": "无关资料 - 办公网 WiFi",
+      "source_url": "https://example.com/doc/noise_office_wifi",
+      "text": "访客连接办公室 WiFi 需要手机号验证码，会议室投屏请使用本地网络。本资料与 RAG 评测和任务风险提醒无关。"
+    }
+  ],
+  "retrieval_cases": [
+    {
+      "case_id": "rag_001_pre_scope",
+      "workflow": "pre_meeting",
+      "question": "明天项目评审会的 MeetFlow 项目范围和核心闭环是什么？",
+      "expected_chunk_ids": [
+        "doc_prd_scope"
+      ],
+      "required_fact_ids": [
+        "project_scope",
+        "meeting_loop"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "project_scope",
+            "support_chunk_ids": [
+              "doc_prd_scope"
+            ]
+          },
+          {
+            "fact_id": "meeting_loop",
+            "support_chunk_ids": [
+              "doc_prd_scope"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "project_scope",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_002_arch_policy_boundary",
+      "workflow": "agent_policy",
+      "question": "MeetFlow Agent 的 ToolRegistry 和 AgentPolicy 边界是什么？",
+      "expected_chunk_ids": [
+        "doc_arch_agent_loop"
+      ],
+      "required_fact_ids": [
+        "tool_registry_boundary",
+        "policy_boundary"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "tool_registry_boundary",
+            "support_chunk_ids": [
+              "doc_arch_agent_loop"
+            ]
+          },
+          {
+            "fact_id": "policy_boundary",
+            "support_chunk_ids": [
+              "doc_arch_agent_loop"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "tool_registry_boundary",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_003_d2_card_sections",
+      "workflow": "pre_meeting",
+      "question": "D2 会前卡片应该包含哪些内容模块？",
+      "expected_chunk_ids": [
+        "doc_d2_pre_meeting"
+      ],
+      "required_fact_ids": [
+        "pre_background",
+        "pre_evidence_pack"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "pre_background",
+            "support_chunk_ids": [
+              "doc_d2_pre_meeting"
+            ]
+          },
+          {
+            "fact_id": "pre_evidence_pack",
+            "support_chunk_ids": [
+              "doc_d2_pre_meeting"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "pre_background",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_004_d3_summary_sections",
+      "workflow": "post_meeting",
+      "question": "D3 会后总结卡需要展示哪些结构化内容？",
+      "expected_chunk_ids": [
+        "doc_d3_post_meeting"
+      ],
+      "required_fact_ids": [
+        "post_summary_sections",
+        "post_action_fields"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "post_summary_sections",
+            "support_chunk_ids": [
+              "doc_d3_post_meeting"
+            ]
+          },
+          {
+            "fact_id": "post_action_fields",
+            "support_chunk_ids": [
+              "doc_d3_post_meeting"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "post_summary_sections",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_005_d4_task_card_owner",
+      "workflow": "post_meeting",
+      "question": "D4 任务卡如何处理负责人无法解析 open_id 的情况？",
+      "expected_chunk_ids": [
+        "doc_d4_task_card"
+      ],
+      "required_fact_ids": [
+        "owner_pending",
+        "policy_required"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "owner_pending",
+            "support_chunk_ids": [
+              "doc_d4_task_card"
+            ]
+          },
+          {
+            "fact_id": "policy_required",
+            "support_chunk_ids": [
+              "doc_d4_task_card"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "owner_pending",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_006_d5_risk_card",
+      "workflow": "risk_scan",
+      "question": "D5 任务风险提醒卡需要解释哪些风险信息？",
+      "expected_chunk_ids": [
+        "doc_d5_risk_scan"
+      ],
+      "required_fact_ids": [
+        "risk_level",
+        "risk_evidence"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "risk_level",
+            "support_chunk_ids": [
+              "doc_d5_risk_scan"
+            ]
+          },
+          {
+            "fact_id": "risk_evidence",
+            "support_chunk_ids": [
+              "doc_d5_risk_scan"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "risk_level",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_007_d6_agent_capability",
+      "workflow": "agent_trace",
+      "question": "D6 如何证明 MeetFlow 不是固定脚本？",
+      "expected_chunk_ids": [
+        "doc_d6_agent_capability"
+      ],
+      "required_fact_ids": [
+        "context_tool_policy_trace",
+        "fallback"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "context_tool_policy_trace",
+            "support_chunk_ids": [
+              "doc_d6_agent_capability"
+            ]
+          },
+          {
+            "fact_id": "fallback",
+            "support_chunk_ids": [
+              "doc_d6_agent_capability"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "context_tool_policy_trace",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_008_d7_eval_dimensions",
+      "workflow": "evaluation",
+      "question": "D7 评测体系要覆盖哪些维度？",
+      "expected_chunk_ids": [
+        "doc_d7_eval_plan"
+      ],
+      "required_fact_ids": [
+        "eval_dimensions",
+        "evidence_coverage"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "eval_dimensions",
+            "support_chunk_ids": [
+              "doc_d7_eval_plan"
+            ]
+          },
+          {
+            "fact_id": "evidence_coverage",
+            "support_chunk_ids": [
+              "doc_d7_eval_plan"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "eval_dimensions",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_009_d8_cli_dry_run",
+      "workflow": "openclaw",
+      "question": "D8 OpenClaw CLI 默认写入策略是什么？",
+      "expected_chunk_ids": [
+        "doc_d8_cli_openclaw"
+      ],
+      "required_fact_ids": [
+        "cli_dry_run",
+        "allow_write"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "cli_dry_run",
+            "support_chunk_ids": [
+              "doc_d8_cli_openclaw"
+            ]
+          },
+          {
+            "fact_id": "allow_write",
+            "support_chunk_ids": [
+              "doc_d8_cli_openclaw"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "cli_dry_run",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_010_prev_decisions",
+      "workflow": "pre_meeting",
+      "question": "上次项目评审会对会前和会后卡片做了什么决定？",
+      "expected_chunk_ids": [
+        "minute_prev_decisions"
+      ],
+      "required_fact_ids": [
+        "previous_pre_card",
+        "previous_post_card"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "previous_pre_card",
+            "support_chunk_ids": [
+              "minute_prev_decisions"
+            ]
+          },
+          {
+            "fact_id": "previous_post_card",
+            "support_chunk_ids": [
+              "minute_prev_decisions"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "previous_pre_card",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_011_current_actions",
+      "workflow": "post_meeting",
+      "question": "本次项目评审妙记里三个人分别要做什么？",
+      "expected_chunk_ids": [
+        "minute_current_transcript"
+      ],
+      "required_fact_ids": [
+        "yeshurui_cli_due",
+        "lijianwen_auth_due",
+        "wangning_faq_due"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "yeshurui_cli_due",
+            "support_chunk_ids": [
+              "minute_current_transcript"
+            ]
+          },
+          {
+            "fact_id": "lijianwen_auth_due",
+            "support_chunk_ids": [
+              "minute_current_transcript"
+            ]
+          },
+          {
+            "fact_id": "wangning_faq_due",
+            "support_chunk_ids": [
+              "minute_current_transcript"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "yeshurui_cli_due",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_012_eval_metrics",
+      "workflow": "evaluation",
+      "question": "RAG 评测讨论中确认了哪些检索层和生成层指标？",
+      "expected_chunk_ids": [
+        "minute_rag_review"
+      ],
+      "required_fact_ids": [
+        "retrieval_metrics",
+        "generation_metrics"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "retrieval_metrics",
+            "support_chunk_ids": [
+              "minute_rag_review"
+            ]
+          },
+          {
+            "fact_id": "generation_metrics",
+            "support_chunk_ids": [
+              "minute_rag_review"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "retrieval_metrics",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_013_openclaw_rehearsal",
+      "workflow": "openclaw",
+      "question": "OpenClaw 演示排练要求按什么顺序展示？",
+      "expected_chunk_ids": [
+        "minute_openclaw_demo"
+      ],
+      "required_fact_ids": [
+        "demo_order",
+        "offline_fallback"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "demo_order",
+            "support_chunk_ids": [
+              "minute_openclaw_demo"
+            ]
+          },
+          {
+            "fact_id": "offline_fallback",
+            "support_chunk_ids": [
+              "minute_openclaw_demo"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "demo_order",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_014_cli_task_owner",
+      "workflow": "post_meeting",
+      "question": "叶抒锐负责的 OpenClaw CLI 任务截止时间是什么？",
+      "expected_chunk_ids": [
+        "task_cli_owner"
+      ],
+      "required_fact_ids": [
+        "cli_owner_due"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "cli_owner_due",
+            "support_chunk_ids": [
+              "task_cli_owner"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "cli_owner_due",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_015_callback_task_owner",
+      "workflow": "post_meeting",
+      "question": "李健文负责的卡片回调问题是什么，截止时间是什么？",
+      "expected_chunk_ids": [
+        "task_callback_owner"
+      ],
+      "required_fact_ids": [
+        "callback_owner_due"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "callback_owner_due",
+            "support_chunk_ids": [
+              "task_callback_owner"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "callback_owner_due",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_016_faq_task_owner",
+      "workflow": "post_meeting",
+      "question": "王宁负责的答辩 FAQ 需要覆盖哪些问题？",
+      "expected_chunk_ids": [
+        "task_faq_owner"
+      ],
+      "required_fact_ids": [
+        "faq_owner_due",
+        "faq_topics"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "faq_owner_due",
+            "support_chunk_ids": [
+              "task_faq_owner"
+            ]
+          },
+          {
+            "fact_id": "faq_topics",
+            "support_chunk_ids": [
+              "task_faq_owner"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "faq_owner_due",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_017_eval_dataset_task",
+      "workflow": "evaluation",
+      "question": "D7 评测数据集扩充任务要求覆盖哪些方向？",
+      "expected_chunk_ids": [
+        "task_eval_dataset"
+      ],
+      "required_fact_ids": [
+        "forty_cases",
+        "eval_coverage"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "forty_cases",
+            "support_chunk_ids": [
+              "task_eval_dataset"
+            ]
+          },
+          {
+            "fact_id": "eval_coverage",
+            "support_chunk_ids": [
+              "task_eval_dataset"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "forty_cases",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_018_oauth_code_20064",
+      "workflow": "risk_scan",
+      "question": "contact.search_user 返回 code=20064 时应该怎么处理？",
+      "expected_chunk_ids": [
+        "risk_auth_callback"
+      ],
+      "required_fact_ids": [
+        "oauth_code_20064",
+        "should_not_create_task"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "oauth_code_20064",
+            "support_chunk_ids": [
+              "risk_auth_callback"
+            ]
+          },
+          {
+            "fact_id": "should_not_create_task",
+            "support_chunk_ids": [
+              "risk_auth_callback"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "oauth_code_20064",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_019_demo_safety_policy",
+      "workflow": "agent_policy",
+      "question": "演示时真实写操作和敏感信息有哪些安全要求？",
+      "expected_chunk_ids": [
+        "risk_demo_stability"
+      ],
+      "required_fact_ids": [
+        "dry_run_default",
+        "no_secret_in_report"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "dry_run_default",
+            "support_chunk_ids": [
+              "risk_demo_stability"
+            ]
+          },
+          {
+            "fact_id": "no_secret_in_report",
+            "support_chunk_ids": [
+              "risk_demo_stability"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "dry_run_default",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_020_rag_noise_precision",
+      "workflow": "evaluation",
+      "question": "为什么 Context Precision 会下降，后续怎么优化？",
+      "expected_chunk_ids": [
+        "risk_rag_noise"
+      ],
+      "required_fact_ids": [
+        "context_precision_noise",
+        "reranker_solution"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "context_precision_noise",
+            "support_chunk_ids": [
+              "risk_rag_noise"
+            ]
+          },
+          {
+            "fact_id": "reranker_solution",
+            "support_chunk_ids": [
+              "risk_rag_noise"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "context_precision_noise",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_021_owner_missing_policy",
+      "workflow": "agent_policy",
+      "question": "行动项缺少负责人或截止时间时 AgentPolicy 应该返回什么？",
+      "expected_chunk_ids": [
+        "risk_owner_missing"
+      ],
+      "required_fact_ids": [
+        "needs_confirmation",
+        "resolve_me"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "needs_confirmation",
+            "support_chunk_ids": [
+              "risk_owner_missing"
+            ]
+          },
+          {
+            "fact_id": "resolve_me",
+            "support_chunk_ids": [
+              "risk_owner_missing"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "needs_confirmation",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_022_duplicate_task_idempotency",
+      "workflow": "agent_policy",
+      "question": "重复点击确认创建按钮时如何避免重复创建任务？",
+      "expected_chunk_ids": [
+        "risk_duplicate_task"
+      ],
+      "required_fact_ids": [
+        "pending_registry",
+        "idempotency_key"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "pending_registry",
+            "support_chunk_ids": [
+              "risk_duplicate_task"
+            ]
+          },
+          {
+            "fact_id": "idempotency_key",
+            "support_chunk_ids": [
+              "risk_duplicate_task"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "pending_registry",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_023_pre_trace_tools",
+      "workflow": "agent_trace",
+      "question": "会前准备 Trace 应调用哪些工具，不能调用哪些写工具？",
+      "expected_chunk_ids": [
+        "trace_pre_meeting"
+      ],
+      "required_fact_ids": [
+        "pre_trace_tools",
+        "pre_forbidden_write"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "pre_trace_tools",
+            "support_chunk_ids": [
+              "trace_pre_meeting"
+            ]
+          },
+          {
+            "fact_id": "pre_forbidden_write",
+            "support_chunk_ids": [
+              "trace_pre_meeting"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "pre_trace_tools",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_024_post_trace_tools",
+      "workflow": "agent_trace",
+      "question": "会后复盘 Trace 应包含哪些工具和幂等要求？",
+      "expected_chunk_ids": [
+        "trace_post_meeting"
+      ],
+      "required_fact_ids": [
+        "post_trace_tools",
+        "pending_idempotency"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "post_trace_tools",
+            "support_chunk_ids": [
+              "trace_post_meeting"
+            ]
+          },
+          {
+            "fact_id": "pending_idempotency",
+            "support_chunk_ids": [
+              "trace_post_meeting"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "post_trace_tools",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_025_write_safety_trace",
+      "workflow": "agent_trace",
+      "question": "未开启 allow_write 时 tasks.create_task 应该如何被处理？",
+      "expected_chunk_ids": [
+        "trace_policy_write"
+      ],
+      "required_fact_ids": [
+        "allow_write_gate",
+        "policy_decision"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "allow_write_gate",
+            "support_chunk_ids": [
+              "trace_policy_write"
+            ]
+          },
+          {
+            "fact_id": "policy_decision",
+            "support_chunk_ids": [
+              "trace_policy_write"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "allow_write_gate",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_026_eval_report_display",
+      "workflow": "evaluation",
+      "question": "答辩展示评测报告时应该优先展示哪些结果？",
+      "expected_chunk_ids": [
+        "guide_eval_report"
+      ],
+      "required_fact_ids": [
+        "overall_score",
+        "evidence_baseline"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "overall_score",
+            "support_chunk_ids": [
+              "guide_eval_report"
+            ]
+          },
+          {
+            "fact_id": "evidence_baseline",
+            "support_chunk_ids": [
+              "guide_eval_report"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "overall_score",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_027_demo_script_order",
+      "workflow": "openclaw",
+      "question": "正式演示脚本建议按什么业务顺序展示？",
+      "expected_chunk_ids": [
+        "guide_demo_script"
+      ],
+      "required_fact_ids": [
+        "demo_script_order",
+        "evidence_boundary"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "demo_script_order",
+            "support_chunk_ids": [
+              "guide_demo_script"
+            ]
+          },
+          {
+            "fact_id": "evidence_boundary",
+            "support_chunk_ids": [
+              "guide_demo_script"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "demo_script_order",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_028_sample_definition",
+      "workflow": "evaluation",
+      "question": "一条 RAG 测试样本是不是一个文档？它包含什么？",
+      "expected_chunk_ids": [
+        "guide_rag_dataset"
+      ],
+      "required_fact_ids": [
+        "sample_not_document",
+        "sample_components"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "sample_not_document",
+            "support_chunk_ids": [
+              "guide_rag_dataset"
+            ]
+          },
+          {
+            "fact_id": "sample_components",
+            "support_chunk_ids": [
+              "guide_rag_dataset"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "sample_not_document",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_029_pre_history_and_tasks",
+      "workflow": "pre_meeting",
+      "question": "会前准备同时需要召回历史结论和遗留任务时应看哪些证据？",
+      "expected_chunk_ids": [
+        "minute_prev_decisions",
+        "task_cli_owner",
+        "task_callback_owner"
+      ],
+      "required_fact_ids": [
+        "previous_decisions",
+        "leftover_tasks"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "previous_decisions",
+            "support_chunk_ids": [
+              "minute_prev_decisions"
+            ]
+          },
+          {
+            "fact_id": "leftover_tasks",
+            "support_chunk_ids": [
+              "task_cli_owner"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "previous_decisions",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_030_auth_risk_with_task",
+      "workflow": "risk_scan",
+      "question": "负责人解析授权风险和李健文任务之间有什么关系？",
+      "expected_chunk_ids": [
+        "risk_auth_callback",
+        "task_callback_owner"
+      ],
+      "required_fact_ids": [
+        "oauth_risk",
+        "lijianwen_task"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "oauth_risk",
+            "support_chunk_ids": [
+              "risk_auth_callback"
+            ]
+          },
+          {
+            "fact_id": "lijianwen_task",
+            "support_chunk_ids": [
+              "task_callback_owner"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "oauth_risk",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_031_demo_fallback_and_safety",
+      "workflow": "openclaw",
+      "question": "真实飞书失败时演示如何兜底且保持安全？",
+      "expected_chunk_ids": [
+        "minute_openclaw_demo",
+        "risk_demo_stability"
+      ],
+      "required_fact_ids": [
+        "offline_fallback",
+        "dry_run_default"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "offline_fallback",
+            "support_chunk_ids": [
+              "minute_openclaw_demo"
+            ]
+          },
+          {
+            "fact_id": "dry_run_default",
+            "support_chunk_ids": [
+              "risk_demo_stability"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "offline_fallback",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_032_eval_result_honesty",
+      "workflow": "evaluation",
+      "question": "D7 报告为什么要说明 Top-K 噪声和小样本风险？",
+      "expected_chunk_ids": [
+        "minute_rag_review",
+        "risk_rag_noise"
+      ],
+      "required_fact_ids": [
+        "honest_noise",
+        "small_sample_risk"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "honest_noise",
+            "support_chunk_ids": [
+              "minute_rag_review"
+            ]
+          },
+          {
+            "fact_id": "small_sample_risk",
+            "support_chunk_ids": [
+              "risk_rag_noise"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "honest_noise",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_033_post_actions_and_faq",
+      "workflow": "post_meeting",
+      "question": "本次会议中 CLI、授权修复和 FAQ 三个行动项分别是谁负责？",
+      "expected_chunk_ids": [
+        "minute_current_transcript",
+        "task_faq_owner"
+      ],
+      "required_fact_ids": [
+        "three_action_owners",
+        "faq_due"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "three_action_owners",
+            "support_chunk_ids": [
+              "minute_current_transcript"
+            ]
+          },
+          {
+            "fact_id": "faq_due",
+            "support_chunk_ids": [
+              "task_faq_owner"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "three_action_owners",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_034_policy_me_resolution",
+      "workflow": "agent_policy",
+      "question": "用户说负责人是我时，负责人解析应该优先使用什么？",
+      "expected_chunk_ids": [
+        "risk_owner_missing",
+        "trace_policy_write"
+      ],
+      "required_fact_ids": [
+        "operator_open_id",
+        "contact_resolution"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "operator_open_id",
+            "support_chunk_ids": [
+              "risk_owner_missing"
+            ]
+          },
+          {
+            "fact_id": "contact_resolution",
+            "support_chunk_ids": [
+              "trace_policy_write"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "operator_open_id",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_035_risk_card_sources",
+      "workflow": "risk_scan",
+      "question": "任务风险提醒为什么必须展示来源证据和建议动作？",
+      "expected_chunk_ids": [
+        "doc_d5_risk_scan",
+        "risk_demo_stability"
+      ],
+      "required_fact_ids": [
+        "risk_evidence",
+        "suggested_action"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "risk_evidence",
+            "support_chunk_ids": [
+              "doc_d5_risk_scan"
+            ]
+          },
+          {
+            "fact_id": "suggested_action",
+            "support_chunk_ids": [
+              "risk_demo_stability"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "risk_evidence",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_036_openclaw_eval_command",
+      "workflow": "openclaw",
+      "question": "OpenClaw 可以通过 CLI 调用哪些 MeetFlow 能力？",
+      "expected_chunk_ids": [
+        "doc_d8_cli_openclaw",
+        "guide_demo_script"
+      ],
+      "required_fact_ids": [
+        "cli_capabilities",
+        "eval_command"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "cli_capabilities",
+            "support_chunk_ids": [
+              "doc_d8_cli_openclaw"
+            ]
+          },
+          {
+            "fact_id": "eval_command",
+            "support_chunk_ids": [
+              "guide_demo_script"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "cli_capabilities",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_037_rag_to_pre_card",
+      "workflow": "pre_meeting",
+      "question": "RAG 对会前卡片的直接价值体现在哪里？",
+      "expected_chunk_ids": [
+        "doc_d2_pre_meeting",
+        "minute_prev_decisions"
+      ],
+      "required_fact_ids": [
+        "history_background",
+        "evidence_pack"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "history_background",
+            "support_chunk_ids": [
+              "doc_d2_pre_meeting"
+            ]
+          },
+          {
+            "fact_id": "evidence_pack",
+            "support_chunk_ids": [
+              "minute_prev_decisions"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "history_background",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_038_rag_to_post_card",
+      "workflow": "post_meeting",
+      "question": "RAG 对会后总结和任务落地的直接价值体现在哪里？",
+      "expected_chunk_ids": [
+        "doc_d3_post_meeting",
+        "minute_current_transcript"
+      ],
+      "required_fact_ids": [
+        "post_evidence",
+        "action_fields"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "post_evidence",
+            "support_chunk_ids": [
+              "doc_d3_post_meeting"
+            ]
+          },
+          {
+            "fact_id": "action_fields",
+            "support_chunk_ids": [
+              "minute_current_transcript"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "post_evidence",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_039_trace_eval_safety",
+      "workflow": "agent_trace",
+      "question": "工具轨迹评测如何证明写操作受控？",
+      "expected_chunk_ids": [
+        "doc_d7_eval_plan",
+        "trace_policy_write"
+      ],
+      "required_fact_ids": [
+        "tool_selection",
+        "safety_score"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "tool_selection",
+            "support_chunk_ids": [
+              "doc_d7_eval_plan"
+            ]
+          },
+          {
+            "fact_id": "safety_score",
+            "support_chunk_ids": [
+              "trace_policy_write"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "tool_selection",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "rag_040_dataset_design",
+      "workflow": "evaluation",
+      "question": "为什么 D7 要把样本扩充到 40 条，并写入 docs/evaluation？",
+      "expected_chunk_ids": [
+        "task_eval_dataset",
+        "guide_eval_report"
+      ],
+      "required_fact_ids": [
+        "forty_cases",
+        "report_output"
+      ],
+      "answer_with_rag": {
+        "facts": [
+          {
+            "fact_id": "forty_cases",
+            "support_chunk_ids": [
+              "task_eval_dataset"
+            ]
+          },
+          {
+            "fact_id": "report_output",
+            "support_chunk_ids": [
+              "guide_eval_report"
+            ]
+          }
+        ]
+      },
+      "answer_without_rag": {
+        "facts": [
+          {
+            "fact_id": "forty_cases",
+            "support_chunk_ids": []
+          }
+        ]
+      }
+    }
+  ],
+  "workflow_cases": {
+    "pre_meeting_quality": {
+      "expected_sections": [
+        "background",
+        "previous_decisions",
+        "leftover_actions",
+        "risks",
+        "suggested_topics",
+        "evidence_pack"
+      ],
+      "with_rag": {
+        "sections": [
+          {
+            "section_id": "background",
+            "cited_chunk_ids": [
+              "doc_prd_scope",
+              "doc_d2_pre_meeting"
+            ]
+          },
+          {
+            "section_id": "previous_decisions",
+            "cited_chunk_ids": [
+              "minute_prev_decisions"
+            ]
+          },
+          {
+            "section_id": "leftover_actions",
+            "cited_chunk_ids": [
+              "task_cli_owner",
+              "task_callback_owner",
+              "task_faq_owner"
+            ]
+          },
+          {
+            "section_id": "risks",
+            "cited_chunk_ids": [
+              "risk_auth_callback",
+              "risk_demo_stability",
+              "risk_rag_noise"
+            ]
+          },
+          {
+            "section_id": "suggested_topics",
+            "cited_chunk_ids": [
+              "minute_prev_decisions",
+              "minute_current_transcript"
+            ]
+          },
+          {
+            "section_id": "evidence_pack",
+            "cited_chunk_ids": [
+              "doc_prd_scope",
+              "minute_prev_decisions",
+              "task_cli_owner",
+              "task_callback_owner"
+            ]
+          }
+        ]
+      },
+      "without_rag": {
+        "sections": [
+          {
+            "section_id": "background",
+            "cited_chunk_ids": []
+          },
+          {
+            "section_id": "suggested_topics",
+            "cited_chunk_ids": []
+          }
+        ]
+      }
+    },
+    "post_meeting_quality": {
+      "expected_sections": [
+        "summary",
+        "decisions",
+        "open_questions",
+        "action_items",
+        "risks",
+        "evidence_pack"
+      ],
+      "expected_action_items": [
+        {
+          "owner": "叶抒锐",
+          "title_contains": "CLI 文档",
+          "due_date": "2026-05-14"
+        },
+        {
+          "owner": "李健文",
+          "title_contains": "负责人解析授权错误",
+          "due_date": "2026-05-13"
+        },
+        {
+          "owner": "王宁",
+          "title_contains": "答辩 FAQ",
+          "due_date": "2026-05-15"
+        }
+      ],
+      "with_rag": {
+        "sections": [
+          "summary",
+          "decisions",
+          "open_questions",
+          "action_items",
+          "risks",
+          "evidence_pack"
+        ],
+        "action_items": [
+          {
+            "owner": "叶抒锐",
+            "title": "补齐 OpenClaw CLI 文档",
+            "due_date": "2026-05-14",
+            "evidence_chunk_id": "minute_current_transcript"
+          },
+          {
+            "owner": "李健文",
+            "title": "修复负责人解析授权错误",
+            "due_date": "2026-05-13",
+            "evidence_chunk_id": "minute_current_transcript"
+          },
+          {
+            "owner": "王宁",
+            "title": "整理答辩 FAQ",
+            "due_date": "2026-05-15",
+            "evidence_chunk_id": "minute_current_transcript"
+          }
+        ]
+      },
+      "without_rag": {
+        "sections": [
+          "summary",
+          "action_items"
+        ],
+        "action_items": [
+          {
+            "owner": "叶抒锐",
+            "title": "补齐 CLI 文档",
+            "due_date": "",
+            "evidence_chunk_id": ""
+          },
+          {
+            "owner": "",
+            "title": "修复负责人问题",
+            "due_date": "",
+            "evidence_chunk_id": ""
+          }
+        ]
+      }
+    },
+    "risk_scan_quality": {
+      "expected_risk_types": [
+        "oauth_token_expired",
+        "demo_write_safety",
+        "callback_live_test_open",
+        "rag_context_noise"
+      ],
+      "with_rag": {
+        "risk_types": [
+          "oauth_token_expired",
+          "demo_write_safety",
+          "callback_live_test_open",
+          "rag_context_noise"
+        ],
+        "evidence_chunk_ids": [
+          "risk_auth_callback",
+          "risk_demo_stability",
+          "minute_current_transcript",
+          "risk_rag_noise"
+        ]
+      },
+      "without_rag": {
+        "risk_types": [
+          "callback_live_test_open"
+        ],
+        "evidence_chunk_ids": []
+      }
+    }
+  },
+  "agent_trace_cases": [
+    {
+      "case_id": "d7_pre_meeting_trace",
+      "expected_tools": [
+        "calendar.list_events",
+        "knowledge.search",
+        "knowledge.fetch_chunk"
+      ],
+      "actual_tools": [
+        "calendar.list_events",
+        "knowledge.search",
+        "knowledge.fetch_chunk"
+      ],
+      "forbidden_tools": [
+        "tasks.create_task",
+        "im.send_card"
+      ],
+      "policy_decisions": []
+    },
+    {
+      "case_id": "d7_post_meeting_trace",
+      "expected_tools": [
+        "minutes.get_transcript",
+        "knowledge.search",
+        "post_meeting.save_pending_actions"
+      ],
+      "actual_tools": [
+        "minutes.get_transcript",
+        "knowledge.search",
+        "post_meeting.save_pending_actions"
+      ],
+      "forbidden_tools": [
+        "tasks.create_task"
+      ],
+      "policy_decisions": [
+        {
+          "tool_name": "post_meeting.save_pending_actions",
+          "status": "allow",
+          "allow_write": true,
+          "idempotency_key_present": true
+        }
+      ]
+    },
+    {
+      "case_id": "d7_write_safety_trace",
+      "expected_tools": [
+        "contact.search_user",
+        "tasks.create_task"
+      ],
+      "actual_tools": [
+        "contact.search_user",
+        "tasks.create_task"
+      ],
+      "forbidden_tools": [],
+      "policy_decisions": [
+        {
+          "tool_name": "tasks.create_task",
+          "status": "needs_confirmation",
+          "allow_write": false,
+          "idempotency_key_present": true
+        }
+      ]
+    }
+  ],
+  "demo_stability_checks": [
+    {
+      "name": "fixture_loadable",
+      "passed": true
+    },
+    {
+      "name": "dry_run_default",
+      "passed": true
+    },
+    {
+      "name": "no_real_feishu_write",
+      "passed": true
+    },
+    {
+      "name": "report_has_no_secret_fields",
+      "passed": true
+    },
+    {
+      "name": "core_workflows_covered",
+      "passed": true
+    },
+    {
+      "name": "forty_retrieval_cases_ready",
+      "passed": true
+    }
+  ]
+}

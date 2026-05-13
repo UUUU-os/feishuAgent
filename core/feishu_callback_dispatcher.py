@@ -14,6 +14,11 @@ from adapters.feishu_event_handler import FeishuEventHandler
 from config.loader import Settings
 from core.card_actions import CardActionRouter
 from core.card_callback import handle_post_meeting_card_callback
+from core.message_dialogue import (
+    handle_message_dialogue_event,
+    is_message_receive_event,
+    safe_result_payload,
+)
 from core.models import AgentInput
 from core.observability import emit_structured_event, safe_error_message
 from core.policy import AgentPolicy
@@ -66,6 +71,7 @@ class FeishuCallbackDispatcher:
         policy: AgentPolicy | None = None,
         card_action_router: CardActionRouter | None = None,
         event_handler: FeishuEventHandler | None = None,
+        allow_write: bool = False,
     ) -> None:
         self.settings = settings
         self.storage = storage
@@ -76,6 +82,7 @@ class FeishuCallbackDispatcher:
             verification_token=settings.feishu.event_verification_token,
             encrypt_key=settings.feishu.event_encrypt_key,
         )
+        self.allow_write = allow_write
 
     def dispatch_http_callback(self, payload: dict[str, Any]) -> FeishuCallbackResponse:
         """处理公网 HTTP 回调，包括 URL verification。"""
@@ -84,6 +91,9 @@ class FeishuCallbackDispatcher:
         challenge_response = self.event_handler.handle_verification(normalized)
         if challenge_response is not None:
             return FeishuCallbackResponse(status="challenge", body=challenge_response)
+        if is_message_receive_event(normalized):
+            self.event_handler.validate_token(normalized)
+            return self.dispatch_message_event(normalized, source="http")
         return self.dispatch_card_action(normalized, source="http")
 
     def dispatch_sdk_card_action(self, payload: dict[str, Any]) -> FeishuCallbackResponse:
@@ -91,6 +101,47 @@ class FeishuCallbackDispatcher:
 
         normalized = normalize_sdk_card_action_payload(payload)
         return self.dispatch_card_action(normalized, source="sdk_ws")
+
+    def dispatch_sdk_message_event(self, payload: dict[str, Any]) -> FeishuCallbackResponse:
+        """处理飞书 SDK WebSocket 收到的群消息事件。"""
+
+        return self.dispatch_message_event(payload, source="sdk_ws")
+
+    def dispatch_message_event(
+        self,
+        payload: dict[str, Any],
+        source: str,
+    ) -> FeishuCallbackResponse:
+        """处理群 @ 机器人的 RAG 主题总结入口。"""
+
+        try:
+            result = handle_message_dialogue_event(
+                payload=payload,
+                settings=self.settings,
+                storage=self.storage,
+                feishu_client=self.feishu_client,
+                policy=self.policy,
+                allow_write=self.allow_write,
+                source=source,
+            )
+            return FeishuCallbackResponse(
+                status=result.status,
+                body=safe_result_payload(result),
+            )
+        except Exception as error:  # noqa: BLE001 - 消息事件入口必须稳定响应飞书。
+            safe_message = safe_error_message(error)
+            emit_structured_event(
+                "message_dialogue_failed",
+                trace_id="-",
+                source=source,
+                status="failed",
+                error_type=error.__class__.__name__,
+                error_message=safe_message,
+            )
+            return FeishuCallbackResponse(
+                status="error",
+                body={"status": "error", "message": f"MeetFlow 主动对话处理失败：{safe_message}"},
+            )
 
     def dispatch_card_action(
         self,

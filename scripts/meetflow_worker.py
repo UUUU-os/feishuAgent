@@ -163,16 +163,39 @@ def run_rag_refresh_job(payload: dict[str, Any], *, settings: Any) -> dict[str, 
     if index_job_id:
         store.update_index_job_status(index_job_id, status="running")
     result = store.refresh_resource(resource, reason=str(payload.get("reason") or "worker"), force=bool(payload.get("force_index", False)))
+    index_result, skipped, chunk_count, content_tokens = summarize_refresh_result(result)
     if index_job_id:
-        status = "skipped" if result.skipped else "succeeded"
-        content_tokens = sum(chunk.content_tokens for chunk in result.chunks)
         store.update_index_job_status(
             index_job_id,
-            status=status,
-            chunk_count=result.document.chunk_count,
+            status="skipped" if skipped else "succeeded",
+            chunk_count=chunk_count,
             content_tokens=content_tokens,
         )
-    return {"resource_id": resource.resource_id, "resource_type": resource.resource_type, "index_result": result.to_dict()}
+    return {"resource_id": resource.resource_id, "resource_type": resource.resource_type, "index_result": index_result}
+
+
+def summarize_refresh_result(result: Any) -> tuple[dict[str, Any], bool, int, int]:
+    """兼容当前 dict 结果和旧版 KnowledgeIndexResult，提取 worker 需要的状态字段。"""
+
+    if isinstance(result, dict):
+        index_result = result.get("index_result") if isinstance(result.get("index_result"), dict) else result
+    elif hasattr(result, "to_dict"):
+        index_result = result.to_dict()
+    else:
+        index_result = {}
+
+    document = index_result.get("document") if isinstance(index_result.get("document"), dict) else {}
+    chunks = index_result.get("chunks") if isinstance(index_result.get("chunks"), list) else []
+    content_tokens = 0
+    for chunk in chunks:
+        if isinstance(chunk, dict):
+            content_tokens += int(chunk.get("content_tokens") or 0)
+    return (
+        index_result,
+        bool(index_result.get("skipped")),
+        int(document.get("chunk_count") or 0),
+        content_tokens,
+    )
 
 
 def fetch_resource(*, client: FeishuClient, resource_type: str, source: str, identity: str) -> Resource:
@@ -228,26 +251,23 @@ def build_pre_meeting_command(payload: dict[str, Any]) -> list[str]:
 
 
 def build_post_meeting_command(payload: dict[str, Any], *, settings: Any) -> list[str]:
-    """把 M4 job payload 转换为现有统一发卡命令。"""
+    """把 M4 job payload 转换为 D4 Agent 化发卡命令。"""
 
     minute = str(payload.get("minute") or payload.get("minute_url") or payload.get("minute_token") or "").strip()
     if not minute:
         raise ValueError("post_meeting.send_cards 缺少 minute")
     command = [
         sys.executable,
-        str(PROJECT_ROOT / "scripts" / "card_send_live.py"),
-        "m4",
-        "--minute",
+        str(PROJECT_ROOT / "scripts" / "post_meeting_agent_live_test.py"),
+        "--minute-token",
         minute,
-        "--identity",
-        str(payload.get("identity") or "user"),
-        "--chat-id",
-        str(payload.get("chat_id") or settings.feishu.default_chat_id),
+        "--llm-provider",
+        str(payload.get("llm_provider") or "settings"),
+        "--max-iterations",
+        str(payload.get("max_iterations") or 8),
     ]
-    if payload.get("show_card_json"):
-        command.append("--show-card-json")
-    if payload.get("skip_related_knowledge"):
-        command.append("--skip-related-knowledge")
+    if payload.get("enable_idempotency"):
+        command.append("--enable-idempotency")
     return command
 
 
