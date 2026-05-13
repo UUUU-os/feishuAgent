@@ -1,0 +1,110 @@
+{
+  "version": "1.0",
+  "entrypoint": "meetflow",
+  "safety": {
+    "default_dry_run": true,
+    "requires_allow_write_for_side_effects": true,
+    "idempotency_required_for_write": true,
+    "raw_shell_disabled": true,
+    "secret_redaction_required": true
+  },
+  "tools": [
+    {
+      "name": "meetflow_health",
+      "description": "检查 MeetFlow 本地配置、存储、migration 和服务状态。",
+      "command": "meetflow workflow +health",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "meetflow_pre_meeting",
+      "description": "生成 M3 会前背景知识卡，默认 dry-run，真实发卡必须 allow_write。",
+      "command": "meetflow workflow +pre-meeting",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "date": {"type": "string", "description": "today / tomorrow / YYYY-MM-DD"},
+          "event_title": {"type": "string"},
+          "event_id": {"type": "string"},
+          "provider": {"type": "string", "default": "scripted_debug"},
+          "project_id": {"type": "string", "default": "meetflow"},
+          "doc": {"type": "array", "items": {"type": "string"}},
+          "minute": {"type": "array", "items": {"type": "string"}},
+          "allow_write": {"type": "boolean", "default": false},
+          "idempotency_suffix": {"type": "string"}
+        },
+        "required": ["date"]
+      }
+    },
+    {
+      "name": "meetflow_post_meeting",
+      "description": "读取飞书妙记并生成 M4 会后总结卡和待确认任务卡，默认 dry-run。",
+      "command": "meetflow workflow +post-meeting",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "minute": {"type": "string"},
+          "chat_id": {"type": "string"},
+          "allow_write": {"type": "boolean", "default": false}
+        },
+        "required": ["minute"]
+      }
+    },
+    {
+      "name": "meetflow_task_cards",
+      "description": "基于妙记生成 D4 按人分组任务卡视角摘要，复用 M4 受控链路。",
+      "command": "meetflow workflow +task-cards",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "minute": {"type": "string"},
+          "allow_write": {"type": "boolean", "default": false}
+        },
+        "required": ["minute"]
+      }
+    },
+    {
+      "name": "meetflow_risk_scan",
+      "description": "执行 M5 风险巡检，local 后端用于 dry-run 演示，feishu 后端读取真实任务。",
+      "command": "meetflow workflow +risk-scan",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "backend": {"type": "string", "enum": ["local", "feishu"], "default": "local"},
+          "mode": {"type": "string", "enum": ["direct", "enqueue"], "default": "direct"},
+          "chat_id": {"type": "string"},
+          "allow_write": {"type": "boolean", "default": false}
+        }
+      }
+    },
+    {
+      "name": "meetflow_eval",
+      "description": "运行 Agent 轨迹评测并输出评分和报告路径。",
+      "command": "meetflow workflow +eval",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "suite": {"type": "string", "default": "agent_trajectory"},
+          "case_id": {"type": "string"},
+          "fail_under": {"type": "number", "default": 0.95},
+          "write_report": {"type": "boolean", "default": true}
+        }
+      }
+    },
+    {
+      "name": "meetflow_demo_replay",
+      "description": "运行离线 E2E 回放，用于无飞书网络时的演示兜底。",
+      "command": "meetflow workflow +demo-replay",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "case": {"type": "string"},
+          "all": {"type": "boolean", "default": true},
+          "write_report": {"type": "boolean", "default": true}
+        }
+      }
+    }
+  ]
+}

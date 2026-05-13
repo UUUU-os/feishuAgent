@@ -1,0 +1,99 @@
+{
+  "app": {
+    "name": "MeetFlow",
+    "env": "dev",
+    "debug": true,
+    "timezone": "Asia/Shanghai"
+  },
+  "feishu": {
+    "app_id": "replace-with-your-app-id",
+    "app_secret": "replace-with-your-app-secret",
+    "base_url": "https://open.feishu.cn/open-apis",
+    "request_timeout_seconds": 20,
+    "max_retries": 2,
+    "default_identity": "user",
+    "redirect_uri": "",
+    "user_oauth_scope": "calendar:calendar:read calendar:calendar.event:read docx:document:readonly minutes:minutes:readonly minutes:minutes.artifacts:read task:task:read task:task:write im:message.send_as_user im:message offline_access",
+    "user_access_token": "",
+    "user_access_token_expires_at": 0,
+    "user_refresh_token": "",
+    "user_refresh_token_expires_at": 0,
+    "bot_name": "MeetFlow Bot",
+    "default_chat_id": "oc_d3e31969e4b527ee929db9cfb1493bb6",
+    "event_verification_token": "replace-with-event-verification-token",
+    "event_encrypt_key": "",
+    "event_server_host": "0.0.0.0",
+    "event_server_port": 8765,
+    "event_receive_mode": "sdk_ws",
+    "event_sdk_log_level": "info",
+    "event_http_enabled": true,
+    "event_http_paths": ["/feishu/events", "/feishu/card/actions", "/feishu/card/callback"]
+  },
+  "llm": {
+    "provider": "openai-compatible",
+    "model": "gpt-4.1-mini",
+    "api_base": "",
+    "api_key": "replace-with-env-or-local-file",
+    "temperature": 0.2,
+    "max_tokens": 4000,
+    "reasoning_effort": ""
+  },
+  "embedding": {
+    "provider": "sentence-transformers",
+    "model": "BAAI/bge-small-zh-v1.5",
+    "api_base": "",
+    "api_key": "",
+    "dimensions": 512,
+    "timeout_seconds": 30
+  },
+  "reranker": {
+    "enabled": false,
+    "provider": "local-rule",
+    "model": "",
+    "top_k": 32,
+    "timeout_seconds": 30
+  },
+  "knowledge_search": {
+    "fusion_strategy": "rrf",
+    "rrf_k": 60
+  },
+  "scheduler": {
+    "pre_meeting_minutes_before": 30,
+    "risk_scan_cron": "0 9 * * *",
+    "minute_retry_interval_minutes": 5,
+    "minute_retry_max_attempts": 6
+  },
+  "risk_rules": {
+    "stale_update_days": 3,
+    "due_soon_hours": 24,
+    "max_reminders_per_day": 1
+  },
+  "logging": {
+    "level": "INFO",
+    "json_format": false
+  },
+  "storage": {
+    "db_path": "storage/meetflow.sqlite",
+    "project_memory_dir": "storage/projects",
+    "audit_log_path": "storage/workflow_runs.jsonl"
+  },
+  "jobs": {
+    "enabled": false,
+    "default_queue": "workflow",
+    "worker_id": "meetflow-local-worker",
+    "lock_seconds": 300,
+    "max_attempts": 3,
+    "retry_base_seconds": 30,
+    "retry_max_seconds": 600,
+    "dead_letter_after_attempts": 4
+  },
+  "observability": {
+    "structured_events_enabled": true,
+    "structured_event_path": "storage/workflow_events.jsonl",
+    "record_sensitive_payload": false,
+    "max_event_chars": 16000,
+    "max_field_chars": 1000,
+    "mask_ids": true,
+    "daily_rotate": false
+  }
+}

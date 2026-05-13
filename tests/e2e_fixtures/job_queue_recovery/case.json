@@ -1,0 +1,29 @@
+{
+  "case_id": "job_queue_recovery",
+  "workflow": "job_queue",
+  "description": "后台队列应能入队、领取并标记成功，证明 callback/daemon 异步化基础可恢复。",
+  "input": {
+    "queues": ["workflow"],
+    "worker_id": "eval_worker",
+    "mark_succeeded": true,
+    "jobs": [
+      {
+        "queue_name": "workflow",
+        "job_type": "pre_meeting.send_card",
+        "payload": {
+          "event_id": "event_eval_m3",
+          "calendar_id": "primary",
+          "identity": "user"
+        },
+        "idempotency_key": "eval:m3:event_eval_m3",
+        "priority": 100,
+        "max_attempts": 3
+      }
+    ]
+  },
+  "expected": {
+    "min_enqueued": 1,
+    "claimed_job_type": "pre_meeting.send_card",
+    "final_status": "succeeded"
+  }
+}

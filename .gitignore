@@ -1,0 +1,42 @@
+.env
+.env.*
+!.env.example
+
+# Agent / editor local metadata.
+/.agents/
+/.codex
+/.vscode/
+
+# Python local environments and caches.
+.venv/
+.venv-*/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+config/settings.local.json
+config/llm_providers.local.json
+config/*.local.json
+storage/*.sqlite
+storage/*.db
+storage/post_meeting_pending_actions.json
+storage/*daemon*.json
+storage/runtime/
+storage/*.jsonl
+storage/knowledge/
+storage/projects/*.json
+storage/reports/
+storage/tmp/
+
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+*.tsbuildinfo
+node_modules/
+storage/third_party/
+
+# Downloaded binaries and accidental shell argument files.
+*.deb
+/--*
+/-[A-Za-z]

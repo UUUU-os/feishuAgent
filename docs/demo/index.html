@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MeetFlow feishuAgent 静态演示</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7f8fb;
+        --panel: #ffffff;
+        --ink: #101827;
+        --muted: #64748b;
+        --line: #dde5ef;
+        --blue: #2563eb;
+        --teal: #0f9f8f;
+        --amber: #d97706;
+        --red: #dc2626;
+        --green: #059669;
+        --terminal: #111827;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at 18% 10%, rgba(37, 99, 235, 0.12), transparent 28%),
+          radial-gradient(circle at 85% 0%, rgba(217, 119, 6, 0.12), transparent 24%),
+          var(--bg);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "PingFang SC", "Microsoft YaHei", sans-serif;
+        line-height: 1.5;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .shell {
+        display: grid;
+        grid-template-columns: 248px minmax(0, 1fr);
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        background: #111827;
+        color: #f8fafc;
+        padding: 28px 20px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+      }
+
+      .brand {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 30px;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, var(--teal), var(--blue));
+        font-weight: 900;
+      }
+
+      .brand strong {
+        display: block;
+        font-size: 18px;
+      }
+
+      .brand span {
+        color: #9ca3af;
+        font-size: 12px;
+      }
+
+      .nav-label {
+        color: #9ca3af;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        margin: 22px 8px 10px;
+        text-transform: uppercase;
+      }
+
+      .nav-button {
+        width: 100%;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: transparent;
+        color: #d1d5db;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 11px 12px;
+        text-align: left;
+        font: inherit;
+      }
+
+      .nav-button:hover,
+      .nav-button.is-active {
+        background: #1f2937;
+        color: #ffffff;
+        border-color: #374151;
+      }
+
+      .content {
+        padding: 36px;
+      }
+
+      .hero {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+
+      .eyebrow {
+        color: var(--teal);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        font-size: 34px;
+        line-height: 1.16;
+        margin-bottom: 10px;
+      }
+
+      h2 {
+        font-size: 21px;
+        margin-bottom: 8px;
+      }
+
+      h3 {
+        font-size: 15px;
+        margin-bottom: 8px;
+      }
+
+      .hero p {
+        color: var(--muted);
+        max-width: 760px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .button {
+        border: 0;
+        border-radius: 8px;
+        background: var(--ink);
+        color: #ffffff;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 38px;
+        padding: 0 14px;
+        font-size: 14px;
+        font-weight: 750;
+        text-decoration: none;
+      }
+
+      .button.secondary {
+        background: #e2e8f0;
+        color: var(--ink);
+      }
+
+      .button.danger {
+        background: var(--red);
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .grid.cols-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .grid.cols-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .card,
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      .card {
+        padding: 18px;
+      }
+
+      .metric {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .metric strong {
+        font-size: 28px;
+        line-height: 1;
+      }
+
+      .metric span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .status {
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        height: 24px;
+        padding: 0 9px;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .status.green {
+        background: #dcfce7;
+        color: #166534;
+      }
+
+      .status.blue {
+        background: #dbeafe;
+        color: #1d4ed8;
+      }
+
+      .status.amber {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      .status.red {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+
+      .panel {
+        margin-top: 16px;
+        overflow: hidden;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 20px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .panel-header p {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 0;
+      }
+
+      .panel-body {
+        padding: 20px;
+      }
+
+      .steps {
+        display: grid;
+        gap: 10px;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fbfdff;
+      }
+
+      .step-index {
+        display: grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: #e0f2fe;
+        color: #0369a1;
+        font-weight: 900;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      label {
+        color: var(--muted);
+        display: grid;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 750;
+      }
+
+      input,
+      select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+        color: var(--ink);
+        min-height: 40px;
+        padding: 0 12px;
+        font: inherit;
+      }
+
+      .terminal {
+        background: var(--terminal);
+        border-radius: 8px;
+        color: #d1d5db;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 12px;
+        min-height: 220px;
+        overflow: auto;
+        padding: 16px;
+      }
+
+      .terminal div {
+        margin-bottom: 9px;
+      }
+
+      .green-text {
+        color: #86efac;
+      }
+
+      .blue-text {
+        color: #93c5fd;
+      }
+
+      .amber-text {
+        color: #fcd34d;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid var(--line);
+        padding: 12px 10px;
+        text-align: left;
+        font-size: 13px;
+        vertical-align: top;
+      }
+
+      th {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .page {
+        display: none;
+      }
+
+      .page.is-active {
+        display: block;
+      }
+
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .pill {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: #ffffff;
+        color: var(--muted);
+        padding: 7px 10px;
+        font-size: 12px;
+        font-weight: 750;
+      }
+
+      @media (max-width: 980px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          position: static;
+          height: auto;
+        }
+
+        .content {
+          padding: 22px;
+        }
+
+        .hero {
+          display: block;
+        }
+
+        .grid.cols-3,
+        .grid.cols-2,
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">M</div>
+          <div>
+            <strong>MeetFlow</strong>
+            <span>feishuAgent demo</span>
+          </div>
+        </div>
+
+        <div class="nav-label">Overview</div>
+        <button class="nav-button is-active" data-page="dashboard">📊 Dashboard</button>
+        <button class="nav-button" data-page="m3">🗓️ M3 会前卡</button>
+        <button class="nav-button" data-page="m4">📝 M4 会后总结</button>
+        <button class="nav-button" data-page="m5">⚠️ M5 风险提醒</button>
+
+        <div class="nav-label">Operations</div>
+        <button class="nav-button" data-page="tasks">✅ 任务追踪</button>
+        <button class="nav-button" data-page="evaluation">🧪 评测中心</button>
+      </aside>
+
+      <main class="content">
+        <section class="hero">
+          <div>
+            <div class="eyebrow">Static Interactive Preview</div>
+            <h1>飞书会议知识闭环 Agent 平台</h1>
+            <p>
+              这是 README 专用静态演示页，不连接后端，也不会触发真实飞书写入。它用于展示 Dashboard、
+              M3 会前卡、M4 会后总结、M5 风险提醒、任务追踪和评测中心的信息架构。
+            </p>
+          </div>
+          <div class="actions">
+            <a class="button secondary" href="../../README.md">返回 README</a>
+            <a class="button" href="../meetflow-full-live-test-runbook.md">查看联调 Runbook</a>
+          </div>
+        </section>
+
+        <section id="dashboard" class="page is-active">
+          <div class="grid cols-3">
+            <article class="card">
+              <h3>M3 会前背景卡</h3>
+              <div class="metric">
+                <div>
+                  <strong style="color: var(--green)">Ready</strong>
+                  <span>报告已生成，等待确认发卡</span>
+                </div>
+                <span class="status green">可演示</span>
+              </div>
+            </article>
+            <article class="card">
+              <h3>Agent 轨迹评测</h3>
+              <div class="metric">
+                <div>
+                  <strong style="color: var(--blue)">0.97</strong>
+                  <span>质量分，通过安全门禁</span>
+                </div>
+                <span class="status blue">通过</span>
+              </div>
+            </article>
+            <article class="card">
+              <h3>后台队列</h3>
+              <div class="metric">
+                <div>
+                  <strong style="color: var(--amber)">8</strong>
+                  <span>workflow / risk_scan / rag_refresh</span>
+                </div>
+                <span class="status amber">观察中</span>
+              </div>
+            </article>
+          </div>
+
+          <div class="grid cols-2">
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>最近任务</h2>
+                  <p>用于排查 callback、daemon、worker 产生的后台任务。</p>
+                </div>
+                <span class="status blue">workflow_jobs</span>
+              </div>
+              <div class="panel-body">
+                <table>
+                  <thead>
+                    <tr><th>Job</th><th>Status</th><th>Trace</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>m3_pre_meeting</td><td><span class="status green">done</span></td><td>m3_20260514</td></tr>
+                    <tr><td>m4_post_meeting</td><td><span class="status amber">pending</span></td><td>m4_review</td></tr>
+                    <tr><td>rag_refresh</td><td><span class="status blue">queued</span></td><td>rag_docx</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h2>日志终端</h2>
+                  <p>多终端调试时关注 trace_id、policy 和 last_error。</p>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="terminal">
+                  <div><span class="blue-text">[console]</span> GET /api/dashboard 200 trace_id=dashboard</div>
+                  <div><span class="green-text">[worker]</span> job=m3_pre_meeting status=done</div>
+                  <div><span class="amber-text">[policy]</span> write_action=dry_run allow_write=false</div>
+                  <div><span class="blue-text">[rag]</span> indexed doc_chunks=42 source=feishu_docx</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="m3" class="page">
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">M3 Pre-meeting</div>
+                <h2>会前背景卡</h2>
+                <p>日历定位会议，整合飞书文档、妙记和历史知识，确认后发送到测试群。</p>
+              </div>
+              <span class="status green">默认 dry-run</span>
+            </div>
+            <div class="panel-body grid cols-2">
+              <div>
+                <div class="form-grid">
+                  <label>会议标题<input value="MeetFlow 测试会议" /></label>
+                  <label>日历 ID<input value="primary" /></label>
+                  <label>飞书文档<input value="https://example.feishu.cn/docx/..." /></label>
+                  <label>飞书妙记<input value="https://example.feishu.cn/minutes/..." /></label>
+                  <label>LLM Provider<select><option>settings</option><option>scripted_debug</option></select></label>
+                  <label>幂等后缀<input value="demo-20260514" /></label>
+                </div>
+                <div class="actions" style="margin-top: 16px">
+                  <span class="button secondary">Dry-run</span>
+                  <span class="button danger">确认真实发卡</span>
+                </div>
+              </div>
+              <div class="steps">
+                <div class="step"><div class="step-index">1</div><div><strong>配置参数</strong><br />选择日期、标题或 event_id</div><span class="status blue">active</span></div>
+                <div class="step"><div class="step-index">2</div><div><strong>连接飞书</strong><br />user 身份读取日历与资料</div><span class="status amber">pending</span></div>
+                <div class="step"><div class="step-index">3</div><div><strong>生成卡片</strong><br />RAG 证据包和会前建议</div><span class="status amber">pending</span></div>
+                <div class="step"><div class="step-index">4</div><div><strong>查看结果</strong><br />trace_id、报告和 stdout</div><span class="status amber">pending</span></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="m4" class="page">
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">M4 Post-meeting</div>
+                <h2>会后总结与任务卡</h2>
+                <p>读取会议妙记，生成结构化复盘、关键结论、开放问题和待确认行动项。</p>
+              </div>
+              <span class="status blue">任务待确认</span>
+            </div>
+            <div class="panel-body grid cols-2">
+              <div class="card">
+                <h3>会后总结卡</h3>
+                <p>本次会议确认了 SDK 长连接回调、M4 卡片回调和 worker 入队策略，下一步需要补齐 RAG 文档变更监听。</p>
+                <div class="pill-row">
+                  <span class="pill">关键结论 4 条</span>
+                  <span class="pill">开放问题 2 条</span>
+                  <span class="pill">相关知识 5 条</span>
+                </div>
+              </div>
+              <div class="card">
+                <h3>任务卡</h3>
+                <table>
+                  <thead>
+                    <tr><th>任务</th><th>负责人</th><th>截止</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>完成 RAG 监听脚本演示</td><td>李健文</td><td>2026-05-15</td></tr>
+                    <tr><td>录制 4 分钟 Demo 视频</td><td>我</td><td>2026-05-14</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="m5" class="page">
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">M5 Risk Scan</div>
+                <h2>任务风险提醒</h2>
+                <p>扫描逾期、临期、缺负责人、缺截止时间和长期未更新任务，并生成风险提醒卡。</p>
+              </div>
+              <span class="status red">写入需确认</span>
+            </div>
+            <div class="panel-body grid cols-2">
+              <div class="steps">
+                <div class="step"><div class="step-index">!</div><div><strong>逾期任务</strong><br />2 个任务已经超过截止时间</div><span class="status red">高</span></div>
+                <div class="step"><div class="step-index">↗</div><div><strong>临期任务</strong><br />3 个任务将在 24 小时内到期</div><span class="status amber">中</span></div>
+                <div class="step"><div class="step-index">?</div><div><strong>缺字段</strong><br />1 个任务缺少负责人或截止时间</div><span class="status blue">待补全</span></div>
+              </div>
+              <div class="terminal">
+                <div><span class="blue-text">$</span> meetflow workflow +risk-scan --backend feishu --dry-run</div>
+                <div><span class="green-text">scan</span> tasks=48 overdue=2 due_soon=3 missing_owner=1</div>
+                <div><span class="amber-text">policy</span> allow_write=false card_send=blocked_by_dry_run</div>
+                <div><span class="green-text">report</span> storage/reports/m5/risk_scan_demo.json</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tasks" class="page">
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="eyebrow">Task Tracking</div>
+                <h2>任务追踪</h2>
+                <p>确认 M4 按钮闭环和 M5 风险提醒是否产生可追踪记录。</p>
+              </div>
+            </div>
+            <div class="panel-body">
+              <table>
+                <thead>
+                  <tr><th>表</th><th>关键字段</th><th>用途</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Review Sessions</td><td>review_session_id / status / minute_token</td><td>跟踪会后任务确认流程</td></tr>
+                  <tr><td>Task Mappings</td><td>item_id / task_id / meeting_id</td><td>把会议行动项和飞书任务绑定</td></tr>
+                  <tr><td>Risk Notifications</td><td>risk_key / task_id / suppressed_until</td><td>避免重复发送风险提醒</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="evaluation" class="page">
+          <div class="grid cols-3">
+            <article class="card">
+              <h3>工具调用轨迹</h3>
+              <p>验证 M3 先取证再发卡、M4 缺字段需确认、M5 写入先过 Policy。</p>
+              <span class="status green">pass</span>
+            </article>
+            <article class="card">
+              <h3>Policy 安全门禁</h3>
+              <p>未授权写操作被拦截，真实写入必须传入 allow-write。</p>
+              <span class="status green">pass</span>
+            </article>
+            <article class="card">
+              <h3>可归档报告</h3>
+              <p>评测结果写入 reports，Dashboard 读取最新质量分。</p>
+              <span class="status blue">archived</span>
+            </article>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Agent Trajectory Cases</h2>
+                <p>每条 case 都代表一个业务约束。</p>
+              </div>
+              <span class="status green">quality 0.97</span>
+            </div>
+            <div class="panel-body">
+              <table>
+                <thead>
+                  <tr><th>Case</th><th>期望行为</th><th>结果</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>m3_pre_meeting</td><td>calendar -> rag -> policy -> card</td><td><span class="status green">pass</span></td></tr>
+                  <tr><td>m4_missing_owner</td><td>保持 pending，不盲目创建任务</td><td><span class="status green">pass</span></td></tr>
+                  <tr><td>m5_dry_run</td><td>生成卡 JSON，但不发送</td><td><span class="status green">pass</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const pages = Array.from(document.querySelectorAll(".page"));
+      const buttons = Array.from(document.querySelectorAll(".nav-button"));
+
+      function activate(pageId) {
+        pages.forEach((page) => page.classList.toggle("is-active", page.id === pageId));
+        buttons.forEach((button) => button.classList.toggle("is-active", button.dataset.page === pageId));
+        if (location.hash !== `#${pageId}`) {
+          history.replaceState(null, "", `#${pageId}`);
+        }
+      }
+
+      buttons.forEach((button) => {
+        button.addEventListener("click", () => activate(button.dataset.page));
+      });
+
+      const initialPage = location.hash.replace("#", "") || "dashboard";
+      if (pages.some((page) => page.id === initialPage)) {
+        activate(initialPage);
+      }
+    </script>
+  </body>
+</html>
